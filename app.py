@@ -15,6 +15,8 @@ from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
 from openai import OpenAI
+import firebase_admin
+from firebase_admin import credentials, db
 
 # Load environment variables
 load_dotenv()
@@ -34,10 +36,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.path.expanduser("~/movie-config/config.json")
 TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
+
+# Firebase Configuration
+FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH', '')
+FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', '')
+
+# Initialize Firebase
+firebase_app = None
+if FIREBASE_CREDENTIALS_PATH and FIREBASE_DATABASE_URL:
+    try:
+        if os.path.exists(FIREBASE_CREDENTIALS_PATH):
+            cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+            firebase_app = firebase_admin.initialize_app(cred, {
+                'databaseURL': FIREBASE_DATABASE_URL
+            })
+            logger.info("Firebase initialized successfully")
+        else:
+            logger.warning(f"Firebase credentials file not found at: {FIREBASE_CREDENTIALS_PATH}")
+    except Exception as e:
+        logger.error(f"Failed to initialize Firebase: {str(e)}")
+else:
+    logger.warning("Firebase credentials or database URL not configured")
 
 # Supported media file extensions
 MEDIA_EXTENSIONS = {
@@ -46,14 +69,20 @@ MEDIA_EXTENSIONS = {
 }
 
 class Config:
-    """Manages the application configuration including movie file paths."""
+    """Manages the application configuration including movie file paths using local JSON storage."""
     
-    def __init__(self, config_file: str = CONFIG_FILE):
+    def __init__(self, config_file: str = CONFIG_FILE, use_firebase: bool = False):
         self.config_file = config_file
-        self.data = self._load_config()
+        self.use_firebase = use_firebase and firebase_app is not None
+        self.firebase_ref = db.reference('movie_config') if self.use_firebase else None
+        
+        # Initialize with local JSON config (Firebase disabled by default)
+        if not self.use_firebase:
+            logger.info(f"Using local JSON config at: {self.config_file}")
+            self.data = self._load_local_config()
     
-    def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from JSON file."""
+    def _load_local_config(self) -> Dict[str, Any]:
+        """Load configuration from local JSON file (fallback)."""
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
@@ -67,35 +96,108 @@ class Config:
             "tmdb_api_key": TMDB_API_KEY
         }
     
-    def _save_config(self) -> None:
-        """Save configuration to JSON file."""
+    def _save_local_config(self) -> None:
+        """Save configuration to local JSON file (fallback)."""
         try:
             with open(self.config_file, 'w') as f:
                 json.dump(self.data, f, indent=2)
         except IOError as e:
-            raise Exception(f"Failed to save configuration: {str(e)}")
+            raise Exception(f"Failed to save local configuration: {str(e)}")
+    
+    def _get_firebase_data(self) -> Dict[str, Any]:
+        """Get configuration data from Firebase."""
+        try:
+            data = self.firebase_ref.get()
+            if data is None:
+                # Initialize Firebase with default data
+                default_data = {
+                    "movie_file_paths": [],
+                    "tmdb_api_key": TMDB_API_KEY
+                }
+                self.firebase_ref.set(default_data)
+                return default_data
+            return data
+        except Exception as e:
+            logger.error(f"Failed to get Firebase data: {str(e)}")
+            raise Exception(f"Failed to get Firebase configuration: {str(e)}")
+    
+    def _save_firebase_data(self, data: Dict[str, Any]) -> None:
+        """Save configuration data to Firebase."""
+        try:
+            self.firebase_ref.set(data)
+        except Exception as e:
+            logger.error(f"Failed to save Firebase data: {str(e)}")
+            raise Exception(f"Failed to save Firebase configuration: {str(e)}")
     
     def get_movie_paths(self) -> List[str]:
         """Get list of movie file paths."""
-        return self.data.get("movie_file_paths", [])
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                return data.get("movie_file_paths", [])
+            except Exception as e:
+                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                return self.data.get("movie_file_paths", [])
+        else:
+            return self.data.get("movie_file_paths", [])
     
     def add_movie_path(self, path: str) -> bool:
         """Add a movie file path if it doesn't already exist."""
-        paths = self.data.setdefault("movie_file_paths", [])
-        if path not in paths:
-            paths.append(path)
-            self._save_config()
-            return True
-        return False
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                paths = data.setdefault("movie_file_paths", [])
+                if path not in paths:
+                    paths.append(path)
+                    self._save_firebase_data(data)
+                    logger.info(f"Added path to Firebase: {path}")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Firebase error when adding path, falling back to local: {str(e)}")
+                # Fallback to local storage
+                paths = self.data.setdefault("movie_file_paths", [])
+                if path not in paths:
+                    paths.append(path)
+                    self._save_local_config()
+                    return True
+                return False
+        else:
+            paths = self.data.setdefault("movie_file_paths", [])
+            if path not in paths:
+                paths.append(path)
+                self._save_local_config()
+                return True
+            return False
     
     def remove_movie_path(self, path: str) -> bool:
         """Remove a movie file path."""
-        paths = self.data.get("movie_file_paths", [])
-        if path in paths:
-            paths.remove(path)
-            self._save_config()
-            return True
-        return False
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                paths = data.get("movie_file_paths", [])
+                if path in paths:
+                    paths.remove(path)
+                    self._save_firebase_data(data)
+                    logger.info(f"Removed path from Firebase: {path}")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Firebase error when removing path, falling back to local: {str(e)}")
+                # Fallback to local storage
+                paths = self.data.get("movie_file_paths", [])
+                if path in paths:
+                    paths.remove(path)
+                    self._save_local_config()
+                    return True
+                return False
+        else:
+            paths = self.data.get("movie_file_paths", [])
+            if path in paths:
+                paths.remove(path)
+                self._save_local_config()
+                return True
+            return False
 
 # Initialize configuration
 config = Config()
@@ -372,7 +474,10 @@ def health_check():
         'status': 'healthy',
         'movie_paths_count': len(config.get_movie_paths()),
         'tmdb_configured': bool(TMDB_API_KEY),
-        'openai_configured': bool(OPENAI_API_KEY)
+        'openai_configured': bool(OPENAI_API_KEY),
+        'firebase_configured': bool(firebase_app),
+        'firebase_connection': config.use_firebase,
+        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON'
     })
 
 @app.errorhandler(404)
@@ -389,7 +494,9 @@ if __name__ == '__main__':
     logger.info("Starting Movie Management API...")
     logger.info(f"TMDB API configured: {bool(TMDB_API_KEY)}")
     logger.info(f"OpenAI API configured: {bool(OPENAI_API_KEY)}")
-    logger.info(f"Config file: {CONFIG_FILE}")
+    logger.info(f"Firebase configured: {bool(firebase_app)}")
+    logger.info(f"Storage type: {'Firebase' if config.use_firebase else 'Local JSON'}")
+    logger.info(f"Config file (fallback): {CONFIG_FILE}")
     logger.info(f"Movie paths configured: {len(config.get_movie_paths())}")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
