@@ -37,4 +37,5 @@ jobs:
             -v /mnt/external/seagate/Movies:/mnt/external/movies \
             -v /mnt/external/seagate/Downloads:/mnt/external/downloads \
             -e TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
             ${{ secrets.DOCKER_USERNAME }}/movie-api:latest
