@@ -19,7 +19,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # Load environment variables
-load_dotenv()
+load_dotenv('env')
 
 app = Flask(__name__)
 CORS(app)
@@ -47,6 +47,9 @@ FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', '')
 
 # Initialize Firebase
 firebase_app = None
+logger.info(f"Firebase credentials path: {FIREBASE_CREDENTIALS_PATH}")
+logger.info(f"Firebase database URL: {FIREBASE_DATABASE_URL}")
+
 if FIREBASE_CREDENTIALS_PATH and FIREBASE_DATABASE_URL:
     try:
         if os.path.exists(FIREBASE_CREDENTIALS_PATH):
