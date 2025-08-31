@@ -19,7 +19,10 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # Load environment variables
-load_dotenv('env')
+env_path = os.path.join(os.path.dirname(__file__), 'env')
+print(f"Loading env file from: {env_path}")
+print(f"Env file exists: {os.path.exists(env_path)}")
+load_dotenv(env_path)
 
 app = Flask(__name__)
 CORS(app)
