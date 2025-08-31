@@ -270,7 +270,15 @@ class OpenAIClient:
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = OpenAI(api_key=api_key) if api_key else None
+        if api_key:
+            try:
+                # Initialize OpenAI client with minimal parameters to avoid proxy issues
+                self.client = OpenAI(api_key=api_key)
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+                self.client = None
+        else:
+            self.client = None
     
     def clean_filename(self, filename: str) -> Dict[str, Any]:
         """Clean a movie filename using OpenAI to extract the movie title."""
