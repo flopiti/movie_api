@@ -99,6 +99,7 @@ class Config:
     def _save_local_config(self) -> None:
         """Save configuration to local JSON file (fallback)."""
         try:
+            
             # Ensure the parent directory exists
             config_dir = os.path.dirname(self.config_file)
             os.makedirs(config_dir, exist_ok=True)
