@@ -20,9 +20,27 @@ from firebase_admin import credentials, db
 
 # Load environment variables
 env_path = os.path.join(os.path.dirname(__file__), 'env')
-print(f"Loading env file from: {env_path}")
-print(f"Env file exists: {os.path.exists(env_path)}")
-load_dotenv(env_path)
+print(f"DEBUG: Loading env file from: {env_path}")
+print(f"DEBUG: Env file exists: {os.path.exists(env_path)}")
+if os.path.exists(env_path):
+    print(f"DEBUG: Env file contents preview:")
+    with open(env_path, 'r') as f:
+        lines = f.readlines()[:3]  # First 3 lines
+        for i, line in enumerate(lines, 1):
+            print(f"DEBUG: Line {i}: {line.strip()}")
+    load_dotenv(env_path)
+    print(f"DEBUG: After loading dotenv - FIREBASE_CREDENTIALS_PATH: '{os.getenv('FIREBASE_CREDENTIALS_PATH', 'NOT_SET')}'")
+    print(f"DEBUG: After loading dotenv - FIREBASE_DATABASE_URL: '{os.getenv('FIREBASE_DATABASE_URL', 'NOT_SET')}'")
+else:
+    print("DEBUG: Env file not found, trying to load from current directory")
+    load_dotenv('env')
+    print(f"DEBUG: After loading 'env' - FIREBASE_CREDENTIALS_PATH: '{os.getenv('FIREBASE_CREDENTIALS_PATH', 'NOT_SET')}'")
+    print(f"DEBUG: After loading 'env' - FIREBASE_DATABASE_URL: '{os.getenv('FIREBASE_DATABASE_URL', 'NOT_SET')}'")
+    
+    # Try loading .env as well
+    if os.path.exists('.env'):
+        print("DEBUG: Found .env file, loading it too")
+        load_dotenv('.env')
 
 app = Flask(__name__)
 CORS(app)
