@@ -32,6 +32,7 @@ logging.basicConfig(
         logging.FileHandler('movie_api.log'),
         logging.StreamHandler()
     ]
+    
 )
 logger = logging.getLogger(__name__)
 
