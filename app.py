@@ -71,12 +71,12 @@ MEDIA_EXTENSIONS = {
 class Config:
     """Manages the application configuration including movie file paths using local JSON storage."""
     
-    def __init__(self, config_file: str = CONFIG_FILE, use_firebase: bool = False):
+    def __init__(self, config_file: str = CONFIG_FILE, use_firebase: bool = True):
         self.config_file = config_file
         self.use_firebase = use_firebase and firebase_app is not None
         self.firebase_ref = db.reference('movie_config') if self.use_firebase else None
         
-        # Initialize with local JSON config (Firebase disabled by default)
+        # Initialize with local JSON config as fallback if Firebase is not available
         if not self.use_firebase:
             logger.info(f"Using local JSON config at: {self.config_file}")
             self.data = self._load_local_config()
@@ -204,8 +204,8 @@ class Config:
                 return True
             return False
 
-# Initialize configuration
-config = Config()
+# Initialize configuration with Firebase enabled by default when available
+config = Config(use_firebase=True)
 
 class FileDiscovery:
     """Handles recursive file discovery in movie directories."""
