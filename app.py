@@ -554,8 +554,8 @@ class OpenAIClient:
         
         logger.info(f"Cleaning filename with OpenAI: {filename}")
         
-        # Create a prompt to extract clean movie title from filename
-        prompt = f"""
+        # Step 1: Initial cleaning
+        initial_prompt = f"""
 You are a movie filename parser. I will provide you with a movie filename, and you must extract the clean movie title.
 
 IMPORTANT: You must ALWAYS process the filename I give you. Never ask for clarification or more information.
@@ -596,36 +596,99 @@ Filename to process: {filename}
 Extract the clean movie title from this filename:"""
 
         try:
+            # Step 1: Initial cleaning
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, edition indicators (Directors Cut, Extended Cut, etc.), and technical metadata. Preserve director names and actor names when they help identify the movie. Never ask for clarification."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": initial_prompt}
                 ],
                 max_tokens=100,
                 temperature=0.1
             )
             
-            cleaned_title = response.choices[0].message.content.strip()
+            initial_cleaned_title = response.choices[0].message.content.strip()
             
             # Check if OpenAI returned a generic response asking for clarification
-            # If so, fall back to using the original filename without extension
-            if any(phrase in cleaned_title.lower() for phrase in [
+            if any(phrase in initial_cleaned_title.lower() for phrase in [
                 "please provide", "could you provide", "i'm here to help", 
                 "can you provide", "need the filename", "missing", "clarification"
             ]):
                 # Extract filename without extension as fallback
                 import os
-                cleaned_title = os.path.splitext(os.path.basename(filename))[0]
-                logger.warning(f"OpenAI returned generic response, using filename fallback: '{cleaned_title}'")
-            else:
-                logger.info(f"OpenAI cleaned '{filename}' to '{cleaned_title}'")
+                initial_cleaned_title = os.path.splitext(os.path.basename(filename))[0]
+                logger.warning(f"OpenAI returned generic response, using filename fallback: '{initial_cleaned_title}'")
             
-            return {
-                "cleaned_title": cleaned_title,
-                "original_filename": filename,
-                "success": True
-            }
+            logger.info(f"OpenAI initial cleaning: '{filename}' to '{initial_cleaned_title}'")
+            
+            # Step 2: Check if the result needs further cleaning and ask for alternative
+            # Look for patterns that suggest the title still has unwanted elements
+            unwanted_patterns = [
+                '~', '(', ')', '[', ']', '|', '\\', '/', ':', ';', '=', '+', '*', '?', '<', '>', '"', "'",
+                'BluRay', 'x264', 'x265', '1080p', '720p', '4K', 'HDR', 'WEBRIP', 'HDRip', 'BRRip',
+                'YIFY', 'RARBG', 'TGx', 'EVO', 'FUM', 'Dual', 'Multi', 'Eng', 'Jps', 'Rus', 'Ukr',
+                '5.1', '2.0', 'DTS', 'AC3', 'AAC', 'Subs', 'Subbed', 'Subtitles'
+            ]
+            
+            needs_further_cleaning = any(pattern in initial_cleaned_title for pattern in unwanted_patterns)
+            
+            if needs_further_cleaning:
+                logger.info(f"Initial cleaning still contains unwanted elements, asking for alternative: '{initial_cleaned_title}'")
+                
+                # Step 2: Ask for alternative cleaner version
+                alternative_prompt = f"""
+The previous cleaning of this filename still contains unwanted elements. Please provide a cleaner alternative version.
+
+Original filename: {filename}
+Previous cleaning result: {initial_cleaned_title}
+
+Please provide a cleaner version that removes ALL of these elements:
+- Any text after ~ (tilde)
+- Any text in parentheses or brackets
+- Any quality indicators (BluRay, x264, 1080p, etc.)
+- Any release group names
+- Any audio/video codec information
+- Any language indicators
+- Any subtitle information
+- Any audio track information
+- Any special characters like ~, |, \\, /, etc.
+
+Focus ONLY on the core movie title. If you're unsure about a word, remove it.
+
+Examples of what to remove:
+- "Cars 2 ~Invincible" → "Cars 2"
+- "The Matrix (1999) [YIFY]" → "The Matrix"
+- "Inception 1080p BluRay x264" → "Inception"
+
+Provide ONLY the clean movie title:"""
+
+                alternative_response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a movie title cleaner. Remove ALL unwanted elements and provide ONLY the core movie title. Be aggressive in removing uncertain elements."},
+                        {"role": "user", "content": alternative_prompt}
+                    ],
+                    max_tokens=50,
+                    temperature=0.1
+                )
+                
+                final_cleaned_title = alternative_response.choices[0].message.content.strip()
+                logger.info(f"OpenAI alternative cleaning: '{initial_cleaned_title}' to '{final_cleaned_title}'")
+                
+                return {
+                    "cleaned_title": final_cleaned_title,
+                    "original_filename": filename,
+                    "initial_cleaning": initial_cleaned_title,
+                    "alternative_cleaning": final_cleaned_title,
+                    "success": True
+                }
+            else:
+                logger.info(f"OpenAI cleaned '{filename}' to '{initial_cleaned_title}' (no further cleaning needed)")
+                return {
+                    "cleaned_title": initial_cleaned_title,
+                    "original_filename": filename,
+                    "success": True
+                }
             
         except Exception as e:
             logger.error(f"OpenAI API error for filename '{filename}': {str(e)}")
