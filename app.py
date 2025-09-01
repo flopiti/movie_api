@@ -137,7 +137,8 @@ class Config:
                 # Initialize Firebase with default data
                 default_data = {
                     "movie_file_paths": [],
-                    "tmdb_api_key": TMDB_API_KEY
+                    "tmdb_api_key": TMDB_API_KEY,
+                    "movie_assignments": {}  # CRITICAL: This was missing!
                 }
                 self.firebase_ref.set(default_data)
                 return default_data
@@ -315,6 +316,7 @@ class Config:
                     self._save_firebase_data(data)
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
+                
                 return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
