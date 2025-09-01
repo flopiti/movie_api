@@ -968,6 +968,65 @@ def rename_folder():
         logger.error(f"Error renaming folder: {str(e)}")
         return jsonify({'error': f'Failed to rename folder: {str(e)}'}), 500
 
+@app.route('/delete-file', methods=['DELETE'])
+def delete_file():
+    """Delete a movie file from the filesystem."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data:
+        return jsonify({'error': 'file_path is required'}), 400
+    
+    file_path = data['file_path'].strip()
+    
+    if not file_path:
+        return jsonify({'error': 'file_path cannot be empty'}), 400
+    
+    try:
+        file_to_delete = Path(file_path)
+        
+        # Validate file exists
+        if not file_to_delete.exists():
+            return jsonify({'error': 'File does not exist'}), 404
+        
+        # Validate it's actually a file (not a directory)
+        if not file_to_delete.is_file():
+            return jsonify({'error': 'Path is not a file'}), 400
+        
+        # Check if it's a media file (safety check)
+        if not FileDiscovery.is_media_file(file_to_delete):
+            return jsonify({'error': 'File is not a supported media file'}), 400
+        
+        # Store file info before deletion for response
+        file_name = file_to_delete.name
+        file_size = file_to_delete.stat().st_size
+        
+        # Remove movie assignment if it exists
+        movie_assignments = config.get_movie_assignments()
+        had_assignment = file_path in movie_assignments
+        if had_assignment:
+            config.remove_movie_assignment(file_path)
+            logger.info(f"Removed movie assignment for deleted file: {file_path}")
+        
+        # Delete the file
+        file_to_delete.unlink()
+        
+        logger.info(f"Successfully deleted file: {file_path} (size: {file_size} bytes)")
+        
+        return jsonify({
+            'message': 'File deleted successfully',
+            'file_path': file_path,
+            'file_name': file_name,
+            'file_size': file_size,
+            'had_movie_assignment': had_assignment
+        }), 200
+        
+    except PermissionError:
+        logger.error(f"Permission denied when trying to delete file: {file_path}")
+        return jsonify({'error': 'Permission denied. Cannot delete file.'}), 403
+    except Exception as e:
+        logger.error(f"Error deleting file: {str(e)}")
+        return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
+
 @app.route('/debug-assignments', methods=['GET'])
 def debug_assignments():
     """Debug endpoint to check movie assignments."""
