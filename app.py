@@ -1110,18 +1110,7 @@ def delete_file():
         logger.error(f"Error deleting file: {str(e)}")
         return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
 
-@app.route('/debug-assignments', methods=['GET'])
-def debug_assignments():
-    """Debug endpoint to check movie assignments."""
-    try:
-        assignments = config.get_movie_assignments()
-        return jsonify({
-            'assignments_count': len(assignments),
-            'assignments': assignments,
-            'assignment_keys': list(assignments.keys())
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
