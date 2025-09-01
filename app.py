@@ -575,15 +575,20 @@ Your goal is to extract ONLY the core movie title for TMDB search purposes. Remo
 - Extra periods, underscores, and dashes used as separators
 - Any other technical metadata
 
-IMPORTANT: DO NOT remove or modify:
+CRITICAL: DO NOT remove or modify:
 - Director names (e.g., "by Christopher Nolan", "dir. Spielberg")
 - Actor names that are part of the title
 - Original movie titles in other languages
 - Subtitle information that helps identify the movie
+- Movie sequel numbers (e.g., "Cars 2", "Toy Story 3", "The Matrix 2", "Iron Man 2")
+- Roman numerals in titles (e.g., "Rocky IV", "Star Wars Episode IV")
 
 Examples:
 - "Akira Anime Eng Jps Rus Ukr Multi Subs" → "Akira"
 - "The Matrix 1999 1080p BluRay x264" → "The Matrix"
+- "Cars 2 (2011) 1080p BluRay x264" → "Cars 2"
+- "Toy Story 3 2010 720p WEBRip" → "Toy Story 3"
+- "Iron Man 2 2010 BluRay x264" → "Iron Man 2"
 - "Inception by Christopher Nolan 2010" → "Inception by Christopher Nolan"
 - "Alien Resurrection Directors Cut 1997" → "Alien Resurrection"
 - "Blade Runner Final Cut 1982" → "Blade Runner"
@@ -600,7 +605,7 @@ Extract the clean movie title from this filename:"""
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, edition indicators (Directors Cut, Extended Cut, etc.), and technical metadata. Preserve director names and actor names when they help identify the movie. Never ask for clarification."},
+                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, edition indicators (Directors Cut, Extended Cut, etc.), and technical metadata. Preserve director names, actor names, and CRITICALLY preserve movie sequel numbers (like Cars 2, Toy Story 3, Iron Man 2) when they help identify the movie. Never ask for clarification."},
                     {"role": "user", "content": initial_prompt}
                 ],
                 max_tokens=100,
@@ -653,10 +658,14 @@ Please provide a cleaner version that removes ALL of these elements:
 - Any audio track information
 - Any special characters like ~, |, \\, /, etc.
 
+CRITICAL: Preserve movie sequel numbers and Roman numerals in titles (e.g., "Cars 2", "Toy Story 3", "Iron Man 2", "Rocky IV")
+
 Focus ONLY on the core movie title. If you're unsure about a word, remove it.
 
 Examples of what to remove:
 - "Cars 2 ~Invincible" → "Cars 2"
+- "Cars 2 (2011) 1080p BluRay x264" → "Cars 2"
+- "Toy Story 3 2010 720p WEBRip" → "Toy Story 3"
 - "The Matrix (1999) [YIFY]" → "The Matrix"
 - "Inception 1080p BluRay x264" → "Inception"
 
@@ -665,7 +674,7 @@ Provide ONLY the clean movie title:"""
                 alternative_response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a movie title cleaner. Remove ALL unwanted elements and provide ONLY the core movie title. Be aggressive in removing uncertain elements."},
+                        {"role": "system", "content": "You are a movie title cleaner. Remove ALL unwanted elements and provide ONLY the core movie title. Be aggressive in removing uncertain elements, but CRITICALLY preserve movie sequel numbers (like Cars 2, Toy Story 3, Iron Man 2) and Roman numerals in titles."},
                         {"role": "user", "content": alternative_prompt}
                     ],
                     max_tokens=50,
