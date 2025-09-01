@@ -8,6 +8,7 @@ with TMDB API integration for movie metadata.
 import os
 import json
 import logging
+import base64
 from pathlib import Path
 from typing import List, Dict, Any
 from flask import Flask, request, jsonify
@@ -75,6 +76,16 @@ MEDIA_EXTENSIONS = {
 
 class Config:
     """Manages the application configuration including movie file paths using local JSON storage."""
+    
+    @staticmethod
+    def _encode_path_for_firebase(path: str) -> str:
+        """Encode file path to be safe for Firebase keys."""
+        return base64.urlsafe_b64encode(path.encode('utf-8')).decode('ascii')
+    
+    @staticmethod
+    def _decode_path_from_firebase(encoded_path: str) -> str:
+        """Decode Firebase key back to file path."""
+        return base64.urlsafe_b64decode(encoded_path.encode('ascii')).decode('utf-8')
     
     def __init__(self, config_file: str = CONFIG_FILE, use_firebase: bool = True):
         self.config_file = config_file
@@ -226,7 +237,21 @@ class Config:
         if self.use_firebase:
             try:
                 data = self._get_firebase_data()
-                return data.get("movie_assignments", {})
+                encoded_assignments = data.get("movie_assignments", {})
+                
+                # Decode Firebase keys back to original file paths
+                decoded_assignments = {}
+                for encoded_path, movie_data in encoded_assignments.items():
+                    try:
+                        # Try to decode - if it fails, assume it's already a plain path (backward compatibility)
+                        original_path = movie_data.get('original_path') or self._decode_path_from_firebase(encoded_path)
+                        decoded_assignments[original_path] = movie_data
+                    except Exception as decode_e:
+                        logger.warning(f"Failed to decode path {encoded_path}, using as-is: {str(decode_e)}")
+                        decoded_assignments[encoded_path] = movie_data
+                
+                logger.info(f"📚 Decoded {len(decoded_assignments)} assignments from Firebase")
+                return decoded_assignments
             except Exception as e:
                 logger.error(f"Firebase error, falling back to local config: {str(e)}")
                 return self.data.get("movie_assignments", {})
@@ -247,7 +272,11 @@ class Config:
                 assignments = data.setdefault("movie_assignments", {})
                 logger.info(f"📊 Current assignments count: {len(assignments)}")
                 
-                assignments[file_path] = movie_data
+                # Encode file path for Firebase (Firebase keys can't contain / . etc.)
+                encoded_path = self._encode_path_for_firebase(file_path)
+                logger.info(f"🔑 Encoded path: {encoded_path}")
+                
+                assignments[encoded_path] = {**movie_data, 'original_path': file_path}
                 logger.info(f"➕ Added assignment, new count: {len(assignments)}")
                 
                 logger.info("💾 Saving to Firebase...")
