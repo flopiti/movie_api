@@ -138,9 +138,17 @@ class Config:
     def _save_firebase_data(self, data: Dict[str, Any]) -> None:
         """Save configuration data to Firebase."""
         try:
+            logger.info(f"🔥 Firebase ref path: {self.firebase_ref.path if self.firebase_ref else 'None'}")
+            logger.info(f"🔥 Data to save keys: {list(data.keys())}")
+            if 'movie_assignments' in data:
+                logger.info(f"🔥 Movie assignments count: {len(data['movie_assignments'])}")
+                logger.info(f"🔥 Assignment file paths: {list(data['movie_assignments'].keys())}")
+            
             self.firebase_ref.set(data)
+            logger.info("🔥 Firebase ref.set() completed successfully!")
         except Exception as e:
-            logger.error(f"Failed to save Firebase data: {str(e)}")
+            logger.error(f"🔥 Firebase ref.set() failed: {str(e)}")
+            logger.error(f"🔥 Exception type: {type(e).__name__}")
             raise Exception(f"Failed to save Firebase configuration: {str(e)}")
     
     def get_movie_paths(self) -> List[str]:
@@ -227,25 +235,43 @@ class Config:
     
     def assign_movie_to_file(self, file_path: str, movie_data: Dict[str, Any]) -> bool:
         """Assign a movie to a file."""
+        logger.info(f"🎬 ASSIGN MOVIE START: {movie_data.get('title', 'Unknown')} -> {file_path}")
+        logger.info(f"🔥 Using Firebase: {self.use_firebase}")
+        
         if self.use_firebase:
             try:
+                logger.info("📡 Getting Firebase data...")
                 data = self._get_firebase_data()
+                logger.info(f"📡 Firebase data keys: {list(data.keys()) if data else 'None'}")
+                
                 assignments = data.setdefault("movie_assignments", {})
+                logger.info(f"📊 Current assignments count: {len(assignments)}")
+                
                 assignments[file_path] = movie_data
+                logger.info(f"➕ Added assignment, new count: {len(assignments)}")
+                
+                logger.info("💾 Saving to Firebase...")
                 self._save_firebase_data(data)
-                logger.info(f"Assigned movie '{movie_data.get('title', 'Unknown')}' to file: {file_path}")
+                logger.info("✅ Firebase save completed!")
+                
+                logger.info(f"🎉 SUCCESS: Movie '{movie_data.get('title', 'Unknown')}' assigned to Firebase!")
                 return True
             except Exception as e:
-                logger.error(f"Firebase error when assigning movie, falling back to local: {str(e)}")
+                logger.error(f"❌ FIREBASE FAILED: {str(e)}")
+                logger.error(f"Exception type: {type(e).__name__}")
                 # Fallback to local storage
+                logger.info("🔄 Falling back to local storage...")
                 assignments = self.data.setdefault("movie_assignments", {})
                 assignments[file_path] = movie_data
                 self._save_local_config()
+                logger.info("✅ Local fallback completed!")
                 return True
         else:
+            logger.info("💾 Using local storage only...")
             assignments = self.data.setdefault("movie_assignments", {})
             assignments[file_path] = movie_data
             self._save_local_config()
+            logger.info("✅ Local save completed!")
             return True
     
     def remove_movie_assignment(self, file_path: str) -> bool:
