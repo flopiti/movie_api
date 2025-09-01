@@ -1330,32 +1330,28 @@ def find_duplicates():
         for file_path, movie_data in movie_assignments.items():
             movie_id = movie_data.get('id')
             if movie_id:
-                if movie_id not in movie_groups:
-                    movie_groups[movie_id] = {
-                        'movie_info': {
-                            'id': movie_id,
-                            'title': movie_data.get('title', 'Unknown'),
-                            'release_date': movie_data.get('release_date'),
-                            'vote_average': movie_data.get('vote_average')
-                        },
-                        'files': []
-                    }
-                
-                # Check if file exists and get its properties
-                file_exists = os.path.exists(file_path)
-                file_size = os.path.getsize(file_path) if file_exists else 0
-                file_modified = int(os.path.getmtime(file_path)) if file_exists else 0
-                
-                movie_groups[movie_id]['files'].append({
-                    'path': file_path,
-                    'name': os.path.basename(file_path),
-                    'directory': os.path.dirname(file_path),
-                    'size': file_size,
-                    'modified': file_modified,
-                    'exists': file_exists
-                })
+                # ONLY include files that actually exist
+                if os.path.exists(file_path):
+                    if movie_id not in movie_groups:
+                        movie_groups[movie_id] = {
+                            'movie_info': {
+                                'id': movie_id,
+                                'title': movie_data.get('title', 'Unknown'),
+                                'release_date': movie_data.get('release_date'),
+                                'vote_average': movie_data.get('vote_average')
+                            },
+                            'files': []
+                        }
+                    
+                    movie_groups[movie_id]['files'].append({
+                        'path': file_path,
+                        'name': os.path.basename(file_path),
+                        'directory': os.path.dirname(file_path),
+                        'size': os.path.getsize(file_path),
+                        'modified': int(os.path.getmtime(file_path))
+                    })
         
-        # Filter to only include movies with multiple files
+        # Filter to only include movies with multiple EXISTING files
         duplicates = {
             movie_id: group_data 
             for movie_id, group_data in movie_groups.items() 
@@ -1364,19 +1360,10 @@ def find_duplicates():
         
         logger.info(f"Found {len(duplicates)} movies with duplicate files")
         
-        # Log some debug information about file existence
-        total_files = sum(len(group['files']) for group in duplicates.values())
-        existing_files = sum(
-            sum(1 for file in group['files'] if file['exists']) 
-            for group in duplicates.values()
-        )
-        logger.info(f"Total duplicate files: {total_files}, Existing files: {existing_files}")
-        
         return jsonify({
             'duplicates': duplicates,
             'total_duplicate_movies': len(duplicates),
-            'total_duplicate_files': total_files,
-            'existing_files': existing_files
+            'total_duplicate_files': sum(len(group['files']) for group in duplicates.values())
         }), 200
         
     except Exception as e:
