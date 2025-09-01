@@ -208,6 +208,70 @@ class Config:
                 self._save_local_config()
                 return True
             return False
+    
+    def get_movie_assignments(self) -> Dict[str, Dict[str, Any]]:
+        """Get all movie assignments for files."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                return data.get("movie_assignments", {})
+            except Exception as e:
+                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                return self.data.get("movie_assignments", {})
+        else:
+            return self.data.get("movie_assignments", {})
+    
+    def assign_movie_to_file(self, file_path: str, movie_data: Dict[str, Any]) -> bool:
+        """Assign a movie to a file."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                assignments = data.setdefault("movie_assignments", {})
+                assignments[file_path] = movie_data
+                self._save_firebase_data(data)
+                logger.info(f"Assigned movie '{movie_data.get('title', 'Unknown')}' to file: {file_path}")
+                return True
+            except Exception as e:
+                logger.error(f"Firebase error when assigning movie, falling back to local: {str(e)}")
+                # Fallback to local storage
+                assignments = self.data.setdefault("movie_assignments", {})
+                assignments[file_path] = movie_data
+                self._save_local_config()
+                return True
+        else:
+            assignments = self.data.setdefault("movie_assignments", {})
+            assignments[file_path] = movie_data
+            self._save_local_config()
+            return True
+    
+    def remove_movie_assignment(self, file_path: str) -> bool:
+        """Remove a movie assignment from a file."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                assignments = data.get("movie_assignments", {})
+                if file_path in assignments:
+                    del assignments[file_path]
+                    self._save_firebase_data(data)
+                    logger.info(f"Removed movie assignment for file: {file_path}")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
+                # Fallback to local storage
+                assignments = self.data.get("movie_assignments", {})
+                if file_path in assignments:
+                    del assignments[file_path]
+                    self._save_local_config()
+                    return True
+                return False
+        else:
+            assignments = self.data.get("movie_assignments", {})
+            if file_path in assignments:
+                del assignments[file_path]
+                self._save_local_config()
+                return True
+            return False
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
@@ -221,7 +285,7 @@ class FileDiscovery:
         return file_path.suffix.lower() in MEDIA_EXTENSIONS
     
     @staticmethod
-    def discover_files(root_path: str) -> List[Dict[str, Any]]:
+    def discover_files(root_path: str, movie_assignments: Dict[str, Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Recursively discover all media files in a directory."""
         files = []
         root = Path(root_path)
@@ -229,16 +293,26 @@ class FileDiscovery:
         if not root.exists():
             return files
         
+        if movie_assignments is None:
+            movie_assignments = {}
+        
         try:
             for file_path in root.rglob('*'):
                 if file_path.is_file() and FileDiscovery.is_media_file(file_path):
-                    files.append({
-                        'path': str(file_path),
+                    file_path_str = str(file_path)
+                    file_info = {
+                        'path': file_path_str,
                         'name': file_path.name,
                         'size': file_path.stat().st_size,
                         'modified': file_path.stat().st_mtime,
                         'directory': str(file_path.parent)
-                    })
+                    }
+                    
+                    # Add movie assignment if it exists
+                    if file_path_str in movie_assignments:
+                        file_info['movie'] = movie_assignments[file_path_str]
+                    
+                    files.append(file_info)
         except (PermissionError, OSError) as e:
             print(f"Error accessing {root_path}: {str(e)}")
         
@@ -433,8 +507,11 @@ def get_all_files():
             'message': 'No movie file paths configured'
         })
     
+    # Get movie assignments
+    movie_assignments = config.get_movie_assignments()
+    
     for path in paths:
-        files = FileDiscovery.discover_files(path)
+        files = FileDiscovery.discover_files(path, movie_assignments)
         for file_info in files:
             file_info['source_path'] = path
         all_files.extend(files)
@@ -492,6 +569,71 @@ def search_movie():
         logger.warning(f"TMDB search returned no results for '{search_query}'")
     
     return jsonify(response)
+
+@app.route('/assign-movie', methods=['POST'])
+def assign_movie():
+    """Assign a movie to a file."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data or 'movie' not in data:
+        return jsonify({'error': 'file_path and movie are required'}), 400
+    
+    file_path = data['file_path'].strip()
+    movie_data = data['movie']
+    
+    if not file_path:
+        return jsonify({'error': 'file_path cannot be empty'}), 400
+    
+    # Validate that the file exists
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'File does not exist'}), 400
+    
+    # Validate movie data has required fields
+    if not isinstance(movie_data, dict) or 'title' not in movie_data:
+        return jsonify({'error': 'Movie data must include title'}), 400
+    
+    try:
+        if config.assign_movie_to_file(file_path, movie_data):
+            logger.info(f"Successfully assigned movie '{movie_data.get('title')}' to file: {file_path}")
+            return jsonify({
+                'message': 'Movie assigned successfully',
+                'file_path': file_path,
+                'movie': movie_data
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to assign movie'}), 500
+    except Exception as e:
+        logger.error(f"Error assigning movie: {str(e)}")
+        return jsonify({'error': f'Failed to assign movie: {str(e)}'}), 500
+
+@app.route('/remove-movie-assignment', methods=['DELETE'])
+def remove_movie_assignment():
+    """Remove a movie assignment from a file."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data:
+        return jsonify({'error': 'file_path is required'}), 400
+    
+    file_path = data['file_path'].strip()
+    
+    if not file_path:
+        return jsonify({'error': 'file_path cannot be empty'}), 400
+    
+    try:
+        if config.remove_movie_assignment(file_path):
+            logger.info(f"Successfully removed movie assignment for file: {file_path}")
+            return jsonify({
+                'message': 'Movie assignment removed successfully',
+                'file_path': file_path
+            }), 200
+        else:
+            return jsonify({
+                'message': 'No movie assignment found for this file',
+                'file_path': file_path
+            }), 404
+    except Exception as e:
+        logger.error(f"Error removing movie assignment: {str(e)}")
+        return jsonify({'error': f'Failed to remove movie assignment: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
