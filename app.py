@@ -312,15 +312,12 @@ class Config:
                 data = self._get_firebase_data()
                 assignments = data.get("movie_assignments", {})
                 
-                # Use encoded path for Firebase lookup
-                encoded_file_path = self._encode_path_for_firebase(file_path)
-                if encoded_file_path in assignments:
-                    del assignments[encoded_file_path]
+                if file_path in assignments:
+                    del assignments[file_path]
                     self._save_firebase_data(data)
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
                 
-                logger.info(f"No movie assignment found for file: {file_path} (encoded: {encoded_file_path})")
                 return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
@@ -1058,16 +1055,10 @@ def rename_file():
         
         # Update movie assignments if they exist
         movie_assignments = config.get_movie_assignments()
-        
-        # Find the assignment using the encoded path key
-        encoded_current_path = Config._encode_path_for_firebase(current_path)
-        if encoded_current_path in movie_assignments:
-            movie_data = movie_assignments[encoded_current_path]
-            logger.info(f"🔄 Updating movie assignment for renamed file: {current_path} -> {new_path}")
+        if current_path in movie_assignments:
+            movie_data = movie_assignments[current_path]
             config.remove_movie_assignment(current_path)
             config.assign_movie_to_file(str(new_path), movie_data)
-        else:
-            logger.info(f"ℹ️ No movie assignment found for file: {current_path}")
         
         logger.info(f"Successfully renamed file: {current_path} -> {new_path}")
         
@@ -1117,19 +1108,12 @@ def rename_folder():
         movie_assignments = config.get_movie_assignments()
         files_to_update = []
         
-        for encoded_file_path, movie_data in movie_assignments.items():
-            # Decode the Firebase path to get the actual file path
-            try:
-                actual_file_path = Config._decode_path_from_firebase(encoded_file_path)
-                if actual_file_path.startswith(current_folder_path):
-                    # Calculate the new file path after folder rename
-                    relative_path = Path(actual_file_path).relative_to(current_folder)
-                    new_file_path = new_folder_path / relative_path
-                    files_to_update.append((actual_file_path, str(new_file_path), movie_data))
-                    logger.info(f"🔄 Will update assignment: {actual_file_path} -> {new_file_path}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not decode Firebase path {encoded_file_path}: {e}")
-                continue
+        for file_path, movie_data in movie_assignments.items():
+            if file_path.startswith(current_folder_path):
+                # Calculate the new file path after folder rename
+                relative_path = Path(file_path).relative_to(current_folder)
+                new_file_path = new_folder_path / relative_path
+                files_to_update.append((file_path, str(new_file_path), movie_data))
         
         # Perform the folder rename
         current_folder.rename(new_folder_path)
