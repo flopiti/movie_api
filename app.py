@@ -1340,12 +1340,19 @@ def find_duplicates():
                         },
                         'files': []
                     }
+                
+                # Check if file exists and get its properties
+                file_exists = os.path.exists(file_path)
+                file_size = os.path.getsize(file_path) if file_exists else 0
+                file_modified = int(os.path.getmtime(file_path)) if file_exists else 0
+                
                 movie_groups[movie_id]['files'].append({
                     'path': file_path,
                     'name': os.path.basename(file_path),
                     'directory': os.path.dirname(file_path),
-                    'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
-                    'modified': int(os.path.getmtime(file_path)) if os.path.exists(file_path) else 0
+                    'size': file_size,
+                    'modified': file_modified,
+                    'exists': file_exists
                 })
         
         # Filter to only include movies with multiple files
@@ -1357,10 +1364,19 @@ def find_duplicates():
         
         logger.info(f"Found {len(duplicates)} movies with duplicate files")
         
+        # Log some debug information about file existence
+        total_files = sum(len(group['files']) for group in duplicates.values())
+        existing_files = sum(
+            sum(1 for file in group['files'] if file['exists']) 
+            for group in duplicates.values()
+        )
+        logger.info(f"Total duplicate files: {total_files}, Existing files: {existing_files}")
+        
         return jsonify({
             'duplicates': duplicates,
             'total_duplicate_movies': len(duplicates),
-            'total_duplicate_files': sum(len(group['files']) for group in duplicates.values())
+            'total_duplicate_files': total_files,
+            'existing_files': existing_files
         }), 200
         
     except Exception as e:
