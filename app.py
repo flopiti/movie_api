@@ -407,6 +407,46 @@ class TMDBClient:
             logger.error(f"TMDB API error for query '{query}': {str(e)}")
             return {"error": f"TMDB API error: {str(e)}"}
 
+class FilenameFormatter:
+    """Utility class for formatting movie filenames to standard format."""
+    
+    @staticmethod
+    def generate_standard_filename(movie_data: Dict[str, Any], original_filename: str) -> str:
+        """Generate a standard filename format: Title_YYYY.extension"""
+        title = movie_data.get('title', 'Unknown_Movie')
+        release_date = movie_data.get('release_date', '')
+        
+        # Extract year from release date
+        year = ''
+        if release_date:
+            try:
+                year = release_date.split('-')[0]  # Extract year from YYYY-MM-DD format
+            except (IndexError, ValueError):
+                pass
+        
+        # Clean title: remove special characters and replace spaces with underscores
+        clean_title = title.replace(' ', '_')
+        clean_title = ''.join(c for c in clean_title if c.isalnum() or c in '_-')
+        
+        # Extract original file extension
+        original_path = Path(original_filename)
+        extension = original_path.suffix.lower()
+        
+        # Build standard filename
+        if year:
+            standard_filename = f"{clean_title}_{year}{extension}"
+        else:
+            standard_filename = f"{clean_title}{extension}"
+        
+        return standard_filename
+    
+    @staticmethod
+    def should_rename_file(current_filename: str, standard_filename: str) -> bool:
+        """Check if the current filename differs from the standard format."""
+        # Extract just the filename without path
+        current_name = Path(current_filename).name
+        return current_name != standard_filename
+
 class OpenAIClient:
     """OpenAI API client for cleaning movie filenames."""
     
@@ -651,12 +691,25 @@ def assign_movie():
     
     try:
         if config.assign_movie_to_file(file_path, movie_data):
+            # Generate standard filename information
+            standard_filename = FilenameFormatter.generate_standard_filename(movie_data, file_path)
+            current_filename = Path(file_path).name
+            needs_rename = FilenameFormatter.should_rename_file(file_path, standard_filename)
+            
             logger.info(f"Successfully assigned movie '{movie_data.get('title')}' to file: {file_path}")
-            return jsonify({
+            
+            response_data = {
                 'message': 'Movie assigned successfully',
                 'file_path': file_path,
-                'movie': movie_data
-            }), 200
+                'movie': movie_data,
+                'filename_info': {
+                    'current_filename': current_filename,
+                    'standard_filename': standard_filename,
+                    'needs_rename': needs_rename
+                }
+            }
+            
+            return jsonify(response_data), 200
         else:
             return jsonify({'error': 'Failed to assign movie'}), 500
     except Exception as e:
@@ -715,6 +768,57 @@ def get_assigned_movies():
     except Exception as e:
         logger.error(f"Error getting assigned movies: {str(e)}")
         return jsonify({'error': f'Failed to get assigned movies: {str(e)}'}), 500
+
+@app.route('/rename-file', methods=['POST'])
+def rename_file():
+    """Rename a movie file to standard format."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data or 'new_filename' not in data:
+        return jsonify({'error': 'file_path and new_filename are required'}), 400
+    
+    current_path = data['file_path'].strip()
+    new_filename = data['new_filename'].strip()
+    
+    if not current_path or not new_filename:
+        return jsonify({'error': 'file_path and new_filename cannot be empty'}), 400
+    
+    try:
+        current_file = Path(current_path)
+        
+        # Validate current file exists
+        if not current_file.exists():
+            return jsonify({'error': 'File does not exist'}), 404
+        
+        # Create new path with same directory but new filename
+        new_path = current_file.parent / new_filename
+        
+        # Check if new filename already exists
+        if new_path.exists():
+            return jsonify({'error': 'A file with the new name already exists'}), 409
+        
+        # Perform the rename
+        current_file.rename(new_path)
+        
+        # Update movie assignments if they exist
+        movie_assignments = config.get_movie_assignments()
+        if current_path in movie_assignments:
+            movie_data = movie_assignments[current_path]
+            config.remove_movie_assignment(current_path)
+            config.assign_movie_to_file(str(new_path), movie_data)
+        
+        logger.info(f"Successfully renamed file: {current_path} -> {new_path}")
+        
+        return jsonify({
+            'message': 'File renamed successfully',
+            'old_path': current_path,
+            'new_path': str(new_path),
+            'new_filename': new_filename
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error renaming file: {str(e)}")
+        return jsonify({'error': f'Failed to rename file: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
