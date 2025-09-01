@@ -249,7 +249,6 @@ class Config:
                     except Exception as decode_e:
                         logger.warning(f"Failed to decode path {encoded_path}, using as-is: {str(decode_e)}")
                         decoded_assignments[encoded_path] = movie_data
-                
                 logger.info(f"📚 Decoded {len(decoded_assignments)} assignments from Firebase")
                 return decoded_assignments
             except Exception as e:
