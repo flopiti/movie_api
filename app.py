@@ -1319,6 +1319,113 @@ def delete_file():
 
 
 
+@app.route('/orphaned-files', methods=['GET'])
+def find_orphaned_files():
+    """Find files that are directly in movie paths and need to be moved to folders."""
+    try:
+        movie_paths = config.get_movie_paths()
+        orphaned_files = []
+        
+        for movie_path in movie_paths:
+            if os.path.exists(movie_path):
+                # Get all files directly in this path (not in subdirectories)
+                for item in os.listdir(movie_path):
+                    item_path = os.path.join(movie_path, item)
+                    if os.path.isfile(item_path) and FileDiscovery.is_media_file(Path(item_path)):
+                        # Check if this file has a movie assignment
+                        movie_assignments = config.get_movie_assignments()
+                        movie_data = movie_assignments.get(item_path)
+                        
+                        orphaned_files.append({
+                            'path': item_path,
+                            'name': item,
+                            'directory': movie_path,
+                            'size': os.path.getsize(item_path),
+                            'modified': int(os.path.getmtime(item_path)),
+                            'movie_assigned': bool(movie_data),
+                            'movie_title': movie_data.get('title', 'Unknown') if movie_data else None,
+                            'movie_id': movie_data.get('id') if movie_data else None
+                        })
+        
+        logger.info(f"Found {len(orphaned_files)} orphaned files")
+        
+        return jsonify({
+            'orphaned_files': orphaned_files,
+            'total_orphaned_files': len(orphaned_files)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error finding orphaned files: {str(e)}")
+        return jsonify({'error': f'Failed to find orphaned files: {str(e)}'}), 500
+
+@app.route('/move-to-folder', methods=['POST'])
+def move_to_folder():
+    """Move a file into its own folder based on its movie assignment."""
+    try:
+        data = request.get_json()
+        if not data or 'file_path' not in data:
+            return jsonify({'error': 'file_path is required'}), 400
+        
+        file_path = data['file_path']
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'File does not exist'}), 404
+        
+        # Get movie assignment for this file
+        movie_assignments = config.get_movie_assignments()
+        movie_data = movie_assignments.get(file_path)
+        
+        if not movie_data:
+            return jsonify({'error': 'File has no movie assignment'}), 400
+        
+        # Generate folder name from movie title
+        movie_title = movie_data.get('title', 'Unknown_Movie')
+        release_date = movie_data.get('release_date', '')
+        
+        # Clean title and add year if available
+        import re
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '', movie_title.replace(' ', '_'))
+        if release_date:
+            year = release_date.split('-')[0]
+            folder_name = f"{clean_title}_{year}"
+        else:
+            folder_name = clean_title
+        
+        # Create folder path
+        file_dir = os.path.dirname(file_path)
+        new_folder_path = os.path.join(file_dir, folder_name)
+        
+        # Create folder if it doesn't exist
+        os.makedirs(new_folder_path, exist_ok=True)
+        
+        # Move file to new folder
+        file_name = os.path.basename(file_path)
+        new_file_path = os.path.join(new_folder_path, file_name)
+        
+        # Check if destination already exists
+        if os.path.exists(new_file_path):
+            return jsonify({'error': 'Destination file already exists'}), 409
+        
+        # Move the file
+        os.rename(file_path, new_file_path)
+        
+        # Update movie assignment to new path
+        config.remove_movie_assignment(file_path)
+        config.assign_movie_to_file(new_file_path, movie_data)
+        
+        logger.info(f"Successfully moved {file_path} to {new_file_path}")
+        
+        return jsonify({
+            'message': 'File moved successfully',
+            'old_path': file_path,
+            'new_path': new_file_path,
+            'folder_name': folder_name
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error moving file to folder: {str(e)}")
+        return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
+
 @app.route('/duplicates', methods=['GET'])
 def find_duplicates():
     """Find files that are assigned to the same movie."""
