@@ -311,12 +311,16 @@ class Config:
             try:
                 data = self._get_firebase_data()
                 assignments = data.get("movie_assignments", {})
-                if file_path in assignments:
-                    del assignments[file_path]
+                
+                # Use encoded path for Firebase lookup
+                encoded_file_path = self._encode_path_for_firebase(file_path)
+                if encoded_file_path in assignments:
+                    del assignments[encoded_file_path]
                     self._save_firebase_data(data)
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
                 
+                logger.info(f"No movie assignment found for file: {file_path} (encoded: {encoded_file_path})")
                 return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
@@ -935,7 +939,91 @@ def debug_assignments():
         })
     except Exception as e:
         logger.error(f"Error in debug endpoint: {str(e)}")
-        return jsonify({'error': f'Debug endpoint failed: {str(e)}'}), 500
+        return jsonify({'error': f'Debug endpoint failed: {str(e)}'})
+
+@app.route('/fix-broken-assignments', methods=['POST'])
+def fix_broken_assignments():
+    """Fix broken movie assignments by re-assigning them to current file paths."""
+    try:
+        assignments = config.get_movie_assignments()
+        logger.info(f"🔧 Starting to fix {len(assignments)} assignments...")
+        
+        fixed_count = 0
+        broken_count = 0
+        results = []
+        
+        for file_path, movie_data in assignments.items():
+            try:
+                # Check if the file still exists at this path
+                if Path(file_path).exists():
+                    # File exists, assignment is valid
+                    results.append({
+                        'file_path': file_path,
+                        'status': 'valid',
+                        'movie_title': movie_data.get('title', 'Unknown')
+                    })
+                else:
+                    # File doesn't exist, try to find it with a similar name
+                    logger.warning(f"⚠️ File not found: {file_path}")
+                    
+                    # Look for files with similar names in the same directory
+                    file_dir = Path(file_path).parent
+                    if file_dir.exists():
+                        file_name = Path(file_path).name
+                        # Try to find a file with similar name
+                        for potential_file in file_dir.glob('*'):
+                            if potential_file.is_file() and FileDiscovery.is_media_file(potential_file):
+                                # Check if this might be the renamed file
+                                if potential_file.name.lower().replace(' ', '_').replace('-', '_') == file_name.lower().replace(' ', '_').replace('-', '_'):
+                                    logger.info(f"🔄 Found potential renamed file: {potential_file}")
+                                    # Re-assign the movie to the new path
+                                    config.remove_movie_assignment(file_path)
+                                    config.assign_movie_to_file(str(potential_file), movie_data)
+                                    fixed_count += 1
+                                    results.append({
+                                        'file_path': file_path,
+                                        'new_path': str(potential_file),
+                                        'status': 'fixed',
+                                        'movie_title': movie_data.get('title', 'Unknown')
+                                    })
+                                    break
+                        else:
+                            broken_count += 1
+                            results.append({
+                                'file_path': file_path,
+                                'status': 'broken',
+                                'movie_title': movie_data.get('title', 'Unknown')
+                            })
+                    else:
+                        broken_count += 1
+                        results.append({
+                            'file_path': file_path,
+                            'status': 'broken',
+                            'movie_title': movie_data.get('title', 'Unknown')
+                        })
+                        
+            except Exception as e:
+                logger.error(f"Error processing assignment {file_path}: {e}")
+                broken_count += 1
+                results.append({
+                    'file_path': file_path,
+                    'status': 'error',
+                    'error': str(e)
+                })
+        
+        logger.info(f"🔧 Fix completed: {fixed_count} fixed, {broken_count} broken")
+        
+        return jsonify({
+            'message': 'Assignment fix completed',
+            'fixed_count': fixed_count,
+            'broken_count': broken_count,
+            'total_assignments': len(assignments),
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in fix-broken-assignments: {str(e)}")
+        return jsonify({'error': f'Failed to fix assignments: {str(e)}'}), 500
 
 @app.route('/rename-file', methods=['POST'])
 def rename_file():
@@ -970,10 +1058,16 @@ def rename_file():
         
         # Update movie assignments if they exist
         movie_assignments = config.get_movie_assignments()
-        if current_path in movie_assignments:
-            movie_data = movie_assignments[current_path]
+        
+        # Find the assignment using the encoded path key
+        encoded_current_path = Config._encode_path_for_firebase(current_path)
+        if encoded_current_path in movie_assignments:
+            movie_data = movie_assignments[encoded_current_path]
+            logger.info(f"🔄 Updating movie assignment for renamed file: {current_path} -> {new_path}")
             config.remove_movie_assignment(current_path)
             config.assign_movie_to_file(str(new_path), movie_data)
+        else:
+            logger.info(f"ℹ️ No movie assignment found for file: {current_path}")
         
         logger.info(f"Successfully renamed file: {current_path} -> {new_path}")
         
@@ -1023,12 +1117,19 @@ def rename_folder():
         movie_assignments = config.get_movie_assignments()
         files_to_update = []
         
-        for file_path, movie_data in movie_assignments.items():
-            if file_path.startswith(current_folder_path):
-                # Calculate the new file path after folder rename
-                relative_path = Path(file_path).relative_to(current_folder)
-                new_file_path = new_folder_path / relative_path
-                files_to_update.append((file_path, str(new_file_path), movie_data))
+        for encoded_file_path, movie_data in movie_assignments.items():
+            # Decode the Firebase path to get the actual file path
+            try:
+                actual_file_path = Config._decode_path_from_firebase(encoded_file_path)
+                if actual_file_path.startswith(current_folder_path):
+                    # Calculate the new file path after folder rename
+                    relative_path = Path(actual_file_path).relative_to(current_folder)
+                    new_file_path = new_folder_path / relative_path
+                    files_to_update.append((actual_file_path, str(new_file_path), movie_data))
+                    logger.info(f"🔄 Will update assignment: {actual_file_path} -> {new_file_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not decode Firebase path {encoded_file_path}: {e}")
+                continue
         
         # Perform the folder rename
         current_folder.rename(new_folder_path)
