@@ -551,13 +551,29 @@ You are a movie filename parser. I will provide you with a movie filename, and y
 
 IMPORTANT: You must ALWAYS process the filename I give you. Never ask for clarification or more information.
 
-Remove these elements from the filename to get the clean movie title:
+Your goal is to extract ONLY the core movie title for TMDB search purposes. Remove these elements from the filename:
 - File extensions (.mp4, .mkv, .avi, etc.)
 - Years in brackets or parentheses like (2023), [2023]
-- Quality indicators like 1080p, 720p, 4K, BluRay, WEBRip, etc.
-- Release group tags in brackets like [YIFY], [RARBG], [TGx]
+- Quality indicators like 1080p, 720p, 4K, BluRay, WEBRIP, HDRip, etc.
+- Release group tags in brackets like [YIFY], [RARBG], [TGx], [EVO], [FUM]
+- Audio/video codec info like x264, x265, AAC, AC3, etc.
+- Language indicators like "Eng", "Jps", "Rus", "Ukr", "Multi", "Dual"
+- Subtitle information like "Subs", "Subtitles", "Subbed"
+- Audio track information like "5.1", "2.0", "DTS", "AC3"
+- Content type indicators like "Anime", "Movie", "Film" (unless it's part of the actual title)
 - Extra periods, underscores, and dashes used as separators
 - Any other technical metadata
+
+IMPORTANT: DO NOT remove or modify:
+- Director names (e.g., "by Christopher Nolan", "dir. Spielberg")
+- Actor names that are part of the title
+- Original movie titles in other languages
+- Subtitle information that helps identify the movie
+
+Examples:
+- "Akira Anime Eng Jps Rus Ukr Multi Subs" → "Akira"
+- "The Matrix 1999 1080p BluRay x264" → "The Matrix"
+- "Inception by Christopher Nolan 2010" → "Inception by Christopher Nolan"
 
 If you cannot determine a clean movie title, return the filename as-is without the file extension.
 
@@ -569,7 +585,7 @@ Extract the clean movie title from this filename:"""
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts the clean movie title. Never ask for clarification."},
+                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, and technical metadata. Preserve director names and actor names when they help identify the movie. Never ask for clarification."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=100,
