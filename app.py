@@ -372,6 +372,7 @@ class FileDiscovery:
                     if file_path_str in movie_assignments:
                         movie_data = movie_assignments[file_path_str]
                         file_info['movie'] = movie_data
+                        logger.info(f"🎬 Found assignment for {file_path_str}: {movie_data.get('title', 'Unknown')}")
                         
                         # Add filename information for existing assignments
                         standard_filename = FilenameFormatter.generate_standard_filename(movie_data, file_path_str)
@@ -398,11 +399,16 @@ class FileDiscovery:
                         }
                         
                         logger.info(f"📁 Added folder info: {current_foldername} -> {standard_foldername}, needs rename: {folder_needs_rename}")
-                        
                         logger.info(f"🎬 Added filename info for existing assignment: {file_path_str}")
                         logger.info(f"📝 Current: {current_filename}, Standard: {standard_filename}, Needs rename: {needs_rename}")
                     else:
                         logger.debug(f"📂 No assignment found for: {file_path_str}")
+                        # Debug: Check if this is a path normalization issue
+                        if movie_assignments:
+                            sample_key = list(movie_assignments.keys())[0]
+                            logger.debug(f"📂 Sample assignment key: '{sample_key}' vs file path: '{file_path_str}'")
+                            logger.debug(f"📂 Paths match? {file_path_str == sample_key}")
+                            logger.debug(f"📂 Paths normalized match? {str(Path(file_path_str).resolve()) == str(Path(sample_key).resolve())}")
                     
                     files.append(file_info)
         except (PermissionError, OSError) as e:
@@ -713,7 +719,13 @@ def get_all_files():
     # Get movie assignments
     movie_assignments = config.get_movie_assignments()
     logger.info(f"🎬 Loading files with {len(movie_assignments)} movie assignments")
-    logger.debug(f"🎬 Assignment keys: {list(movie_assignments.keys())}")
+    logger.info(f"🎬 Assignment keys (first 10): {list(movie_assignments.keys())[:10]}")
+    
+    # Debug: Show some example assignments
+    if movie_assignments:
+        sample_key = list(movie_assignments.keys())[0]
+        sample_assignment = movie_assignments[sample_key]
+        logger.info(f"🎬 Sample assignment - Key: '{sample_key}', Movie: {sample_assignment.get('title', 'Unknown')}")
     
     for path in paths:
         files = FileDiscovery.discover_files(path, movie_assignments)
@@ -872,6 +884,9 @@ def get_assigned_movies():
     try:
         assignments = config.get_movie_assignments()
         
+        logger.info(f"🔍 Debug: Found {len(assignments)} total assignments")
+        logger.info(f"🔍 Debug: Assignment keys (first 5): {list(assignments.keys())[:5]}")
+        
         # Extract just the movie data from assignments
         assigned_movies = []
         for file_path, movie_data in assignments.items():
@@ -881,6 +896,8 @@ def get_assigned_movies():
                     'file_path': file_path
                 })
         
+        logger.info(f"🔍 Debug: Returning {len(assigned_movies)} valid assigned movies")
+        
         return jsonify({
             'assigned_movies': assigned_movies,
             'count': len(assigned_movies)
@@ -889,6 +906,34 @@ def get_assigned_movies():
     except Exception as e:
         logger.error(f"Error getting assigned movies: {str(e)}")
         return jsonify({'error': f'Failed to get assigned movies: {str(e)}'}), 500
+
+@app.route('/debug-assignments', methods=['GET'])
+def debug_assignments():
+    """Debug endpoint to check current assignments."""
+    try:
+        assignments = config.get_movie_assignments()
+        logger.info(f"🔍 Debug endpoint: Found {len(assignments)} assignments")
+        logger.info(f"🔍 Debug endpoint: Assignment keys: {list(assignments.keys())}")
+        
+        # Show first few assignments in detail
+        debug_info = []
+        for i, (file_path, movie_data) in enumerate(assignments.items()):
+            if i < 5:  # Only show first 5
+                debug_info.append({
+                    'file_path': file_path,
+                    'movie_title': movie_data.get('title', 'Unknown'),
+                    'movie_id': movie_data.get('id'),
+                    'movie_data_keys': list(movie_data.keys())
+                })
+        
+        return jsonify({
+            'total_assignments': len(assignments),
+            'sample_assignments': debug_info,
+            'all_keys': list(assignments.keys())
+        })
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {str(e)}")
+        return jsonify({'error': f'Debug endpoint failed: {str(e)}'}), 500
 
 @app.route('/rename-file', methods=['POST'])
 def rename_file():
