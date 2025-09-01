@@ -427,16 +427,28 @@ class TMDBClient:
         self.base_url = TMDB_BASE_URL
     
     def search_movie(self, query: str) -> Dict[str, Any]:
-        """Search for a movie by title."""
+        """Search for a movie by title with year-aware filtering."""
         if not self.api_key:
             logger.error("TMDB API key not configured")
             return {"error": "TMDB API key not configured"}
         
+        # Extract year from query if present
+        import re
+        year_match = re.search(r'\b(19|20)\d{2}\b', query)
+        target_year = year_match.group(0) if year_match else None
+        
+        # Clean query by removing the year for base search
+        base_query = re.sub(r'\b(19|20)\d{2}\b', '', query).strip()
+        
+        logger.info(f"Searching for: '{base_query}' with target year: {target_year}")
+        
+        # Search with the original query first
         url = f"{self.base_url}/search/movie"
         params = {
             'api_key': self.api_key,
             'query': query,
-            'language': 'en-US'
+            'language': 'en-US',
+            'include_adult': False
         }
         
         try:
@@ -444,6 +456,80 @@ class TMDBClient:
             response = requests.get(url, params=params)
             response.raise_for_status()
             result = response.json()
+            
+            # If we have a target year, filter and reorder results
+            if target_year and result.get('results'):
+                results = result['results']
+                
+                # Separate movies by year match
+                exact_year_matches = []
+                other_movies = []
+                
+                for movie in results:
+                    movie_year = None
+                    if movie.get('release_date'):
+                        try:
+                            movie_year = movie['release_date'].split('-')[0]
+                        except (IndexError, ValueError):
+                            pass
+                    
+                    if movie_year == target_year:
+                        exact_year_matches.append(movie)
+                    else:
+                        other_movies.append(movie)
+                
+                # If no exact year matches found, try a search with just the base query
+                if not exact_year_matches and base_query:
+                    logger.info(f"No exact year matches found, trying fallback search with: '{base_query}'")
+                    fallback_params = {
+                        'api_key': self.api_key,
+                        'query': base_query,
+                        'language': 'en-US',
+                        'include_adult': False
+                    }
+                    
+                    try:
+                        fallback_response = requests.get(url, params=fallback_params)
+                        fallback_response.raise_for_status()
+                        fallback_result = fallback_response.json()
+                        
+                        if fallback_result.get('results'):
+                            # Filter fallback results for year matches
+                            fallback_exact_matches = []
+                            fallback_others = []
+                            
+                            for movie in fallback_result['results']:
+                                movie_year = None
+                                if movie.get('release_date'):
+                                    try:
+                                        movie_year = movie['release_date'].split('-')[0]
+                                    except (IndexError, ValueError):
+                                        pass
+                                
+                                if movie_year == target_year:
+                                    fallback_exact_matches.append(movie)
+                                else:
+                                    fallback_others.append(movie)
+                            
+                            # Combine results: fallback exact matches first, then original results
+                            combined_results = fallback_exact_matches + results
+                            result['results'] = combined_results
+                            
+                            logger.info(f"Fallback search found {len(fallback_exact_matches)} additional year matches")
+                            if fallback_exact_matches:
+                                logger.info(f"Top fallback year match: '{fallback_exact_matches[0].get('title')}' ({fallback_exact_matches[0].get('release_date')})")
+                    
+                    except requests.RequestException as e:
+                        logger.warning(f"Fallback search failed: {str(e)}")
+                else:
+                    # Reorder results: exact year matches first, then others
+                    reordered_results = exact_year_matches + other_movies
+                    result['results'] = reordered_results
+                
+                logger.info(f"Year-aware filtering: {len(exact_year_matches)} exact year matches, {len(other_movies)} other movies")
+                if exact_year_matches:
+                    logger.info(f"Top year match: '{exact_year_matches[0].get('title')}' ({exact_year_matches[0].get('release_date')})")
+            
             logger.debug(f"TMDB API response received with {len(result.get('results', []))} results")
             return result
         except requests.RequestException as e:
