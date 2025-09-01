@@ -547,24 +547,29 @@ class OpenAIClient:
         
         # Create a prompt to extract clean movie title from filename
         prompt = f"""
-You are a movie filename parser. Given a movie filename, extract the clean movie title by removing:
+You are a movie filename parser. I will provide you with a movie filename, and you must extract the clean movie title.
+
+IMPORTANT: You must ALWAYS process the filename I give you. Never ask for clarification or more information.
+
+Remove these elements from the filename to get the clean movie title:
 - File extensions (.mp4, .mkv, .avi, etc.)
 - Years in brackets or parentheses like (2023), [2023]
 - Quality indicators like 1080p, 720p, 4K, BluRay, WEBRip, etc.
-- Release group tags in brackets like [YIFY], [RARBG]
+- Release group tags in brackets like [YIFY], [RARBG], [TGx]
 - Extra periods, underscores, and dashes used as separators
 - Any other technical metadata
 
-Return ONLY the clean movie title, nothing else.
+If you cannot determine a clean movie title, return the filename as-is without the file extension.
 
-Filename: {filename}
-Clean title:"""
+Filename to process: {filename}
+
+Extract the clean movie title from this filename:"""
 
         try:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that cleans movie filenames."},
+                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts the clean movie title. Never ask for clarification."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=100,
@@ -572,7 +577,19 @@ Clean title:"""
             )
             
             cleaned_title = response.choices[0].message.content.strip()
-            logger.info(f"OpenAI cleaned '{filename}' to '{cleaned_title}'")
+            
+            # Check if OpenAI returned a generic response asking for clarification
+            # If so, fall back to using the original filename without extension
+            if any(phrase in cleaned_title.lower() for phrase in [
+                "please provide", "could you provide", "i'm here to help", 
+                "can you provide", "need the filename", "missing", "clarification"
+            ]):
+                # Extract filename without extension as fallback
+                import os
+                cleaned_title = os.path.splitext(os.path.basename(filename))[0]
+                logger.warning(f"OpenAI returned generic response, using filename fallback: '{cleaned_title}'")
+            else:
+                logger.info(f"OpenAI cleaned '{filename}' to '{cleaned_title}'")
             
             return {
                 "cleaned_title": cleaned_title,
