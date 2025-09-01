@@ -638,6 +638,30 @@ def remove_movie_assignment():
         logger.error(f"Error removing movie assignment: {str(e)}")
         return jsonify({'error': f'Failed to remove movie assignment: {str(e)}'}), 500
 
+@app.route('/assigned-movies', methods=['GET'])
+def get_assigned_movies():
+    """Get all movies that are currently assigned to files."""
+    try:
+        assignments = config.get_movie_assignments()
+        
+        # Extract just the movie data from assignments
+        assigned_movies = []
+        for file_path, movie_data in assignments.items():
+            if isinstance(movie_data, dict) and movie_data.get('id'):
+                assigned_movies.append({
+                    'movie': movie_data,
+                    'file_path': file_path
+                })
+        
+        return jsonify({
+            'assigned_movies': assigned_movies,
+            'count': len(assigned_movies)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting assigned movies: {str(e)}")
+        return jsonify({'error': f'Failed to get assigned movies: {str(e)}'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
