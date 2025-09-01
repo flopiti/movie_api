@@ -1319,6 +1319,54 @@ def delete_file():
 
 
 
+@app.route('/duplicates', methods=['GET'])
+def find_duplicates():
+    """Find files that are assigned to the same movie."""
+    try:
+        movie_assignments = config.get_movie_assignments()
+        
+        # Group files by movie ID to find duplicates
+        movie_groups = {}
+        for file_path, movie_data in movie_assignments.items():
+            movie_id = movie_data.get('id')
+            if movie_id:
+                if movie_id not in movie_groups:
+                    movie_groups[movie_id] = {
+                        'movie_info': {
+                            'id': movie_id,
+                            'title': movie_data.get('title', 'Unknown'),
+                            'release_date': movie_data.get('release_date'),
+                            'vote_average': movie_data.get('vote_average')
+                        },
+                        'files': []
+                    }
+                movie_groups[movie_id]['files'].append({
+                    'path': file_path,
+                    'name': os.path.basename(file_path),
+                    'directory': os.path.dirname(file_path),
+                    'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+                    'modified': int(os.path.getmtime(file_path)) if os.path.exists(file_path) else 0
+                })
+        
+        # Filter to only include movies with multiple files
+        duplicates = {
+            movie_id: group_data 
+            for movie_id, group_data in movie_groups.items() 
+            if len(group_data['files']) > 1
+        }
+        
+        logger.info(f"Found {len(duplicates)} movies with duplicate files")
+        
+        return jsonify({
+            'duplicates': duplicates,
+            'total_duplicate_movies': len(duplicates),
+            'total_duplicate_files': sum(len(group['files']) for group in duplicates.values())
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error finding duplicates: {str(e)}")
+        return jsonify({'error': f'Failed to find duplicates: {str(e)}'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
@@ -1351,4 +1399,4 @@ if __name__ == '__main__':
     logger.info(f"Config file (fallback): {CONFIG_FILE}")
     logger.info(f"Movie paths configured: {len(config.get_movie_paths())}")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
