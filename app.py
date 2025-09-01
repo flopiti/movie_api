@@ -561,6 +561,8 @@ Your goal is to extract ONLY the core movie title for TMDB search purposes. Remo
 - Subtitle information like "Subs", "Subtitles", "Subbed"
 - Audio track information like "5.1", "2.0", "DTS", "AC3"
 - Content type indicators like "Anime", "Movie", "Film" (unless it's part of the actual title)
+- Edition indicators like "Directors Cut", "Extended Cut", "Unrated", "Rated", "Theatrical Cut", "Final Cut"
+- Version indicators like "Special Edition", "Collectors Edition", "Anniversary Edition"
 - Extra periods, underscores, and dashes used as separators
 - Any other technical metadata
 
@@ -574,6 +576,9 @@ Examples:
 - "Akira Anime Eng Jps Rus Ukr Multi Subs" → "Akira"
 - "The Matrix 1999 1080p BluRay x264" → "The Matrix"
 - "Inception by Christopher Nolan 2010" → "Inception by Christopher Nolan"
+- "Alien Resurrection Directors Cut 1997" → "Alien Resurrection"
+- "Blade Runner Final Cut 1982" → "Blade Runner"
+- "The Lord of the Rings Extended Edition" → "The Lord of the Rings"
 
 If you cannot determine a clean movie title, return the filename as-is without the file extension.
 
@@ -585,7 +590,7 @@ Extract the clean movie title from this filename:"""
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, and technical metadata. Preserve director names and actor names when they help identify the movie. Never ask for clarification."},
+                    {"role": "system", "content": "You are a movie filename parser that ALWAYS processes the given filename and extracts ONLY the core movie title for TMDB search. Remove language indicators, subtitle info, edition indicators (Directors Cut, Extended Cut, etc.), and technical metadata. Preserve director names and actor names when they help identify the movie. Never ask for clarification."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=100,
