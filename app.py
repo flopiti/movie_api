@@ -282,12 +282,20 @@ class OpenAIClient:
         self.api_key = api_key
         if api_key:
             try:
-                # Initialize OpenAI client with minimal parameters to avoid proxy issues
-                self.client = OpenAI(api_key=api_key)
+                # Initialize OpenAI client with explicit parameters to avoid proxy issues
+                import httpx
+                self.client = OpenAI(
+                    api_key=api_key,
+                    timeout=30.0,
+                    max_retries=2,
+                    http_client=httpx.Client()
+                )
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+                logger.info("OpenAI client will be disabled, filename cleaning will be skipped")
                 self.client = None
         else:
+            logger.info("OpenAI API key not configured, filename cleaning will be disabled")
             self.client = None
     
     def clean_filename(self, filename: str) -> Dict[str, Any]:
