@@ -378,11 +378,26 @@ class FileDiscovery:
                         current_filename = file_path.name
                         needs_rename = FilenameFormatter.should_rename_file(file_path_str, standard_filename)
                         
+                        # Add folder information for existing assignments
+                        current_folder_path = str(file_path.parent)
+                        standard_foldername = FilenameFormatter.generate_standard_foldername(movie_data)
+                        folder_needs_rename = FilenameFormatter.should_rename_folder(current_folder_path, standard_foldername)
+                        current_foldername = file_path.parent.name
+                        
                         file_info['filenameInfo'] = {
                             'current_filename': current_filename,
                             'standard_filename': standard_filename,
                             'needs_rename': needs_rename
                         }
+                        
+                        file_info['folderInfo'] = {
+                            'current_foldername': current_foldername,
+                            'current_folder_path': current_folder_path,
+                            'standard_foldername': standard_foldername,
+                            'needs_rename': folder_needs_rename
+                        }
+                        
+                        logger.info(f"📁 Added folder info: {current_foldername} -> {standard_foldername}, needs rename: {folder_needs_rename}")
                         
                         logger.info(f"🎬 Added filename info for existing assignment: {file_path_str}")
                         logger.info(f"📝 Current: {current_filename}, Standard: {standard_filename}, Needs rename: {needs_rename}")
@@ -427,7 +442,7 @@ class TMDBClient:
             return {"error": f"TMDB API error: {str(e)}"}
 
 class FilenameFormatter:
-    """Utility class for formatting movie filenames to standard format."""
+    """Utility class for formatting movie filenames and folder names to standard format."""
     
     @staticmethod
     def generate_standard_filename(movie_data: Dict[str, Any], original_filename: str) -> str:
@@ -460,11 +475,44 @@ class FilenameFormatter:
         return standard_filename
     
     @staticmethod
+    def generate_standard_foldername(movie_data: Dict[str, Any]) -> str:
+        """Generate a standard folder name format: Title_YYYY"""
+        title = movie_data.get('title', 'Unknown_Movie')
+        release_date = movie_data.get('release_date', '')
+        
+        # Extract year from release date
+        year = ''
+        if release_date:
+            try:
+                year = release_date.split('-')[0]  # Extract year from YYYY-MM-DD format
+            except (IndexError, ValueError):
+                pass
+        
+        # Clean title: remove special characters and replace spaces with underscores
+        clean_title = title.replace(' ', '_')
+        clean_title = ''.join(c for c in clean_title if c.isalnum() or c in '_-')
+        
+        # Build standard folder name
+        if year:
+            standard_foldername = f"{clean_title}_{year}"
+        else:
+            standard_foldername = f"{clean_title}"
+        
+        return standard_foldername
+    
+    @staticmethod
     def should_rename_file(current_filename: str, standard_filename: str) -> bool:
         """Check if the current filename differs from the standard format."""
         # Extract just the filename without path
         current_name = Path(current_filename).name
         return current_name != standard_filename
+    
+    @staticmethod
+    def should_rename_folder(current_folder_path: str, standard_foldername: str) -> bool:
+        """Check if the current folder name differs from the standard format."""
+        # Extract just the folder name without parent path
+        current_name = Path(current_folder_path).name
+        return current_name != standard_foldername
 
 class OpenAIClient:
     """OpenAI API client for cleaning movie filenames."""
@@ -713,20 +761,34 @@ def assign_movie():
     try:
         if config.assign_movie_to_file(file_path, movie_data):
             # Generate standard filename information
+            file_path_obj = Path(file_path)
             standard_filename = FilenameFormatter.generate_standard_filename(movie_data, file_path)
-            current_filename = Path(file_path).name
+            current_filename = file_path_obj.name
             needs_rename = FilenameFormatter.should_rename_file(file_path, standard_filename)
             
+            # Generate standard folder information
+            current_folder_path = str(file_path_obj.parent)
+            standard_foldername = FilenameFormatter.generate_standard_foldername(movie_data)
+            folder_needs_rename = FilenameFormatter.should_rename_folder(current_folder_path, standard_foldername)
+            current_foldername = file_path_obj.parent.name
+            
             logger.info(f"Successfully assigned movie '{movie_data.get('title')}' to file: {file_path}")
+            logger.info(f"📁 Assignment folder info: {current_foldername} -> {standard_foldername}, needs rename: {folder_needs_rename}")
             
             response_data = {
                 'message': 'Movie assigned successfully',
                 'file_path': file_path,
                 'movie': movie_data,
-                'filename_info': {
+                'filenameInfo': {
                     'current_filename': current_filename,
                     'standard_filename': standard_filename,
                     'needs_rename': needs_rename
+                },
+                'folderInfo': {
+                    'current_foldername': current_foldername,
+                    'current_folder_path': current_folder_path,
+                    'standard_foldername': standard_foldername,
+                    'needs_rename': folder_needs_rename
                 }
             }
             
@@ -840,6 +902,71 @@ def rename_file():
     except Exception as e:
         logger.error(f"Error renaming file: {str(e)}")
         return jsonify({'error': f'Failed to rename file: {str(e)}'}), 500
+
+@app.route('/rename-folder', methods=['POST'])
+def rename_folder():
+    """Rename a movie folder to standard format."""
+    data = request.get_json()
+    
+    if not data or 'folder_path' not in data or 'new_foldername' not in data:
+        return jsonify({'error': 'folder_path and new_foldername are required'}), 400
+    
+    current_folder_path = data['folder_path'].strip()
+    new_foldername = data['new_foldername'].strip()
+    
+    if not current_folder_path or not new_foldername:
+        return jsonify({'error': 'folder_path and new_foldername cannot be empty'}), 400
+    
+    try:
+        current_folder = Path(current_folder_path)
+        
+        # Validate current folder exists
+        if not current_folder.exists():
+            return jsonify({'error': 'Folder does not exist'}), 404
+        
+        if not current_folder.is_dir():
+            return jsonify({'error': 'Path is not a directory'}), 400
+        
+        # Create new path with same parent but new folder name
+        new_folder_path = current_folder.parent / new_foldername
+        
+        # Check if new folder name already exists
+        if new_folder_path.exists():
+            return jsonify({'error': 'A folder with the new name already exists'}), 409
+        
+        # Get all files in the folder that have movie assignments
+        movie_assignments = config.get_movie_assignments()
+        files_to_update = []
+        
+        for file_path, movie_data in movie_assignments.items():
+            if file_path.startswith(current_folder_path):
+                # Calculate the new file path after folder rename
+                relative_path = Path(file_path).relative_to(current_folder)
+                new_file_path = new_folder_path / relative_path
+                files_to_update.append((file_path, str(new_file_path), movie_data))
+        
+        # Perform the folder rename
+        current_folder.rename(new_folder_path)
+        
+        # Update all movie assignments that were in the renamed folder
+        for old_file_path, new_file_path, movie_data in files_to_update:
+            config.remove_movie_assignment(old_file_path)
+            config.assign_movie_to_file(new_file_path, movie_data)
+        
+        logger.info(f"Successfully renamed folder: {current_folder_path} -> {new_folder_path}")
+        logger.info(f"Updated {len(files_to_update)} movie assignments")
+        
+        return jsonify({
+            'message': 'Folder renamed successfully',
+            'old_path': current_folder_path,
+            'new_path': str(new_folder_path),
+            'new_foldername': new_foldername,
+            'updated_assignments': len(files_to_update)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error renaming folder: {str(e)}")
+        return jsonify({'error': f'Failed to rename folder: {str(e)}'}), 500
 
 @app.route('/debug-assignments', methods=['GET'])
 def debug_assignments():
