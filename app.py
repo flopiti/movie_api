@@ -572,6 +572,7 @@ Your goal is to extract ONLY the core movie title for TMDB search purposes. Remo
 - Content type indicators like "Anime", "Movie", "Film" (unless it's part of the actual title)
 - Edition indicators like "Directors Cut", "Extended Cut", "Unrated", "Rated", "Theatrical Cut", "Final Cut"
 - Version indicators like "Special Edition", "Collectors Edition", "Anniversary Edition"
+- Collection/Label names like "Criterion Collection", "Arrow Video", "Shout Factory", "Kino Lorber", "StudioCanal"
 - Extra periods, underscores, and dashes used as separators
 - Any other technical metadata
 
@@ -589,6 +590,8 @@ Examples:
 - "Cars 2 (2011) 1080p BluRay x264" → "Cars 2"
 - "Toy Story 3 2010 720p WEBRip" → "Toy Story 3"
 - "Iron Man 2 2010 BluRay x264" → "Iron Man 2"
+- "Certified Copy Criterion Collection 1080p BluRay x264" → "Certified Copy"
+- "The Seventh Seal Criterion Collection 1957" → "The Seventh Seal"
 - "Inception by Christopher Nolan 2010" → "Inception by Christopher Nolan"
 - "Alien Resurrection Directors Cut 1997" → "Alien Resurrection"
 - "Blade Runner Final Cut 1982" → "Blade Runner"
@@ -632,7 +635,8 @@ Extract the clean movie title from this filename:"""
                 '~', '(', ')', '[', ']', '|', '\\', '/', ':', ';', '=', '+', '*', '?', '<', '>', '"', "'",
                 'BluRay', 'x264', 'x265', '1080p', '720p', '4K', 'HDR', 'WEBRIP', 'HDRip', 'BRRip',
                 'YIFY', 'RARBG', 'TGx', 'EVO', 'FUM', 'Dual', 'Multi', 'Eng', 'Jps', 'Rus', 'Ukr',
-                '5.1', '2.0', 'DTS', 'AC3', 'AAC', 'Subs', 'Subbed', 'Subtitles'
+                '5.1', '2.0', 'DTS', 'AC3', 'AAC', 'Subs', 'Subbed', 'Subtitles',
+                'Criterion Collection', 'Arrow Video', 'Shout Factory', 'Kino Lorber', 'StudioCanal'
             ]
             
             needs_further_cleaning = any(pattern in initial_cleaned_title for pattern in unwanted_patterns)
@@ -656,6 +660,7 @@ Please provide a cleaner version that removes ALL of these elements:
 - Any language indicators
 - Any subtitle information
 - Any audio track information
+- Any collection/label names (Criterion Collection, Arrow Video, Shout Factory, etc.)
 - Any special characters like ~, |, \\, /, etc.
 
 CRITICAL: Preserve movie sequel numbers and Roman numerals in titles (e.g., "Cars 2", "Toy Story 3", "Iron Man 2", "Rocky IV")
@@ -666,6 +671,7 @@ Examples of what to remove:
 - "Cars 2 ~Invincible" → "Cars 2"
 - "Cars 2 (2011) 1080p BluRay x264" → "Cars 2"
 - "Toy Story 3 2010 720p WEBRip" → "Toy Story 3"
+- "Certified Copy Criterion Collection 1080p BluRay x264" → "Certified Copy"
 - "The Matrix (1999) [YIFY]" → "The Matrix"
 - "Inception 1080p BluRay x264" → "Inception"
 
