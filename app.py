@@ -81,10 +81,13 @@ class Config:
         self.use_firebase = use_firebase and firebase_app is not None
         self.firebase_ref = db.reference('movie_config') if self.use_firebase else None
         
-        # Initialize with local JSON config as fallback if Firebase is not available
+        # Always initialize local data for fallback purposes
+        self.data = self._load_local_config()
+        
         if not self.use_firebase:
             logger.info(f"Using local JSON config at: {self.config_file}")
-            self.data = self._load_local_config()
+        else:
+            logger.info(f"Using Firebase config with local fallback at: {self.config_file}")
     
     def _load_local_config(self) -> Dict[str, Any]:
         """Load configuration from local JSON file (fallback)."""
