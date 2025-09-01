@@ -60,6 +60,7 @@ if FIREBASE_CREDENTIALS_PATH and FIREBASE_DATABASE_URL:
             })
             logger.info("Firebase initialized successfully")
         else:
+            
             logger.warning(f"Firebase credentials file not found at: {FIREBASE_CREDENTIALS_PATH}")
     except Exception as e:
         logger.error(f"Failed to initialize Firebase: {str(e)}")
