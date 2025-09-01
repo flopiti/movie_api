@@ -246,10 +246,12 @@ class Config:
                         # Try to decode - if it fails, assume it's already a plain path (backward compatibility)
                         original_path = movie_data.get('original_path') or self._decode_path_from_firebase(encoded_path)
                         decoded_assignments[original_path] = movie_data
+                        logger.debug(f"🔍 Decoded: {encoded_path} -> {original_path}")
                     except Exception as decode_e:
                         logger.warning(f"Failed to decode path {encoded_path}, using as-is: {str(decode_e)}")
                         decoded_assignments[encoded_path] = movie_data
                 logger.info(f"📚 Decoded {len(decoded_assignments)} assignments from Firebase")
+                logger.debug(f"📚 Assignment keys: {list(decoded_assignments.keys())}")
                 return decoded_assignments
             except Exception as e:
                 logger.error(f"Firebase error, falling back to local config: {str(e)}")
@@ -368,7 +370,24 @@ class FileDiscovery:
                     
                     # Add movie assignment if it exists
                     if file_path_str in movie_assignments:
-                        file_info['movie'] = movie_assignments[file_path_str]
+                        movie_data = movie_assignments[file_path_str]
+                        file_info['movie'] = movie_data
+                        
+                        # Add filename information for existing assignments
+                        standard_filename = FilenameFormatter.generate_standard_filename(movie_data, file_path_str)
+                        current_filename = file_path.name
+                        needs_rename = FilenameFormatter.should_rename_file(file_path_str, standard_filename)
+                        
+                        file_info['filenameInfo'] = {
+                            'current_filename': current_filename,
+                            'standard_filename': standard_filename,
+                            'needs_rename': needs_rename
+                        }
+                        
+                        logger.info(f"🎬 Added filename info for existing assignment: {file_path_str}")
+                        logger.info(f"📝 Current: {current_filename}, Standard: {standard_filename}, Needs rename: {needs_rename}")
+                    else:
+                        logger.debug(f"📂 No assignment found for: {file_path_str}")
                     
                     files.append(file_info)
         except (PermissionError, OSError) as e:
@@ -607,6 +626,8 @@ def get_all_files():
     
     # Get movie assignments
     movie_assignments = config.get_movie_assignments()
+    logger.info(f"🎬 Loading files with {len(movie_assignments)} movie assignments")
+    logger.debug(f"🎬 Assignment keys: {list(movie_assignments.keys())}")
     
     for path in paths:
         files = FileDiscovery.discover_files(path, movie_assignments)
@@ -819,6 +840,19 @@ def rename_file():
     except Exception as e:
         logger.error(f"Error renaming file: {str(e)}")
         return jsonify({'error': f'Failed to rename file: {str(e)}'}), 500
+
+@app.route('/debug-assignments', methods=['GET'])
+def debug_assignments():
+    """Debug endpoint to check movie assignments."""
+    try:
+        assignments = config.get_movie_assignments()
+        return jsonify({
+            'assignments_count': len(assignments),
+            'assignments': assignments,
+            'assignment_keys': list(assignments.keys())
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
