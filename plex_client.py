@@ -10,7 +10,7 @@ from typing import List, Dict, Optional
 import os
 
 class PlexClient:
-    def __init__(self, server_url: str = "http://natetrystuff.com:32400", token: Optional[str] = None):
+    def __init__(self, server_url: str = "http://192.168.0.10:32400", token: Optional[str] = None):
         """
         Initialize Plex client
         
@@ -186,7 +186,7 @@ class PlexClient:
                             'X-Plex-Container-Start': '0',
                             'X-Plex-Container-Size': '1'  # Just get 1 item to check totalSize
                         }
-                        response = self.session.get(url, params=params, timeout=10)  # Increased timeout
+                        response = self.session.get(url, params=params, timeout=30)  # Increased timeout
                         if response.status_code == 200:
                             root = ET.fromstring(response.content)
                             total_size = root.get('totalSize')
@@ -195,7 +195,7 @@ class PlexClient:
                                 logger.info(f"Got count from /all endpoint: {total_size}")
                             else:
                                 # If still no totalSize, try without pagination
-                                response = self.session.get(url, timeout=120)  # Even longer timeout for full response
+                                response = self.session.get(url, timeout=60)  # Even longer timeout for full response
                                 if response.status_code == 200:
                                     root = ET.fromstring(response.content)
                                     movies_in_response = len(root.findall('.//Video'))
