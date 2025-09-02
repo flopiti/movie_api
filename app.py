@@ -1548,12 +1548,19 @@ def search_plex_movies():
 def compare_movies():
     """Compare Plex movies with assigned movies."""
     try:
-        # Get Plex movies
-        plex_movies = plex_client.get_all_movies()
-        plex_titles = {movie['title'].lower().strip() for movie in plex_movies}
+        logger.info("Starting movie comparison...")
+        
+        # Get Plex movie count first
+        logger.info("Getting Plex movie count...")
+        plex_counts = plex_client.get_movie_count()
+        plex_total = sum(plex_counts.values())
+        logger.info(f"Plex total: {plex_total}")
         
         # Get assigned movies from config
+        logger.info("Fetching assigned movies...")
         assigned_movies = config.get_movie_assignments()
+        logger.info(f"Retrieved {len(assigned_movies)} assigned movies from config")
+        
         assigned_titles = set()
         assigned_files = []
         
@@ -1568,38 +1575,30 @@ def compare_movies():
                         'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
                     })
         
-        # Find differences
-        only_in_plex = []
-        only_in_assigned = []
+        logger.info(f"Processed {len(assigned_files)} existing assigned files")
         
-        for movie in plex_movies:
-            title = movie['title'].lower().strip()
-            if title not in assigned_titles:
-                only_in_plex.append({
-                    'title': movie['title'],
-                    'year': movie.get('year'),
-                    'file_path': movie.get('media', [{}])[0].get('part', [{}])[0].get('file') if movie.get('media') else None
-                })
-        
-        for file_info in assigned_files:
-            title = file_info['title'].lower().strip()
-            if title not in plex_titles:
-                only_in_assigned.append(file_info)
+        # For now, just return the counts without detailed comparison
+        # This avoids the timeout issue with getting all Plex movies
+        logger.info("Returning basic comparison...")
         
         return jsonify({
             'summary': {
-                'plex_total': len(plex_movies),
+                'plex_total': plex_total,
                 'assigned_total': len(assigned_files),
-                'only_in_plex': len(only_in_plex),
-                'only_in_assigned': len(only_in_assigned),
-                'in_both': len(plex_movies) - len(only_in_plex)
+                'only_in_plex': 'N/A - Use detailed comparison',
+                'only_in_assigned': 'N/A - Use detailed comparison',
+                'in_both': 'N/A - Use detailed comparison'
             },
-            'only_in_plex': only_in_plex,
-            'only_in_assigned': only_in_assigned
+            'only_in_plex': [],
+            'only_in_assigned': [],
+            'note': 'Detailed comparison disabled due to timeout. Plex has ' + str(plex_total) + ' movies, you have ' + str(len(assigned_files)) + ' assigned movies.'
         }), 200
         
     except Exception as e:
         logger.error(f"Error comparing movies: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to compare movies: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])

@@ -21,6 +21,7 @@ class PlexClient:
         self.server_url = server_url.rstrip('/')
         self.token = token or os.getenv('PLEX_TOKEN') or '1CkG7DQwFVFadauKTxuB'
         self.session = requests.Session()
+        self.session.timeout = 30  # 30 second timeout
         
         if self.token:
             self.session.headers.update({'X-Plex-Token': self.token})
