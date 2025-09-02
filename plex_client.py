@@ -15,7 +15,7 @@ class PlexClient:
         Initialize Plex client
         
         Args:
-            server_url: Plex server URL (default: http://natetrystuff.com:32400)
+            server_url: Plex server URL (default: http://192.168.0.10:32400)
             token: Plex authentication token (optional)
         """
         self.server_url = server_url.rstrip('/')

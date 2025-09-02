@@ -1606,20 +1606,44 @@ def compare_movies():
         step_time = time.time() - step_start
         logger.info(f"Step 4 completed in {step_time:.2f}s - Difference: {difference}")
         
+        # Get Plex movies for detailed comparison
+        logger.info("Step 5: Getting Plex movies for detailed comparison...")
+        step_start = time.time()
+        try:
+            plex_movies = plex_client.get_all_movies()
+            plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
+            logger.info(f"Retrieved {len(plex_movies)} movies from Plex")
+        except Exception as e:
+            logger.warning(f"Failed to get Plex movies: {e}")
+            plex_titles = set()
+        step_time = time.time() - step_start
+        logger.info(f"Step 5 completed in {step_time:.2f}s")
+        
+        # Calculate detailed differences
+        logger.info("Step 6: Calculating detailed differences...")
+        step_start = time.time()
+        
+        only_in_plex = plex_titles - assigned_titles
+        only_in_assigned = assigned_titles - plex_titles
+        in_both = plex_titles & assigned_titles
+        
+        step_time = time.time() - step_start
+        logger.info(f"Step 6 completed in {step_time:.2f}s")
+        
         # Prepare response
-        logger.info("Step 5: Preparing response...")
+        logger.info("Step 7: Preparing response...")
         step_start = time.time()
         response_data = {
             'summary': {
                 'plex_total': plex_total,
                 'assigned_total': len(assigned_files),
-                'only_in_plex': 'N/A - Use detailed comparison',
-                'only_in_assigned': 'N/A - Use detailed comparison',
-                'in_both': 'N/A - Use detailed comparison'
+                'only_in_plex': len(only_in_plex),
+                'only_in_assigned': len(only_in_assigned),
+                'in_both': len(in_both)
             },
-            'only_in_plex': [],
-            'only_in_assigned': [],
-            'note': f'Detailed comparison disabled due to timeout. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies. Difference: {difference}'
+            'only_in_plex': list(only_in_plex)[:50],  # Limit to first 50
+            'only_in_assigned': list(only_in_assigned)[:50],  # Limit to first 50
+            'note': f'Showing first 50 items of each category. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
