@@ -1567,18 +1567,12 @@ class PlexManager:
         
         return movie_details
 
-# Initialize Plex manager (only if PlexAPI is available)
-plex_manager = PlexManager(PLEX_BASE_URL, PLEX_TOKEN) if PLEX_AVAILABLE else None
+# Initialize Plex manager
+plex_manager = PlexManager(PLEX_BASE_URL, PLEX_TOKEN)
 
 @app.route('/plex/movies', methods=['GET'])
 def get_plex_movies():
     """Get all movies from Plex server."""
-    if not PLEX_AVAILABLE:
-        return jsonify({'error': 'PlexAPI is not available - module not installed'}), 503
-    
-    if not plex_manager:
-        return jsonify({'error': 'Plex manager not initialized'}), 503
-        
     try:
         if not plex_manager.connect():
             return jsonify({'error': 'Failed to connect to Plex server'}), 500
@@ -1613,12 +1607,6 @@ def get_plex_movies():
 @app.route('/plex/count', methods=['GET'])
 def get_plex_movie_count():
     """Get just the movie count from Plex."""
-    if not PLEX_AVAILABLE:
-        return jsonify({'error': 'PlexAPI is not available - module not installed'}), 503
-    
-    if not plex_manager:
-        return jsonify({'error': 'Plex manager not initialized'}), 503
-        
     try:
         if not plex_manager.connect():
             return jsonify({'error': 'Failed to connect to Plex server'}), 500
@@ -1717,7 +1705,7 @@ def compare_with_local():
 def health_check():
     """Health check endpoint."""
     # Test Plex connection
-    plex_connected = plex_manager.connect() if (PLEX_TOKEN and plex_manager) else False
+    plex_connected = plex_manager.connect() if PLEX_TOKEN else False
     
     return jsonify({
         'status': 'healthy',
@@ -1749,7 +1737,6 @@ if __name__ == '__main__':
     logger.info(f"OpenAI API configured: {bool(OPENAI_API_KEY)}")
     logger.info(f"Firebase configured: {bool(firebase_app)}")
     logger.info(f"Storage type: {'Firebase' if config.use_firebase else 'Local JSON'}")
-    logger.info(f"PlexAPI available: {PLEX_AVAILABLE}")
     logger.info(f"Config file (fallback): {CONFIG_FILE}")
     logger.info(f"Movie paths configured: {len(config.get_movie_paths())}")
     
