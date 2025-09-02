@@ -1544,6 +1544,64 @@ def search_plex_movies():
         logger.error(f"Error searching Plex movies: {str(e)}")
         return jsonify({'error': f'Failed to search Plex movies: {str(e)}'}), 500
 
+@app.route('/compare-movies', methods=['GET'])
+def compare_movies():
+    """Compare Plex movies with assigned movies."""
+    try:
+        # Get Plex movies
+        plex_movies = plex_client.get_all_movies()
+        plex_titles = {movie['title'].lower().strip() for movie in plex_movies}
+        
+        # Get assigned movies from config
+        assigned_movies = config.get_movie_assignments()
+        assigned_titles = set()
+        assigned_files = []
+        
+        for file_path, movie_data in assigned_movies.items():
+            if os.path.exists(file_path):  # Only include existing files
+                title = movie_data.get('title', '').lower().strip()
+                if title:
+                    assigned_titles.add(title)
+                    assigned_files.append({
+                        'title': movie_data.get('title'),
+                        'file_path': file_path,
+                        'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
+                    })
+        
+        # Find differences
+        only_in_plex = []
+        only_in_assigned = []
+        
+        for movie in plex_movies:
+            title = movie['title'].lower().strip()
+            if title not in assigned_titles:
+                only_in_plex.append({
+                    'title': movie['title'],
+                    'year': movie.get('year'),
+                    'file_path': movie.get('media', [{}])[0].get('part', [{}])[0].get('file') if movie.get('media') else None
+                })
+        
+        for file_info in assigned_files:
+            title = file_info['title'].lower().strip()
+            if title not in plex_titles:
+                only_in_assigned.append(file_info)
+        
+        return jsonify({
+            'summary': {
+                'plex_total': len(plex_movies),
+                'assigned_total': len(assigned_files),
+                'only_in_plex': len(only_in_plex),
+                'only_in_assigned': len(only_in_assigned),
+                'in_both': len(plex_movies) - len(only_in_plex)
+            },
+            'only_in_plex': only_in_plex,
+            'only_in_assigned': only_in_assigned
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error comparing movies: {str(e)}")
+        return jsonify({'error': f'Failed to compare movies: {str(e)}'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
