@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, db
+from plexapi.server import PlexServer
+from plexapi.exceptions import PlexApiException
 
 # Load environment variables (fallback for local development)
 load_dotenv('env')
@@ -1477,9 +1479,223 @@ def find_duplicates():
         logger.error(f"Error finding duplicates: {str(e)}")
         return jsonify({'error': f'Failed to find duplicates: {str(e)}'}), 500
 
+# Plex Configuration
+PLEX_BASE_URL = os.getenv('PLEX_BASE_URL', 'http://natetrystuff.com:32400')
+PLEX_TOKEN = os.getenv('PLEX_TOKEN', '')
+
+class PlexManager:
+    """Manages Plex server connections and movie retrieval."""
+    
+    def __init__(self, base_url: str, token: str = None):
+        self.base_url = base_url
+        self.token = token
+        self.plex = None
+    
+    def connect(self) -> bool:
+        """Connect to Plex server."""
+        try:
+            if self.token:
+                self.plex = PlexServer(self.base_url, self.token)
+            else:
+                self.plex = PlexServer(self.base_url)
+            logger.info(f"Successfully connected to Plex server: {self.base_url}")
+            return True
+        except PlexApiException as e:
+            logger.error(f"Failed to connect to Plex server: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error connecting to Plex: {e}")
+            return False
+    
+    def get_movies(self) -> List[Dict[str, Any]]:
+        """Get all movies from Plex."""
+        if not self.plex:
+            logger.error("Not connected to Plex server")
+            return []
+        
+        try:
+            movie_libraries = self.plex.library.sections()
+            movies = []
+            
+            for library in movie_libraries:
+                if library.type == 'movie':
+                    logger.info(f"Found movie library: {library.title}")
+                    library_movies = library.all()
+                    movies.extend(library_movies)
+                    logger.info(f"Found {len(library_movies)} movies in {library.title}")
+            
+            return movies
+        except Exception as e:
+            logger.error(f"Error getting movies: {e}")
+            return []
+    
+    def get_movie_details(self, movies: List) -> List[Dict[str, Any]]:
+        """Extract detailed information from movies."""
+        movie_details = []
+        
+        for movie in movies:
+            try:
+                detail = {
+                    'title': movie.title,
+                    'year': movie.year,
+                    'rating': movie.rating,
+                    'duration': movie.duration,
+                    'summary': movie.summary,
+                    'genres': [genre.tag for genre in movie.genres] if movie.genres else [],
+                    'file_path': movie.locations[0] if movie.locations else None,
+                    'plex_id': movie.ratingKey,
+                    'added_at': movie.addedAt.isoformat() if movie.addedAt else None,
+                    'updated_at': movie.updatedAt.isoformat() if movie.updatedAt else None,
+                    'view_count': movie.viewCount,
+                    'last_viewed': movie.lastViewedAt.isoformat() if movie.lastViewedAt else None
+                }
+                movie_details.append(detail)
+            except Exception as e:
+                logger.warning(f"Error processing movie {movie.title}: {e}")
+                continue
+        
+        return movie_details
+
+# Initialize Plex manager
+plex_manager = PlexManager(PLEX_BASE_URL, PLEX_TOKEN)
+
+@app.route('/plex/movies', methods=['GET'])
+def get_plex_movies():
+    """Get all movies from Plex server."""
+    try:
+        if not plex_manager.connect():
+            return jsonify({'error': 'Failed to connect to Plex server'}), 500
+        
+        movies = plex_manager.get_movies()
+        if not movies:
+            return jsonify({'error': 'No movies found in Plex'}), 404
+        
+        movie_details = plex_manager.get_movie_details(movies)
+        
+        # Group by year for summary
+        years = {}
+        for movie in movie_details:
+            year = movie.get('year', 'Unknown')
+            if year not in years:
+                years[year] = 0
+            years[year] += 1
+        
+        return jsonify({
+            'movies': movie_details,
+            'total_count': len(movie_details),
+            'summary': {
+                'total_movies': len(movie_details),
+                'years': years
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting Plex movies: {str(e)}")
+        return jsonify({'error': f'Failed to get Plex movies: {str(e)}'}), 500
+
+@app.route('/plex/count', methods=['GET'])
+def get_plex_movie_count():
+    """Get just the movie count from Plex."""
+    try:
+        if not plex_manager.connect():
+            return jsonify({'error': 'Failed to connect to Plex server'}), 500
+        
+        movies = plex_manager.get_movies()
+        if not movies:
+            return jsonify({'count': 0, 'message': 'No movies found'}), 200
+        
+        movie_details = plex_manager.get_movie_details(movies)
+        
+        # Get library breakdown
+        libraries = {}
+        for movie in movies:
+            if hasattr(movie, 'librarySectionTitle'):
+                lib_name = movie.librarySectionTitle
+                if lib_name not in libraries:
+                    libraries[lib_name] = 0
+                libraries[lib_name] += 1
+        
+        return jsonify({
+            'count': len(movie_details),
+            'libraries': libraries,
+            'message': f'Found {len(movie_details)} movies in Plex'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting Plex movie count: {str(e)}")
+        return jsonify({'error': f'Failed to get Plex movie count: {str(e)}'}), 500
+
+@app.route('/plex/compare', methods=['POST'])
+def compare_with_local():
+    """Compare Plex movies with local movie files."""
+    try:
+        data = request.get_json()
+        local_directories = data.get('directories', [])
+        
+        if not local_directories:
+            return jsonify({'error': 'No directories provided for comparison'}), 400
+        
+        # Get Plex movies
+        if not plex_manager.connect():
+            return jsonify({'error': 'Failed to connect to Plex server'}), 500
+        
+        plex_movies = plex_manager.get_movies()
+        plex_details = plex_manager.get_movie_details(plex_movies)
+        plex_titles = {movie['title'].lower() for movie in plex_details}
+        
+        # Scan local directories
+        local_movies = []
+        movie_extensions = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'}
+        
+        for directory in local_directories:
+            if not os.path.exists(directory):
+                continue
+            
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    file_ext = os.path.splitext(file)[1].lower()
+                    
+                    if file_ext in movie_extensions:
+                        # Extract title from filename
+                        title = os.path.splitext(file)[0]
+                        title = title.replace('_', ' ').replace('.', ' ').strip()
+                        
+                        local_movies.append({
+                            'title': title,
+                            'filename': file,
+                            'file_path': file_path,
+                            'size': os.path.getsize(file_path)
+                        })
+        
+        local_titles = {movie['title'].lower() for movie in local_movies}
+        
+        # Find differences
+        in_local_not_plex = local_titles - plex_titles
+        in_plex_not_local = plex_titles - local_titles
+        
+        return jsonify({
+            'comparison': {
+                'local_count': len(local_movies),
+                'plex_count': len(plex_details),
+                'difference': len(local_movies) - len(plex_details),
+                'missing_in_plex': list(in_local_not_plex),
+                'missing_in_local': list(in_plex_not_local)
+            },
+            'local_movies': local_movies,
+            'plex_movies': plex_details
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error comparing movies: {str(e)}")
+        return jsonify({'error': f'Failed to compare movies: {str(e)}'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
+    # Test Plex connection
+    plex_connected = plex_manager.connect() if PLEX_TOKEN else False
+    
     return jsonify({
         'status': 'healthy',
         'movie_paths_count': len(config.get_movie_paths()),
@@ -1487,7 +1703,10 @@ def health_check():
         'openai_configured': bool(OPENAI_API_KEY),
         'firebase_configured': bool(firebase_app),
         'firebase_connection': config.use_firebase,
-        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON'
+        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON',
+        'plex_configured': bool(PLEX_TOKEN),
+        'plex_connected': plex_connected,
+        'plex_url': PLEX_BASE_URL
     })
 
 @app.errorhandler(404)
