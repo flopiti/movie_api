@@ -180,8 +180,13 @@ class PlexClient:
                     # Direct approach - just get the count from /all endpoint
                     logger.info(f"Library count is None, getting from /all endpoint...")
                     try:
+                        # Try a more efficient approach - just get the count without full movie data
                         url = f"{self.server_url}/library/sections/{library['id']}/all"
-                        response = self.session.get(url, timeout=3)  # 3 second timeout
+                        params = {
+                            'X-Plex-Container-Start': '0',
+                            'X-Plex-Container-Size': '1'  # Just get 1 item to check totalSize
+                        }
+                        response = self.session.get(url, params=params, timeout=10)  # Increased timeout
                         if response.status_code == 200:
                             root = ET.fromstring(response.content)
                             total_size = root.get('totalSize')
@@ -189,10 +194,16 @@ class PlexClient:
                                 counts[library['title']] = int(total_size)
                                 logger.info(f"Got count from /all endpoint: {total_size}")
                             else:
-                                # Count the actual movies returned in the response
-                                movies_in_response = len(root.findall('.//Video'))
-                                counts[library['title']] = movies_in_response
-                                logger.info(f"No totalSize in response, counted {movies_in_response} movies from response")
+                                # If still no totalSize, try without pagination
+                                response = self.session.get(url, timeout=120)  # Even longer timeout for full response
+                                if response.status_code == 200:
+                                    root = ET.fromstring(response.content)
+                                    movies_in_response = len(root.findall('.//Video'))
+                                    counts[library['title']] = movies_in_response
+                                    logger.info(f"No totalSize in response, counted {movies_in_response} movies from response")
+                                else:
+                                    logger.error(f"/all request failed: {response.status_code}")
+                                    counts[library['title']] = 0
                         else:
                             logger.error(f"/all request failed: {response.status_code}")
                             counts[library['title']] = 0
