@@ -177,11 +177,30 @@ class PlexClient:
                     counts[library['title']] = int(count_value)
                     logger.info(f"Using library count: {count_value}")
                 else:
-                    # If count is None, get actual count from movies
-                    logger.info(f"Library count is None, fetching actual movies...")
-                    movies = self.get_movies_from_library(library['id'])
-                    counts[library['title']] = len(movies)
-                    logger.info(f"Fetched {len(movies)} movies for library {library['title']}")
+                    # If count is None, get it from the MediaContainer totalSize
+                    logger.info(f"Library count is None, getting totalSize from MediaContainer...")
+                    try:
+                        url = f"{self.server_url}/library/sections/{library['id']}/all"
+                        params = {
+                            'X-Plex-Container-Start': '0',
+                            'X-Plex-Container-Size': '1'  # Just get 1 item to get the totalSize
+                        }
+                        response = self.session.get(url, params=params)
+                        if response.status_code == 200:
+                            root = ET.fromstring(response.content)
+                            total_size = root.get('totalSize')
+                            if total_size is not None:
+                                counts[library['title']] = int(total_size)
+                                logger.info(f"Got count from MediaContainer totalSize: {total_size}")
+                            else:
+                                logger.warning(f"No totalSize found for library {library['title']}, using 0")
+                                counts[library['title']] = 0
+                        else:
+                            logger.warning(f"MediaContainer request failed with status {response.status_code}")
+                            counts[library['title']] = 0
+                    except Exception as e:
+                        logger.error(f"Error getting MediaContainer for {library['title']}: {e}")
+                        counts[library['title']] = 0
         
         logger.info(f"Final counts: {counts}")
         return counts
