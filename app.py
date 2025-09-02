@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, db
+from plex_client import PlexClient
 
 # Load environment variables (fallback for local development)
 load_dotenv('env')
@@ -1477,6 +1478,72 @@ def find_duplicates():
         logger.error(f"Error finding duplicates: {str(e)}")
         return jsonify({'error': f'Failed to find duplicates: {str(e)}'}), 500
 
+# Initialize Plex client
+plex_client = PlexClient()
+
+@app.route('/plex/libraries', methods=['GET'])
+def get_plex_libraries():
+    """Get all Plex libraries."""
+    try:
+        libraries = plex_client.get_libraries()
+        return jsonify({
+            'libraries': libraries,
+            'total_libraries': len(libraries),
+            'movie_libraries': [lib for lib in libraries if lib['type'] == 'movie']
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting Plex libraries: {str(e)}")
+        return jsonify({'error': f'Failed to get Plex libraries: {str(e)}'}), 500
+
+@app.route('/plex/movie-count', methods=['GET'])
+def get_plex_movie_count():
+    """Get movie count from Plex by library."""
+    try:
+        counts = plex_client.get_movie_count()
+        total_count = sum(counts.values())
+        return jsonify({
+            'counts_by_library': counts,
+            'total_movies': total_count,
+            'libraries_count': len(counts)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting Plex movie count: {str(e)}")
+        return jsonify({'error': f'Failed to get Plex movie count: {str(e)}'}), 500
+
+@app.route('/plex/movies', methods=['GET'])
+def get_plex_movies():
+    """Get all movies from Plex."""
+    try:
+        movies = plex_client.get_all_movies()
+        return jsonify({
+            'movies': movies,
+            'total_movies': len(movies)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting Plex movies: {str(e)}")
+        return jsonify({'error': f'Failed to get Plex movies: {str(e)}'}), 500
+
+@app.route('/plex/search', methods=['GET'])
+def search_plex_movies():
+    """Search movies in Plex."""
+    try:
+        query = request.args.get('q', '')
+        library_id = request.args.get('library_id')
+        
+        if not query:
+            return jsonify({'error': 'Query parameter "q" is required'}), 400
+        
+        movies = plex_client.search_movies(query, library_id)
+        return jsonify({
+            'movies': movies,
+            'query': query,
+            'library_id': library_id,
+            'total_results': len(movies)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error searching Plex movies: {str(e)}")
+        return jsonify({'error': f'Failed to search Plex movies: {str(e)}'}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
@@ -1487,7 +1554,8 @@ def health_check():
         'openai_configured': bool(OPENAI_API_KEY),
         'firebase_configured': bool(firebase_app),
         'firebase_connection': config.use_firebase,
-        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON'
+        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON',
+        'plex_configured': True
     })
 
 @app.errorhandler(404)
