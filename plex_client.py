@@ -189,8 +189,10 @@ class PlexClient:
                                 counts[library['title']] = int(total_size)
                                 logger.info(f"Got count from /all endpoint: {total_size}")
                             else:
-                                logger.error(f"No totalSize in response")
-                                counts[library['title']] = 0
+                                # Count the actual movies returned in the response
+                                movies_in_response = len(root.findall('.//Video'))
+                                counts[library['title']] = movies_in_response
+                                logger.info(f"No totalSize in response, counted {movies_in_response} movies from response")
                         else:
                             logger.error(f"/all request failed: {response.status_code}")
                             counts[library['title']] = 0
