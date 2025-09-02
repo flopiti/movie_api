@@ -1548,23 +1548,39 @@ def search_plex_movies():
 def compare_movies():
     """Compare Plex movies with assigned movies."""
     try:
-        logger.info("Starting movie comparison...")
+        logger.info("=== STARTING MOVIE COMPARISON ===")
+        import time
+        start_time = time.time()
         
         # Get Plex movie count first
-        logger.info("Getting Plex movie count...")
+        logger.info("Step 1: Getting Plex movie count...")
+        step_start = time.time()
         plex_counts = plex_client.get_movie_count()
         plex_total = sum(plex_counts.values())
-        logger.info(f"Plex total: {plex_total}")
+        step_time = time.time() - step_start
+        logger.info(f"Step 1 completed in {step_time:.2f}s - Plex total: {plex_total}")
         
         # Get assigned movies from config
-        logger.info("Fetching assigned movies...")
+        logger.info("Step 2: Fetching assigned movies from config...")
+        step_start = time.time()
+        logger.info("  Calling config.get_movie_assignments()...")
         assigned_movies = config.get_movie_assignments()
-        logger.info(f"Retrieved {len(assigned_movies)} assigned movies from config")
+        logger.info(f"  config.get_movie_assignments() returned {len(assigned_movies)} items")
+        step_time = time.time() - step_start
+        logger.info(f"Step 2 completed in {step_time:.2f}s - Retrieved {len(assigned_movies)} assigned movies")
         
+        # Process assigned movies
+        logger.info("Step 3: Processing assigned movies...")
+        step_start = time.time()
         assigned_titles = set()
         assigned_files = []
         
+        processed_count = 0
         for file_path, movie_data in assigned_movies.items():
+            processed_count += 1
+            if processed_count % 100 == 0:
+                logger.info(f"  Processed {processed_count}/{len(assigned_movies)} assigned movies...")
+                
             if os.path.exists(file_path):  # Only include existing files
                 title = movie_data.get('title', '').lower().strip()
                 if title:
@@ -1575,13 +1591,20 @@ def compare_movies():
                         'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
                     })
         
-        logger.info(f"Processed {len(assigned_files)} existing assigned files")
+        step_time = time.time() - step_start
+        logger.info(f"Step 3 completed in {step_time:.2f}s - Processed {len(assigned_files)} existing assigned files")
         
-        # For now, just return the counts without detailed comparison
-        # This avoids the timeout issue with getting all Plex movies
-        logger.info("Returning basic comparison...")
+        # Calculate difference
+        logger.info("Step 4: Calculating difference...")
+        step_start = time.time()
+        difference = plex_total - len(assigned_files)
+        step_time = time.time() - step_start
+        logger.info(f"Step 4 completed in {step_time:.2f}s - Difference: {difference}")
         
-        return jsonify({
+        # Prepare response
+        logger.info("Step 5: Preparing response...")
+        step_start = time.time()
+        response_data = {
             'summary': {
                 'plex_total': plex_total,
                 'assigned_total': len(assigned_files),
@@ -1591,11 +1614,19 @@ def compare_movies():
             },
             'only_in_plex': [],
             'only_in_assigned': [],
-            'note': 'Detailed comparison disabled due to timeout. Plex has ' + str(plex_total) + ' movies, you have ' + str(len(assigned_files)) + ' assigned movies.'
-        }), 200
+            'note': f'Detailed comparison disabled due to timeout. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies. Difference: {difference}'
+        }
+        step_time = time.time() - step_start
+        logger.info(f"Step 5 completed in {step_time:.2f}s")
+        
+        total_time = time.time() - start_time
+        logger.info(f"=== COMPARISON COMPLETED IN {total_time:.2f}s ===")
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
-        logger.error(f"Error comparing movies: {str(e)}")
+        logger.error(f"=== ERROR IN MOVIE COMPARISON ===")
+        logger.error(f"Error: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")

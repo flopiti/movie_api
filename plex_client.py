@@ -33,10 +33,15 @@ class PlexClient:
         Returns:
             List of library information dictionaries
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            logger.info(f"Fetching libraries from {self.server_url}/library/sections")
             url = f"{self.server_url}/library/sections"
             response = self.session.get(url)
             response.raise_for_status()
+            logger.info(f"Libraries response status: {response.status_code}")
             
             root = ET.fromstring(response.content)
             libraries = []
@@ -49,10 +54,13 @@ class PlexClient:
                     'count': directory.get('count')
                 }
                 libraries.append(library)
+                logger.info(f"Found library: {library['title']} (ID: {library['id']}, Type: {library['type']}, Count: {library['count']})")
             
+            logger.info(f"Total libraries found: {len(libraries)}")
             return libraries
             
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get libraries: {e}")
             return []
     
     def get_movies_from_library(self, library_id: str, limit: int = 1000) -> List[Dict]:
@@ -152,19 +160,30 @@ class PlexClient:
         Returns:
             Dictionary with library names as keys and movie counts as values
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info("Getting movie count from Plex...")
         libraries = self.get_libraries()
+        logger.info(f"Found {len(libraries)} libraries")
+        
         counts = {}
         
         for library in libraries:
             if library['type'] == 'movie':
+                logger.info(f"Processing movie library: {library['title']}")
                 count_value = library.get('count')
                 if count_value is not None:
                     counts[library['title']] = int(count_value)
+                    logger.info(f"Using library count: {count_value}")
                 else:
                     # If count is None, get actual count from movies
+                    logger.info(f"Library count is None, fetching actual movies...")
                     movies = self.get_movies_from_library(library['id'])
                     counts[library['title']] = len(movies)
+                    logger.info(f"Fetched {len(movies)} movies for library {library['title']}")
         
+        logger.info(f"Final counts: {counts}")
         return counts
     
     def search_movies(self, query: str, library_id: Optional[str] = None) -> List[Dict]:
