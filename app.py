@@ -18,8 +18,15 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, db
-from plexapi.server import PlexServer
-from plexapi.exceptions import PlexApiException
+# Plex imports - make them optional
+try:
+    from plexapi.server import PlexServer
+    from plexapi.exceptions import PlexApiException
+    PLEX_AVAILABLE = True
+except ImportError:
+    PlexServer = None
+    PlexApiException = None
+    PLEX_AVAILABLE = False
 
 # Load environment variables (fallback for local development)
 load_dotenv('env')
@@ -1493,6 +1500,10 @@ class PlexManager:
     
     def connect(self) -> bool:
         """Connect to Plex server."""
+        if not PLEX_AVAILABLE:
+            logger.error("PlexAPI is not available - module not installed")
+            return False
+            
         try:
             if self.token:
                 self.plex = PlexServer(self.base_url, self.token)
@@ -1704,6 +1715,7 @@ def health_check():
         'firebase_configured': bool(firebase_app),
         'firebase_connection': config.use_firebase,
         'storage_type': 'Firebase' if config.use_firebase else 'Local JSON',
+        'plex_available': PLEX_AVAILABLE,
         'plex_configured': bool(PLEX_TOKEN),
         'plex_connected': plex_connected,
         'plex_url': PLEX_BASE_URL
