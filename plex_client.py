@@ -177,29 +177,44 @@ class PlexClient:
                     counts[library['title']] = int(count_value)
                     logger.info(f"Using library count: {count_value}")
                 else:
-                    # If count is None, use the working /all endpoint without type parameter
-                    logger.info(f"Library count is None, trying /all endpoint for {library['title']}...")
+                    # If count is None, try library info endpoint first
+                    logger.info(f"Library count is None, trying library info endpoint for {library['title']}...")
                     try:
-                        url = f"{self.server_url}/library/sections/{library['id']}/all"
-                        params = {
-                            'X-Plex-Container-Start': '0',
-                            'X-Plex-Container-Size': '1'
-                        }
-                        response = self.session.get(url, params=params, timeout=10)
+                        url = f"{self.server_url}/library/sections/{library['id']}"
+                        response = self.session.get(url, timeout=5)  # Shorter timeout
                         if response.status_code == 200:
                             root = ET.fromstring(response.content)
-                            total_size = root.get('totalSize')
-                            if total_size is not None:
-                                counts[library['title']] = int(total_size)
-                                logger.info(f"Got count from /all endpoint: {total_size}")
+                            directory = root.find('.//Directory')
+                            if directory is not None:
+                                count_value = directory.get('count')
+                                if count_value is not None:
+                                    counts[library['title']] = int(count_value)
+                                    logger.info(f"Got count from library info: {count_value}")
+                                else:
+                                    # If still no count, try a minimal /all request
+                                    logger.info(f"No count in library info, trying minimal /all request...")
+                                    url = f"{self.server_url}/library/sections/{library['id']}/all"
+                                    response = self.session.get(url, timeout=5)
+                                    if response.status_code == 200:
+                                        root = ET.fromstring(response.content)
+                                        total_size = root.get('totalSize')
+                                        if total_size is not None:
+                                            counts[library['title']] = int(total_size)
+                                            logger.info(f"Got count from minimal /all: {total_size}")
+                                        else:
+                                            logger.warning(f"No totalSize in minimal /all response")
+                                            counts[library['title']] = 0
+                                    else:
+                                        logger.warning(f"Minimal /all request failed with status {response.status_code}")
+                                        counts[library['title']] = 0
                             else:
-                                logger.warning(f"No totalSize in /all response for {library['title']}")
+                                logger.warning(f"No Directory element found in library info")
                                 counts[library['title']] = 0
                         else:
-                            logger.warning(f"/all request failed with status {response.status_code}")
+                            logger.warning(f"Library info request failed with status {response.status_code}")
                             counts[library['title']] = 0
                     except Exception as e:
-                        logger.error(f"Error with /all endpoint for {library['title']}: {e}")
+                        logger.error(f"Error with library info endpoint for {library['title']}: {e}")
                         counts[library['title']] = 0
         
         logger.info(f"Final counts: {counts}")
