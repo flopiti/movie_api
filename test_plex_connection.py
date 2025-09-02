@@ -4,7 +4,6 @@ Test script to verify Plex connection and get movie counts
 """
 
 from plex_client import PlexClient
-import json
 
 def main():
     print("Testing Plex connection to natetrystuff.com:32400")
@@ -55,18 +54,8 @@ def main():
                 file_path = movie['media'][0]['part'][0].get('file', 'Unknown')
                 print(f"     File: {file_path}")
         
-        # Save results to JSON for comparison
-        results = {
-            'total_count': total_count,
-            'libraries': counts,
-            'movies': all_movies[:100]  # Save first 100 for inspection
-        }
-        
-        with open('plex_movies.json', 'w') as f:
-            json.dump(results, f, indent=2)
-        
-        print(f"\n✅ Results saved to plex_movies.json")
-        print(f"Compare this count ({total_count}) with your current app's count")
+        print(f"\n✅ Plex connection working - {total_count} movies found")
+        print("Use the API endpoints to access this data from your frontend")
         
     except Exception as e:
         print(f"❌ Error: {e}")
