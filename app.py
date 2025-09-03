@@ -1647,12 +1647,17 @@ def compare_movies():
         only_in_plex = plex_titles - assigned_titles
         only_in_assigned = assigned_titles - plex_titles
         
-        # Debug: Show the math
+        # Debug: Show the math and sample titles
         logger.info(f"DEBUG: Math check:")
         logger.info(f"DEBUG:   plex_titles ({len(plex_titles)}) - in_both ({len(in_both)}) = only_in_plex ({len(only_in_plex)})")
         logger.info(f"DEBUG:   assigned_titles ({len(assigned_titles)}) - in_both ({len(in_both)}) = only_in_assigned ({len(only_in_assigned)})")
         logger.info(f"DEBUG:   Total should be: {len(only_in_plex) + len(only_in_assigned) + len(in_both)}")
         logger.info(f"DEBUG:   Expected total: {len(plex_titles) + len(assigned_titles) - len(in_both)}")
+        
+        # Show sample titles to see why they don't match
+        logger.info(f"DEBUG: Sample plex titles: {list(plex_titles)[:5]}")
+        logger.info(f"DEBUG: Sample assigned titles: {list(assigned_titles)[:5]}")
+        logger.info(f"DEBUG: Sample in_both: {list(in_both)[:5]}")
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
