@@ -1661,9 +1661,16 @@ def compare_movies():
         in_both_assigned = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
         
         # Find movies only in each set (using original titles for the response)
+        # The issue is that we need to map back from normalized titles to original titles
         # Create sets of original titles that are in both
-        in_both_plex_original = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
-        in_both_assigned_original = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
+        in_both_plex_original = set()
+        in_both_assigned_original = set()
+        
+        for normalized_title in normalized_matches:
+            if normalized_title in plex_normalized:
+                in_both_plex_original.add(plex_normalized[normalized_title])
+            if normalized_title in assigned_normalized:
+                in_both_assigned_original.add(assigned_normalized[normalized_title])
         
         # Find movies only in each set
         only_in_plex_original = plex_original_titles - in_both_plex_original
@@ -1707,11 +1714,11 @@ def compare_movies():
                 'only_in_assigned': len(only_in_assigned_original),
                 'in_both': len(in_both_plex_original)
             },
-            'only_in_plex': list(only_in_plex_original)[:50],  # Limit to first 50
-            'only_in_assigned': list(only_in_assigned_original)[:50],  # Limit to first 50
+            'only_in_plex': list(only_in_plex_original),  # Return ALL missing Plex movies
+            'only_in_assigned': list(only_in_assigned_original),  # Return ALL missing assigned movies
             'plex_movies': plex_movies_list,  # Full sorted list for side-by-side comparison
             'assigned_movies': assigned_movies_list,  # Full sorted list for side-by-side comparison
-            'note': f'Showing first 50 items of each category. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies.'
+            'note': f'Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies. {len(only_in_plex_original)} movies only in Plex, {len(only_in_assigned_original)} movies only assigned.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
