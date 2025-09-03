@@ -1657,11 +1657,12 @@ def compare_movies():
             plex_original = plex_normalized[normalized_title]
             assigned_original = assigned_normalized[normalized_title]
             in_both_original.add(plex_original)  # Use Plex title as canonical
+            in_both_original.add(assigned_original)  # Also add assigned title to avoid false positives
         
         # Find movies only in each set (using original titles)
         only_in_plex = plex_titles - in_both_original
         only_in_assigned = assigned_titles - in_both_original
-        in_both = in_both_original
+        in_both = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
