@@ -1660,21 +1660,32 @@ def compare_movies():
         in_both_plex = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
         in_both_assigned = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
         
+        # Find movies only in each set (using original titles for the response)
+        # Create sets of original titles that are in both
+        in_both_plex_original = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
+        in_both_assigned_original = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
+        
         # Find movies only in each set
+        only_in_plex_original = plex_original_titles - in_both_plex_original
+        only_in_assigned_original = assigned_original_titles - in_both_assigned_original
+        
+        # Keep the normalized sets for the summary counts
         only_in_plex = plex_titles - in_both_plex
         only_in_assigned = assigned_titles - in_both_assigned
         
         # Debug: Show the math and sample titles
         logger.info(f"DEBUG: Math check:")
-        logger.info(f"DEBUG:   plex_titles ({len(plex_titles)}) - in_both_plex ({len(in_both_plex)}) = only_in_plex ({len(only_in_plex)})")
-        logger.info(f"DEBUG:   assigned_titles ({len(assigned_titles)}) - in_both_assigned ({len(in_both_assigned)}) = only_in_assigned ({len(only_in_assigned)})")
-        logger.info(f"DEBUG:   Total should be: {len(only_in_plex) + len(only_in_assigned) + len(in_both_plex)}")
-        logger.info(f"DEBUG:   Expected total: {len(plex_titles) + len(assigned_titles) - len(in_both_plex)}")
+        logger.info(f"DEBUG:   plex_original_titles ({len(plex_original_titles)}) - in_both_plex_original ({len(in_both_plex_original)}) = only_in_plex_original ({len(only_in_plex_original)})")
+        logger.info(f"DEBUG:   assigned_original_titles ({len(assigned_original_titles)}) - in_both_assigned_original ({len(in_both_assigned_original)}) = only_in_assigned_original ({len(only_in_assigned_original)})")
+        logger.info(f"DEBUG:   Total should be: {len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_plex_original)}")
+        logger.info(f"DEBUG:   Expected total: {len(plex_original_titles) + len(assigned_original_titles) - len(in_both_plex_original)}")
         
         # Show sample titles to see why they don't match
-        logger.info(f"DEBUG: Sample plex titles: {list(plex_titles)[:5]}")
-        logger.info(f"DEBUG: Sample assigned titles: {list(assigned_titles)[:5]}")
-        logger.info(f"DEBUG: Sample in_both_plex: {list(in_both_plex)[:5]}")
+        logger.info(f"DEBUG: Sample plex original titles: {list(plex_original_titles)[:5]}")
+        logger.info(f"DEBUG: Sample assigned original titles: {list(assigned_original_titles)[:5]}")
+        logger.info(f"DEBUG: Sample in_both_plex_original: {list(in_both_plex_original)[:5]}")
+        logger.info(f"DEBUG: Sample only_in_plex_original: {list(only_in_plex_original)[:5]}")
+        logger.info(f"DEBUG: Sample only_in_assigned_original: {list(only_in_assigned_original)[:5]}")
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
@@ -1692,12 +1703,12 @@ def compare_movies():
             'summary': {
                 'plex_total': plex_total,
                 'assigned_total': len(assigned_files),
-                'only_in_plex': len(only_in_plex),
-                'only_in_assigned': len(only_in_assigned),
-                'in_both': len(in_both_plex)
+                'only_in_plex': len(only_in_plex_original),
+                'only_in_assigned': len(only_in_assigned_original),
+                'in_both': len(in_both_plex_original)
             },
-            'only_in_plex': list(only_in_plex)[:50],  # Limit to first 50
-            'only_in_assigned': list(only_in_assigned)[:50],  # Limit to first 50
+            'only_in_plex': list(only_in_plex_original)[:50],  # Limit to first 50
+            'only_in_assigned': list(only_in_assigned_original)[:50],  # Limit to first 50
             'plex_movies': plex_movies_list,  # Full sorted list for side-by-side comparison
             'assigned_movies': assigned_movies_list,  # Full sorted list for side-by-side comparison
             'note': f'Showing first 50 items of each category. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies.'
