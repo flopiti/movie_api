@@ -1651,21 +1651,13 @@ def compare_movies():
         # Find movies that match after normalization
         normalized_matches = plex_normalized_set & assigned_normalized_set
         
-        # Get original titles for matches (only the Plex titles)
-        in_both = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
+        # Get original titles for matches
+        in_both_plex = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
+        in_both_assigned = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
         
         # Find movies only in each set (using original titles)
-        only_in_plex = plex_titles - in_both
-        only_in_assigned = assigned_titles - in_both
-        
-        # Debug logging
-        logger.info(f"DEBUG: plex_titles count: {len(plex_titles)}")
-        logger.info(f"DEBUG: assigned_titles count: {len(assigned_titles)}")
-        logger.info(f"DEBUG: in_both count: {len(in_both)}")
-        logger.info(f"DEBUG: only_in_plex count: {len(only_in_plex)}")
-        logger.info(f"DEBUG: only_in_assigned count: {len(only_in_assigned)}")
-        logger.info(f"DEBUG: Sample only_in_plex: {list(only_in_plex)[:3]}")
-        logger.info(f"DEBUG: Sample only_in_assigned: {list(only_in_assigned)[:3]}")
+        only_in_plex = plex_titles - in_both_plex
+        only_in_assigned = assigned_titles - in_both_assigned
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
@@ -1679,7 +1671,7 @@ def compare_movies():
                 'assigned_total': len(assigned_files),
                 'only_in_plex': len(only_in_plex),
                 'only_in_assigned': len(only_in_assigned),
-                'in_both': len(in_both)
+                'in_both': len(in_both_plex)
             },
             'only_in_plex': list(only_in_plex)[:50],  # Limit to first 50
             'only_in_assigned': list(only_in_assigned)[:50],  # Limit to first 50
