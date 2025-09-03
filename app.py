@@ -1747,11 +1747,19 @@ def compare_movies():
         step_start = time.time()
         try:
             plex_movies = plex_client.get_all_movies()
+            logger.info(f"Retrieved {len(plex_movies)} movies from Plex")
+            
+            # Debug: Check for movies without titles
+            movies_without_titles = [movie for movie in plex_movies if not movie.get('title')]
+            if movies_without_titles:
+                logger.warning(f"Found {len(movies_without_titles)} movies without titles: {[movie.get('id', 'unknown') for movie in movies_without_titles]}")
+            
             # Store original titles for side-by-side comparison
             plex_original_titles = {movie['title'] for movie in plex_movies if movie.get('title')}
             # Store lowercase titles for matching
             plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
-            logger.info(f"Retrieved {len(plex_movies)} movies from Plex")
+            
+            logger.info(f"Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
         except Exception as e:
             logger.warning(f"Failed to get Plex movies: {e}")
             plex_original_titles = set()
@@ -1808,12 +1816,25 @@ def compare_movies():
         only_in_plex_list = sorted(list(only_in_plex_original))
         only_in_assigned_list = sorted(list(only_in_assigned_original))
         
-        # FIX THE FUCKING MATH - Use the actual comparison results
-        actual_plex_count = len(plex_original_titles)
+        # FIX THE FUCKING MATH - Use the actual Plex count from API
+        actual_plex_count = plex_total  # Use the real Plex count from API
         actual_assigned_count = len(assigned_original_titles)
         actual_in_both = len(in_both_original)
         actual_only_plex = len(only_in_plex_original)
         actual_only_assigned = len(only_in_assigned_original)
+        
+        # Debug the discrepancy
+        logger.info(f"🔍 PLEX COUNT DISCREPANCY:")
+        logger.info(f"  API says Plex has: {plex_total} movies")
+        logger.info(f"  Comparison found: {len(plex_original_titles)} movies")
+        logger.info(f"  Missing: {plex_total - len(plex_original_titles)} movies")
+        
+        if len(plex_original_titles) != plex_total:
+            logger.error(f"❌ PLEX COUNT MISMATCH: API says {plex_total} but comparison found {len(plex_original_titles)}")
+            # Find the missing movies
+            all_plex_titles = {movie['title'] for movie in plex_movies if movie.get('title')}
+            missing_titles = all_plex_titles - plex_original_titles
+            logger.error(f"❌ Missing titles: {list(missing_titles)}")
         
         response_data = {
             'summary': {
