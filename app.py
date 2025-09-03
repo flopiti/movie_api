@@ -1764,7 +1764,7 @@ def compare_movies():
                     all_titles_with_year.append(title_with_year)
                     # Debug: Show a few examples
                     if len(all_titles_with_year) <= 5:
-                        logger.info(f"🔍 DEBUG: Title with year: '{title}' -> '{title_with_year}' (year: {year})")
+                        logger.info(f"🔍 DEBUG: Title with year: '{title}' -> '{title_with_year}' (year: {year}, raw year: {movie.get('year')}, release_date: {movie.get('release_date')})")
             
             plex_original_titles = set(all_titles_with_year)
             # Store lowercase titles with year for matching
