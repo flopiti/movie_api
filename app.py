@@ -1578,6 +1578,7 @@ def compare_movies():
         logger.info("Step 3: Processing assigned movies...")
         step_start = time.time()
         assigned_titles = set()
+        assigned_original_titles = set()
         assigned_files = []
         
         processed_count = 0
@@ -1587,11 +1588,13 @@ def compare_movies():
                 logger.info(f"  Processed {processed_count}/{len(assigned_movies)} assigned movies...")
                 
             if os.path.exists(file_path):  # Only include existing files
-                title = movie_data.get('title', '').lower().strip()
+                original_title = movie_data.get('title', '')
+                title = original_title.lower().strip()
                 if title:
                     assigned_titles.add(title)
+                    assigned_original_titles.add(original_title)
                     assigned_files.append({
-                        'title': movie_data.get('title'),
+                        'title': original_title,
                         'file_path': file_path,
                         'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
                     })
@@ -1611,10 +1614,14 @@ def compare_movies():
         step_start = time.time()
         try:
             plex_movies = plex_client.get_all_movies()
+            # Store original titles for side-by-side comparison
+            plex_original_titles = {movie['title'] for movie in plex_movies if movie.get('title')}
+            # Store lowercase titles for matching
             plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
             logger.info(f"Retrieved {len(plex_movies)} movies from Plex")
         except Exception as e:
             logger.warning(f"Failed to get Plex movies: {e}")
+            plex_original_titles = set()
             plex_titles = set()
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
@@ -1677,8 +1684,9 @@ def compare_movies():
         step_start = time.time()
         
         # Create sorted lists for side-by-side comparison
-        plex_movies_list = sorted(list(plex_titles))
-        assigned_movies_list = sorted(list(assigned_titles))
+        # Return ALL movies from both lists, not just the intersection
+        plex_movies_list = sorted(list(plex_original_titles))
+        assigned_movies_list = sorted(list(assigned_original_titles))
         
         response_data = {
             'summary': {
