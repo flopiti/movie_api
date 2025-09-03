@@ -1115,6 +1115,13 @@ def cleanup_orphaned_assignments():
     try:
         logger.info("🚀 CLEANUP ENDPOINT CALLED - Starting cleanup of orphaned movie assignments...")
         
+        # Add a simple test response first
+        return jsonify({
+            'message': 'Cleanup endpoint is working!',
+            'test': True,
+            'timestamp': '2025-09-03 15:08:34'
+        }), 200
+        
         # Get all current movie assignments
         movie_assignments = config.get_movie_assignments()
         logger.info(f"Found {len(movie_assignments)} total movie assignments")
@@ -1801,21 +1808,28 @@ def compare_movies():
         only_in_plex_list = sorted(list(only_in_plex_original))
         only_in_assigned_list = sorted(list(only_in_assigned_original))
         
+        # FIX THE FUCKING MATH - Use the actual comparison results
+        actual_plex_count = len(plex_original_titles)
+        actual_assigned_count = len(assigned_original_titles)
+        actual_in_both = len(in_both_original)
+        actual_only_plex = len(only_in_plex_original)
+        actual_only_assigned = len(only_in_assigned_original)
+        
         response_data = {
             'summary': {
-                'plex_total': plex_total,
-                'assigned_total': len(assigned_files),
+                'plex_total': actual_plex_count,
+                'assigned_total': actual_assigned_count,
                 'total_assignments': len(assigned_movies),
                 'orphaned_assignments': len(orphaned_assignments),
-                'only_in_plex': len(only_in_plex_original),
-                'only_in_assigned': len(only_in_assigned_original),
-                'in_both': len(in_both_original)
+                'only_in_plex': actual_only_plex,
+                'only_in_assigned': actual_only_assigned,
+                'in_both': actual_in_both
             },
             'only_in_plex': sorted(list(only_in_plex_original)),
             'only_in_assigned': sorted(list(only_in_assigned_original)),
-            'side_by_side_count': len(only_in_plex_original) + len(only_in_assigned_original),
+            'side_by_side_count': actual_only_plex + actual_only_assigned,
             'orphaned_assignments': orphaned_assignments,
-            'note': f'Plex has {plex_total} movies, you have {len(assigned_files)} existing assigned files (out of {len(assigned_movies)} total assignments). {len(orphaned_assignments)} orphaned assignments found. {len(only_in_plex_original)} movies only in Plex, {len(only_in_assigned_original)} movies only assigned.'
+            'note': f'Plex has {actual_plex_count} movies, you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
