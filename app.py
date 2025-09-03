@@ -1755,11 +1755,22 @@ def compare_movies():
                 logger.warning(f"Found {len(movies_without_titles)} movies without titles: {[movie.get('id', 'unknown') for movie in movies_without_titles]}")
             
             # Store original titles for side-by-side comparison
-            plex_original_titles = {movie['title'] for movie in plex_movies if movie.get('title')}
+            all_titles = [movie['title'] for movie in plex_movies if movie.get('title')]
+            plex_original_titles = set(all_titles)
             # Store lowercase titles for matching
             plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
             
             logger.info(f"Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
+            logger.info(f"All titles list length: {len(all_titles)}")
+            logger.info(f"Set length: {len(plex_original_titles)}")
+            
+            # Check for duplicates
+            if len(all_titles) != len(plex_original_titles):
+                logger.warning(f"Found {len(all_titles) - len(plex_original_titles)} duplicate titles!")
+                from collections import Counter
+                title_counts = Counter(all_titles)
+                duplicates = [title for title, count in title_counts.items() if count > 1]
+                logger.warning(f"Duplicate titles: {duplicates}")
         except Exception as e:
             logger.warning(f"Failed to get Plex movies: {e}")
             plex_original_titles = set()
