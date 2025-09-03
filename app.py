@@ -1628,11 +1628,13 @@ def compare_movies():
             import re
             # Convert to lowercase and strip whitespace
             normalized = title.lower().strip()
-            # Remove punctuation except spaces
-            normalized = re.sub(r'[^\w\s]', '', normalized)
+            # Remove punctuation except spaces and hyphens
+            normalized = re.sub(r'[^\w\s-]', '', normalized)
             # Replace multiple spaces with single space
             normalized = re.sub(r'\s+', ' ', normalized)
-            return normalized.strip()
+            # Remove leading/trailing spaces
+            normalized = normalized.strip()
+            return normalized
         
         # Create normalized title mappings
         plex_normalized = {normalize_title(title): title for title in plex_titles}
