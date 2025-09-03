@@ -1770,14 +1770,14 @@ def compare_movies():
             plex_titles = {title.lower().strip() for title in all_titles_with_year}
             
             logger.info(f"🔍 DEBUG: Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
-            logger.info(f"🔍 DEBUG: All titles list length: {len(all_titles)}")
+            logger.info(f"🔍 DEBUG: All titles list length: {len(all_titles_with_year)}")
             logger.info(f"🔍 DEBUG: Set length: {len(plex_original_titles)}")
             
             # Check for duplicates
-            if len(all_titles) != len(plex_original_titles):
-                logger.warning(f"🔍 DEBUG: Found {len(all_titles) - len(plex_original_titles)} duplicate titles!")
+            if len(all_titles_with_year) != len(plex_original_titles):
+                logger.warning(f"🔍 DEBUG: Found {len(all_titles_with_year) - len(plex_original_titles)} duplicate titles!")
                 from collections import Counter
-                title_counts = Counter(all_titles)
+                title_counts = Counter(all_titles_with_year)
                 duplicates = [title for title, count in title_counts.items() if count > 1]
                 logger.warning(f"🔍 DEBUG: Duplicate titles: {duplicates}")
             else:
