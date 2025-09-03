@@ -1719,54 +1719,28 @@ def compare_movies():
         logger.info("Step 6: Normalizing titles...")
         step_start = time.time()
         
-        # Use simple lowercase matching instead of aggressive normalization
-        logger.info("Step 7: Calculating detailed differences...")
+        # Simple direct comparison - no fancy matching
+        logger.info("Step 7: Calculating differences with simple matching...")
         step_start = time.time()
         
-        # Create simple lowercase mappings
-        plex_lowercase = {title.lower().strip(): title for title in plex_titles}
-        assigned_lowercase = {title.lower().strip(): title for title in assigned_titles}
+        # Convert to lowercase for comparison
+        plex_lowercase = {title.lower().strip() for title in plex_original_titles}
+        assigned_lowercase = {title.lower().strip() for title in assigned_original_titles}
         
-        # Debug: Show some sample mappings
-        logger.info(f"DEBUG: Sample Plex lowercase mappings:")
-        for i, title in enumerate(list(plex_titles)[:5]):
-            lowercase = title.lower().strip()
-            logger.info(f"  '{title}' -> '{lowercase}'")
+        # Find matches
+        matches = plex_lowercase & assigned_lowercase
+        logger.info(f"Found {len(matches)} matching titles")
         
-        logger.info(f"DEBUG: Sample Assigned lowercase mappings:")
-        for i, title in enumerate(list(assigned_titles)[:5]):
-            lowercase = title.lower().strip()
-            logger.info(f"  '{title}' -> '{lowercase}'")
+        # Find differences
+        only_in_plex = plex_lowercase - assigned_lowercase
+        only_in_assigned = assigned_lowercase - plex_lowercase
         
-        # Find lowercase matches
-        plex_lowercase_set = set(plex_lowercase.keys())
-        assigned_lowercase_set = set(assigned_lowercase.keys())
-        lowercase_matches = plex_lowercase_set & assigned_lowercase_set
+        # Convert back to original titles for response
+        only_in_plex_original = {title for title in plex_original_titles if title.lower().strip() in only_in_plex}
+        only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
+        in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
         
-        logger.info(f"DEBUG: Lowercase matches found: {len(lowercase_matches)}")
-        logger.info(f"DEBUG: Sample lowercase matches: {list(lowercase_matches)[:5]}")
-        
-        # Get original titles that match
-        in_both_plex_original = {plex_lowercase[lowercase_title] for lowercase_title in lowercase_matches}
-        in_both_assigned_original = {assigned_lowercase[lowercase_title] for lowercase_title in lowercase_matches}
-        
-        # Find movies only in each set
-        only_in_plex_original = plex_original_titles - in_both_plex_original
-        only_in_assigned_original = assigned_original_titles - in_both_assigned_original
-        
-        # Debug: Show the math and sample titles
-        logger.info(f"DEBUG: Math check:")
-        logger.info(f"DEBUG:   plex_original_titles ({len(plex_original_titles)}) - in_both_plex_original ({len(in_both_plex_original)}) = only_in_plex_original ({len(only_in_plex_original)})")
-        logger.info(f"DEBUG:   assigned_original_titles ({len(assigned_original_titles)}) - in_both_assigned_original ({len(in_both_assigned_original)}) = only_in_assigned_original ({len(only_in_assigned_original)})")
-        logger.info(f"DEBUG:   Total should be: {len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_plex_original)}")
-        logger.info(f"DEBUG:   Expected total: {len(plex_original_titles) + len(assigned_original_titles) - len(in_both_plex_original)}")
-        
-        # Show sample titles to see why they don't match
-        logger.info(f"DEBUG: Sample plex original titles: {list(plex_original_titles)[:5]}")
-        logger.info(f"DEBUG: Sample assigned original titles: {list(assigned_original_titles)[:5]}")
-        logger.info(f"DEBUG: Sample in_both_plex_original: {list(in_both_plex_original)[:5]}")
-        logger.info(f"DEBUG: Sample only_in_plex_original: {list(only_in_plex_original)[:5]}")
-        logger.info(f"DEBUG: Sample only_in_assigned_original: {list(only_in_assigned_original)[:5]}")
+        logger.info(f"Summary: {len(in_both_original)} in both, {len(only_in_plex_original)} only in Plex, {len(only_in_assigned_original)} only in assigned")
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
@@ -1788,12 +1762,12 @@ def compare_movies():
                 'orphaned_assignments': len(orphaned_assignments),
                 'only_in_plex': len(only_in_plex_original),
                 'only_in_assigned': len(only_in_assigned_original),
-                'in_both': len(in_both_plex_original)
+                'in_both': len(in_both_original)
             },
-            'only_in_plex': only_in_plex_list,  # Return ONLY missing Plex movies
-            'only_in_assigned': only_in_assigned_list,  # Return ONLY missing assigned movies
-            'side_by_side_count': len(only_in_plex_list) + len(only_in_assigned_list),  # Total differences
-            'orphaned_assignments': orphaned_assignments,  # Show orphaned assignments
+            'only_in_plex': sorted(list(only_in_plex_original)),
+            'only_in_assigned': sorted(list(only_in_assigned_original)),
+            'side_by_side_count': len(only_in_plex_original) + len(only_in_assigned_original),
+            'orphaned_assignments': orphaned_assignments,
             'note': f'Plex has {plex_total} movies, you have {len(assigned_files)} existing assigned files (out of {len(assigned_movies)} total assignments). {len(orphaned_assignments)} orphaned assignments found. {len(only_in_plex_original)} movies only in Plex, {len(only_in_assigned_original)} movies only assigned.'
         }
         step_time = time.time() - step_start
