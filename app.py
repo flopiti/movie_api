@@ -1754,17 +1754,7 @@ def compare_movies():
             if movies_without_titles:
                 logger.warning(f"Found {len(movies_without_titles)} movies without titles: {[movie.get('id', 'unknown') for movie in movies_without_titles]}")
             
-            # Store original titles for side-by-side comparison
-            all_titles = [movie['title'] for movie in plex_movies if movie.get('title')]
-            plex_original_titles = set(all_titles)
-            # Store lowercase titles for matching
-            plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
-            
-            logger.info(f"🔍 DEBUG: Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
-            logger.info(f"🔍 DEBUG: All titles list length: {len(all_titles_with_year)}")
-            logger.info(f"🔍 DEBUG: Set length: {len(plex_original_titles)}")
-            
-            # Check for duplicates WITH YEAR
+            # Store original titles WITH YEAR for side-by-side comparison
             all_titles_with_year = []
             for movie in plex_movies:
                 if movie.get('title'):
@@ -1773,6 +1763,15 @@ def compare_movies():
                     title_with_year = f"{title} ({year})" if year else title
                     all_titles_with_year.append(title_with_year)
             
+            plex_original_titles = set(all_titles_with_year)
+            # Store lowercase titles with year for matching
+            plex_titles = {title.lower().strip() for title in all_titles_with_year}
+            
+            logger.info(f"🔍 DEBUG: Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
+            logger.info(f"🔍 DEBUG: All titles with year list length: {len(all_titles_with_year)}")
+            logger.info(f"🔍 DEBUG: Set length: {len(plex_original_titles)}")
+            
+            # Check for duplicates WITH YEAR
             if len(all_titles_with_year) != len(set(all_titles_with_year)):
                 logger.warning(f"🔍 DEBUG: Found {len(all_titles_with_year) - len(set(all_titles_with_year))} ACTUAL duplicate titles!")
                 from collections import Counter
@@ -1796,7 +1795,7 @@ def compare_movies():
         logger.info("Step 7: Calculating differences with simple matching...")
         step_start = time.time()
         
-        # Convert to lowercase for comparison - BACK TO SIMPLE TITLE MATCHING
+        # Convert to lowercase for comparison - USING YEAR-BASED TITLES
         plex_lowercase = {title.lower().strip() for title in plex_original_titles}
         assigned_lowercase = {title.lower().strip() for title in assigned_original_titles}
         
