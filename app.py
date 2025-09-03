@@ -318,8 +318,9 @@ class Config:
                     self._save_firebase_data(data)
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
-                
-                return False
+                else:
+                    logger.debug(f"Assignment not found in Firebase for: {file_path}")
+                    return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
                 # Fallback to local storage
@@ -327,15 +328,21 @@ class Config:
                 if file_path in assignments:
                     del assignments[file_path]
                     self._save_local_config()
+                    logger.info(f"Removed movie assignment from local storage for file: {file_path}")
                     return True
-                return False
+                else:
+                    logger.debug(f"Assignment not found in local storage for: {file_path}")
+                    return False
         else:
             assignments = self.data.get("movie_assignments", {})
             if file_path in assignments:
                 del assignments[file_path]
                 self._save_local_config()
+                logger.info(f"Removed movie assignment from local storage for file: {file_path}")
                 return True
-            return False
+            else:
+                logger.debug(f"Assignment not found in local storage for: {file_path}")
+                return False
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
@@ -1107,11 +1114,15 @@ def cleanup_orphaned_assignments():
                 })
                 
                 # Remove the assignment
-                if config.remove_movie_assignment(file_path):
-                    removed_count += 1
-                    logger.info(f"Removed orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
-                else:
-                    logger.warning(f"Failed to remove orphaned assignment: {file_path}")
+                try:
+                    logger.info(f"Attempting to remove orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
+                    if config.remove_movie_assignment(file_path):
+                        removed_count += 1
+                        logger.info(f"✅ Successfully removed orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
+                    else:
+                        logger.warning(f"⚠️ Assignment not found in database (already removed?): {file_path}")
+                except Exception as e:
+                    logger.error(f"❌ Error removing orphaned assignment {file_path}: {str(e)}")
         
         logger.info(f"Cleanup completed: {removed_count} orphaned assignments removed out of {len(orphaned_assignments)} found")
         
