@@ -1675,6 +1675,11 @@ def compare_movies():
         # Prepare response
         logger.info("Step 8: Preparing response...")
         step_start = time.time()
+        
+        # Create sorted lists for side-by-side comparison
+        plex_movies_list = sorted(list(plex_titles))
+        assigned_movies_list = sorted(list(assigned_titles))
+        
         response_data = {
             'summary': {
                 'plex_total': plex_total,
@@ -1685,6 +1690,8 @@ def compare_movies():
             },
             'only_in_plex': list(only_in_plex)[:50],  # Limit to first 50
             'only_in_assigned': list(only_in_assigned)[:50],  # Limit to first 50
+            'plex_movies': plex_movies_list,  # Full sorted list for side-by-side comparison
+            'assigned_movies': assigned_movies_list,  # Full sorted list for side-by-side comparison
             'note': f'Showing first 50 items of each category. Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies.'
         }
         step_time = time.time() - step_start
