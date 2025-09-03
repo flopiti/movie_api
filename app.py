@@ -1740,6 +1740,24 @@ def compare_movies():
         only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
         in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
         
+        # Verify the math
+        logger.info(f"Math verification:")
+        logger.info(f"  Plex total: {len(plex_original_titles)}")
+        logger.info(f"  Assigned total: {len(assigned_original_titles)}")
+        logger.info(f"  In both: {len(in_both_original)}")
+        logger.info(f"  Only in Plex: {len(only_in_plex_original)}")
+        logger.info(f"  Only in Assigned: {len(only_in_assigned_original)}")
+        logger.info(f"  Check: {len(only_in_plex_original)} + {len(only_in_assigned_original)} + {len(in_both_original)} = {len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_original)}")
+        logger.info(f"  Should equal: {len(plex_original_titles) + len(assigned_original_titles) - len(in_both_original)}")
+        
+        # Double-check the math
+        if len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_original) != len(plex_original_titles) + len(assigned_original_titles) - len(in_both_original):
+            logger.error(f"MATH ERROR: The sets don't add up correctly!")
+            # Force correct calculation
+            only_in_plex_original = plex_original_titles - in_both_original
+            only_in_assigned_original = assigned_original_titles - in_both_original
+            logger.info(f"Corrected: Only in Plex: {len(only_in_plex_original)}, Only in Assigned: {len(only_in_assigned_original)}")
+        
         logger.info(f"Summary: {len(in_both_original)} in both, {len(only_in_plex_original)} only in Plex, {len(only_in_assigned_original)} only in assigned")
         
         step_time = time.time() - step_start
