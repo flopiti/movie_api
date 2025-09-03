@@ -1719,55 +1719,40 @@ def compare_movies():
         logger.info("Step 6: Normalizing titles...")
         step_start = time.time()
         
-        def normalize_title(title):
-            """Normalize title for better matching"""
-            import re
-            # Convert to lowercase and strip whitespace
-            normalized = title.lower().strip()
-            # Remove punctuation except spaces and hyphens
-            normalized = re.sub(r'[^\w\s-]', '', normalized)
-            # Replace multiple spaces with single space
-            normalized = re.sub(r'\s+', ' ', normalized)
-            # Remove leading/trailing spaces
-            normalized = normalized.strip()
-            return normalized
-        
-        # Use normalization to match similar titles
+        # Use simple lowercase matching instead of aggressive normalization
         logger.info("Step 7: Calculating detailed differences...")
         step_start = time.time()
         
-        # Create normalized mappings
-        plex_normalized = {normalize_title(title): title for title in plex_titles}
-        assigned_normalized = {normalize_title(title): title for title in assigned_titles}
+        # Create simple lowercase mappings
+        plex_lowercase = {title.lower().strip(): title for title in plex_titles}
+        assigned_lowercase = {title.lower().strip(): title for title in assigned_titles}
         
-        # Find normalized matches
-        plex_normalized_set = set(plex_normalized.keys())
-        assigned_normalized_set = set(assigned_normalized.keys())
-        normalized_matches = plex_normalized_set & assigned_normalized_set
+        # Debug: Show some sample mappings
+        logger.info(f"DEBUG: Sample Plex lowercase mappings:")
+        for i, title in enumerate(list(plex_titles)[:5]):
+            lowercase = title.lower().strip()
+            logger.info(f"  '{title}' -> '{lowercase}'")
+        
+        logger.info(f"DEBUG: Sample Assigned lowercase mappings:")
+        for i, title in enumerate(list(assigned_titles)[:5]):
+            lowercase = title.lower().strip()
+            logger.info(f"  '{title}' -> '{lowercase}'")
+        
+        # Find lowercase matches
+        plex_lowercase_set = set(plex_lowercase.keys())
+        assigned_lowercase_set = set(assigned_lowercase.keys())
+        lowercase_matches = plex_lowercase_set & assigned_lowercase_set
+        
+        logger.info(f"DEBUG: Lowercase matches found: {len(lowercase_matches)}")
+        logger.info(f"DEBUG: Sample lowercase matches: {list(lowercase_matches)[:5]}")
         
         # Get original titles that match
-        in_both_plex = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
-        in_both_assigned = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
-        
-        # Find movies only in each set (using original titles for the response)
-        # The issue is that we need to map back from normalized titles to original titles
-        # Create sets of original titles that are in both
-        in_both_plex_original = set()
-        in_both_assigned_original = set()
-        
-        for normalized_title in normalized_matches:
-            if normalized_title in plex_normalized:
-                in_both_plex_original.add(plex_normalized[normalized_title])
-            if normalized_title in assigned_normalized:
-                in_both_assigned_original.add(assigned_normalized[normalized_title])
+        in_both_plex_original = {plex_lowercase[lowercase_title] for lowercase_title in lowercase_matches}
+        in_both_assigned_original = {assigned_lowercase[lowercase_title] for lowercase_title in lowercase_matches}
         
         # Find movies only in each set
         only_in_plex_original = plex_original_titles - in_both_plex_original
         only_in_assigned_original = assigned_original_titles - in_both_assigned_original
-        
-        # Keep the normalized sets for the summary counts
-        only_in_plex = plex_titles - in_both_plex
-        only_in_assigned = assigned_titles - in_both_assigned
         
         # Debug: Show the math and sample titles
         logger.info(f"DEBUG: Math check:")
