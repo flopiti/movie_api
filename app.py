@@ -1113,7 +1113,7 @@ def remove_movie_assignment():
 def cleanup_orphaned_assignments():
     """Remove all movie assignments for files that no longer exist."""
     try:
-        logger.info("Starting cleanup of orphaned movie assignments...")
+        logger.info("🚀 CLEANUP ENDPOINT CALLED - Starting cleanup of orphaned movie assignments...")
         
         # Get all current movie assignments
         movie_assignments = config.get_movie_assignments()
@@ -1218,6 +1218,43 @@ def debug_assignments():
     except Exception as e:
         logger.error(f"Error in debug endpoint: {str(e)}")
         return jsonify({'error': f'Debug endpoint failed: {str(e)}'})
+
+@app.route('/test-cleanup', methods=['POST'])
+def test_cleanup():
+    """Test endpoint to manually trigger cleanup and see what happens."""
+    try:
+        logger.info("🧪 TEST CLEANUP ENDPOINT CALLED")
+        
+        # Get current assignments
+        assignments = config.get_movie_assignments()
+        logger.info(f"🧪 Current assignments: {len(assignments)}")
+        
+        # Find first orphaned assignment
+        for file_path, movie_data in assignments.items():
+            if not os.path.exists(file_path):
+                logger.info(f"🧪 Found orphaned assignment to test: {file_path}")
+                
+                # Try to remove it
+                result = config.remove_movie_assignment(file_path)
+                logger.info(f"🧪 Remove result: {result}")
+                
+                # Check if it was actually removed
+                new_assignments = config.get_movie_assignments()
+                logger.info(f"🧪 Assignments after removal: {len(new_assignments)}")
+                
+                return jsonify({
+                    'test_file': file_path,
+                    'remove_result': result,
+                    'assignments_before': len(assignments),
+                    'assignments_after': len(new_assignments),
+                    'success': result and len(new_assignments) < len(assignments)
+                })
+        
+        return jsonify({'message': 'No orphaned assignments found to test'})
+        
+    except Exception as e:
+        logger.error(f"Error in test cleanup: {str(e)}")
+        return jsonify({'error': f'Test cleanup failed: {str(e)}'})
 
 
 
@@ -1735,10 +1772,10 @@ def compare_movies():
         only_in_plex = plex_lowercase - assigned_lowercase
         only_in_assigned = assigned_lowercase - plex_lowercase
         
-        # Convert back to original titles for response
-        only_in_plex_original = {title for title in plex_original_titles if title.lower().strip() in only_in_plex}
-        only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
+        # Convert back to original titles for response - FIXED LOGIC
         in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
+        only_in_plex_original = plex_original_titles - in_both_original
+        only_in_assigned_original = assigned_original_titles - in_both_original
         
         # Verify the math
         logger.info(f"Math verification:")
@@ -1747,16 +1784,8 @@ def compare_movies():
         logger.info(f"  In both: {len(in_both_original)}")
         logger.info(f"  Only in Plex: {len(only_in_plex_original)}")
         logger.info(f"  Only in Assigned: {len(only_in_assigned_original)}")
-        logger.info(f"  Check: {len(only_in_plex_original)} + {len(only_in_assigned_original)} + {len(in_both_original)} = {len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_original)}")
-        logger.info(f"  Should equal: {len(plex_original_titles) + len(assigned_original_titles) - len(in_both_original)}")
-        
-        # Double-check the math
-        if len(only_in_plex_original) + len(only_in_assigned_original) + len(in_both_original) != len(plex_original_titles) + len(assigned_original_titles) - len(in_both_original):
-            logger.error(f"MATH ERROR: The sets don't add up correctly!")
-            # Force correct calculation
-            only_in_plex_original = plex_original_titles - in_both_original
-            only_in_assigned_original = assigned_original_titles - in_both_original
-            logger.info(f"Corrected: Only in Plex: {len(only_in_plex_original)}, Only in Assigned: {len(only_in_assigned_original)}")
+        logger.info(f"  Plex math: {len(only_in_plex_original)} + {len(in_both_original)} = {len(only_in_plex_original) + len(in_both_original)} (should be {len(plex_original_titles)})")
+        logger.info(f"  Assigned math: {len(only_in_assigned_original)} + {len(in_both_original)} = {len(only_in_assigned_original) + len(in_both_original)} (should be {len(assigned_original_titles)})")
         
         logger.info(f"Summary: {len(in_both_original)} in both, {len(only_in_plex_original)} only in Plex, {len(only_in_assigned_original)} only in assigned")
         
