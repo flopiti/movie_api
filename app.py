@@ -1774,8 +1774,8 @@ def compare_movies():
         
         # Convert back to original titles for response - FIXED LOGIC
         in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
-        only_in_plex_original = plex_original_titles - in_both_original
-        only_in_assigned_original = assigned_original_titles - in_both_original
+        only_in_plex_original = {title for title in plex_original_titles if title.lower().strip() in only_in_plex}
+        only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
         
         # Verify the math
         logger.info(f"Math verification:")
