@@ -1658,6 +1658,7 @@ def compare_movies():
         assigned_titles = set()
         assigned_original_titles = set()
         assigned_files = []
+        orphaned_assignments = []
         
         processed_count = 0
         for file_path, movie_data in assigned_movies.items():
@@ -1665,9 +1666,10 @@ def compare_movies():
             if processed_count % 100 == 0:
                 logger.info(f"  Processed {processed_count}/{len(assigned_movies)} assigned movies...")
                 
+            original_title = movie_data.get('title', '')
+            title = original_title.lower().strip()
+            
             if os.path.exists(file_path):  # Only include existing files
-                original_title = movie_data.get('title', '')
-                title = original_title.lower().strip()
                 if title:
                     assigned_titles.add(title)
                     assigned_original_titles.add(original_title)
@@ -1676,6 +1678,15 @@ def compare_movies():
                         'file_path': file_path,
                         'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
                     })
+            else:
+                # Track orphaned assignments
+                orphaned_assignments.append({
+                    'file_path': file_path,
+                    'title': original_title
+                })
+                logger.info(f"🚨 Found orphaned assignment during comparison: {file_path} -> {original_title}")
+        
+        logger.info(f"Found {len(orphaned_assignments)} orphaned assignments during comparison")
         
         step_time = time.time() - step_start
         logger.info(f"Step 3 completed in {step_time:.2f}s - Processed {len(assigned_files)} existing assigned files")
@@ -1780,23 +1791,25 @@ def compare_movies():
         step_start = time.time()
         
         # Create sorted lists for side-by-side comparison
-        # Return ALL movies from both lists, not just the intersection
-        plex_movies_list = sorted(list(plex_original_titles))
-        assigned_movies_list = sorted(list(assigned_original_titles))
+        # Return ONLY the differences, not all movies
+        only_in_plex_list = sorted(list(only_in_plex_original))
+        only_in_assigned_list = sorted(list(only_in_assigned_original))
         
         response_data = {
             'summary': {
                 'plex_total': plex_total,
                 'assigned_total': len(assigned_files),
+                'total_assignments': len(assigned_movies),
+                'orphaned_assignments': len(orphaned_assignments),
                 'only_in_plex': len(only_in_plex_original),
                 'only_in_assigned': len(only_in_assigned_original),
                 'in_both': len(in_both_plex_original)
             },
-            'only_in_plex': list(only_in_plex_original),  # Return ALL missing Plex movies
-            'only_in_assigned': list(only_in_assigned_original),  # Return ALL missing assigned movies
-            'plex_movies': plex_movies_list,  # Full sorted list for side-by-side comparison
-            'assigned_movies': assigned_movies_list,  # Full sorted list for side-by-side comparison
-            'note': f'Plex has {plex_total} movies, you have {len(assigned_files)} assigned movies. {len(only_in_plex_original)} movies only in Plex, {len(only_in_assigned_original)} movies only assigned.'
+            'only_in_plex': only_in_plex_list,  # Return ONLY missing Plex movies
+            'only_in_assigned': only_in_assigned_list,  # Return ONLY missing assigned movies
+            'side_by_side_count': len(only_in_plex_list) + len(only_in_assigned_list),  # Total differences
+            'orphaned_assignments': orphaned_assignments,  # Show orphaned assignments
+            'note': f'Plex has {plex_total} movies, you have {len(assigned_files)} existing assigned files (out of {len(assigned_movies)} total assignments). {len(orphaned_assignments)} orphaned assignments found. {len(only_in_plex_original)} movies only in Plex, {len(only_in_assigned_original)} movies only assigned.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
