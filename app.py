@@ -1762,6 +1762,9 @@ def compare_movies():
                     year = movie.get('year') or movie.get('release_date', '').split('-')[0] if movie.get('release_date') else ''
                     title_with_year = f"{title} ({year})" if year else title
                     all_titles_with_year.append(title_with_year)
+                    # Debug: Show a few examples
+                    if len(all_titles_with_year) <= 5:
+                        logger.info(f"🔍 DEBUG: Title with year: '{title}' -> '{title_with_year}' (year: {year})")
             
             plex_original_titles = set(all_titles_with_year)
             # Store lowercase titles with year for matching
@@ -1780,6 +1783,9 @@ def compare_movies():
                 logger.warning(f"🔍 DEBUG: ACTUAL Duplicate titles: {duplicates}")
             else:
                 logger.info(f"🔍 DEBUG: No actual duplicates found - all movies with same title have different years")
+                
+            # Show sample titles to verify year format
+            logger.info(f"🔍 DEBUG: Sample titles with year: {list(plex_original_titles)[:5]}")
         except Exception as e:
             logger.warning(f"Failed to get Plex movies: {e}")
             plex_original_titles = set()
