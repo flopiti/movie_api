@@ -1084,6 +1084,49 @@ def remove_movie_assignment():
         logger.error(f"Error removing movie assignment: {str(e)}")
         return jsonify({'error': f'Failed to remove movie assignment: {str(e)}'}), 500
 
+@app.route('/cleanup-orphaned-assignments', methods=['POST'])
+def cleanup_orphaned_assignments():
+    """Remove all movie assignments for files that no longer exist."""
+    try:
+        logger.info("Starting cleanup of orphaned movie assignments...")
+        
+        # Get all current movie assignments
+        movie_assignments = config.get_movie_assignments()
+        logger.info(f"Found {len(movie_assignments)} total movie assignments")
+        
+        orphaned_assignments = []
+        removed_count = 0
+        
+        # Check each assignment
+        for file_path, movie_data in movie_assignments.items():
+            if not os.path.exists(file_path):
+                orphaned_assignments.append({
+                    'file_path': file_path,
+                    'movie_title': movie_data.get('title', 'Unknown'),
+                    'movie_id': movie_data.get('id', 'Unknown')
+                })
+                
+                # Remove the assignment
+                if config.remove_movie_assignment(file_path):
+                    removed_count += 1
+                    logger.info(f"Removed orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
+                else:
+                    logger.warning(f"Failed to remove orphaned assignment: {file_path}")
+        
+        logger.info(f"Cleanup completed: {removed_count} orphaned assignments removed out of {len(orphaned_assignments)} found")
+        
+        return jsonify({
+            'message': 'Cleanup completed successfully',
+            'total_assignments_checked': len(movie_assignments),
+            'orphaned_assignments_found': len(orphaned_assignments),
+            'assignments_removed': removed_count,
+            'orphaned_assignments': orphaned_assignments
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {str(e)}")
+        return jsonify({'error': f'Failed to cleanup orphaned assignments: {str(e)}'}), 500
+
 @app.route('/assigned-movies', methods=['GET'])
 def get_assigned_movies():
     """Get all movies that are currently assigned to files."""
