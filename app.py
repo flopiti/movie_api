@@ -308,24 +308,39 @@ class Config:
     
     def remove_movie_assignment(self, file_path: str) -> bool:
         """Remove a movie assignment from a file."""
+        logger.info(f"🔧 remove_movie_assignment called for: {file_path}")
+        logger.info(f"🔧 Using Firebase: {self.use_firebase}")
+        
         if self.use_firebase:
             try:
                 data = self._get_firebase_data()
                 assignments = data.get("movie_assignments", {})
+                logger.info(f"🔧 Firebase assignments count: {len(assignments)}")
+                logger.info(f"🔧 Firebase assignment keys: {list(assignments.keys())}")
                 
-                if file_path in assignments:
-                    del assignments[file_path]
+                # For Firebase, we need to encode the file path to match the stored key
+                encoded_path = self._encode_path_for_firebase(file_path)
+                logger.info(f"🔧 Encoded path: {encoded_path}")
+                
+                if encoded_path in assignments:
+                    logger.info(f"🔧 Found assignment in Firebase, removing...")
+                    del assignments[encoded_path]
                     self._save_firebase_data(data)
+                    # Also update local data to keep it in sync
+                    self.data["movie_assignments"] = data.get("movie_assignments", {})
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
                 else:
-                    logger.debug(f"Assignment not found in Firebase for: {file_path}")
+                    logger.debug(f"Assignment not found in Firebase for: {file_path} (encoded: {encoded_path})")
                     return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
                 # Fallback to local storage
                 assignments = self.data.get("movie_assignments", {})
+                logger.info(f"🔧 Local assignments count: {len(assignments)}")
+                logger.info(f"🔧 Local assignment keys: {list(assignments.keys())}")
                 if file_path in assignments:
+                    logger.info(f"🔧 Found assignment in local storage, removing...")
                     del assignments[file_path]
                     self._save_local_config()
                     logger.info(f"Removed movie assignment from local storage for file: {file_path}")
@@ -335,7 +350,10 @@ class Config:
                     return False
         else:
             assignments = self.data.get("movie_assignments", {})
+            logger.info(f"🔧 Local-only assignments count: {len(assignments)}")
+            logger.info(f"🔧 Local-only assignment keys: {list(assignments.keys())}")
             if file_path in assignments:
+                logger.info(f"🔧 Found assignment in local-only storage, removing...")
                 del assignments[file_path]
                 self._save_local_config()
                 logger.info(f"Removed movie assignment from local storage for file: {file_path}")
@@ -1106,7 +1124,11 @@ def cleanup_orphaned_assignments():
         
         # Check each assignment
         for file_path, movie_data in movie_assignments.items():
+            logger.info(f"🔍 Checking assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
+            logger.info(f"🔍 File exists on disk: {os.path.exists(file_path)}")
+            
             if not os.path.exists(file_path):
+                logger.info(f"🚨 Found orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
                 orphaned_assignments.append({
                     'file_path': file_path,
                     'movie_title': movie_data.get('title', 'Unknown'),
@@ -1115,8 +1137,10 @@ def cleanup_orphaned_assignments():
                 
                 # Remove the assignment
                 try:
-                    logger.info(f"Attempting to remove orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
-                    if config.remove_movie_assignment(file_path):
+                    logger.info(f"🗑️ Attempting to remove orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
+                    result = config.remove_movie_assignment(file_path)
+                    logger.info(f"🗑️ remove_movie_assignment returned: {result}")
+                    if result:
                         removed_count += 1
                         logger.info(f"✅ Successfully removed orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
                     else:
