@@ -205,3 +205,110 @@
 2025-08-31 22:36:18,150 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
 2025-08-31 22:36:18,190 - WARNING -  * Debugger is active!
 2025-08-31 22:36:18,196 - INFO -  * Debugger PIN: 135-666-040
+2025-09-03 00:08:21,686 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:21,686 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 00:08:21,686 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:21,686 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:21,716 - INFO - Starting Movie Management API...
+2025-09-03 00:08:21,717 - INFO - TMDB API configured: True
+2025-09-03 00:08:21,717 - INFO - OpenAI API configured: True
+2025-09-03 00:08:21,717 - INFO - Firebase configured: False
+2025-09-03 00:08:21,717 - INFO - Storage type: Local JSON
+2025-09-03 00:08:21,717 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:21,717 - INFO - Movie paths configured: 1
+2025-09-03 00:08:47,449 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:47,449 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 00:08:47,449 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:47,449 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:47,475 - INFO - Starting Movie Management API...
+2025-09-03 00:08:47,475 - INFO - TMDB API configured: True
+2025-09-03 00:08:47,475 - INFO - OpenAI API configured: True
+2025-09-03 00:08:47,475 - INFO - Firebase configured: False
+2025-09-03 00:08:47,475 - INFO - Storage type: Local JSON
+2025-09-03 00:08:47,475 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:47,475 - INFO - Movie paths configured: 1
+2025-09-03 00:08:55,355 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:55,356 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 00:08:55,356 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:08:55,356 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:55,380 - INFO - Starting Movie Management API...
+2025-09-03 00:08:55,380 - INFO - TMDB API configured: True
+2025-09-03 00:08:55,380 - INFO - OpenAI API configured: True
+2025-09-03 00:08:55,380 - INFO - Firebase configured: False
+2025-09-03 00:08:55,380 - INFO - Storage type: Local JSON
+2025-09-03 00:08:55,380 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:08:55,380 - INFO - Movie paths configured: 1
+2025-09-03 00:09:09,635 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:09:09,635 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 00:09:09,635 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:09:09,635 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:09:09,662 - INFO - Starting Movie Management API...
+2025-09-03 00:09:09,662 - INFO - TMDB API configured: True
+2025-09-03 00:09:09,662 - INFO - OpenAI API configured: True
+2025-09-03 00:09:09,662 - INFO - Firebase configured: False
+2025-09-03 00:09:09,662 - INFO - Storage type: Local JSON
+2025-09-03 00:09:09,662 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:09:09,662 - INFO - Movie paths configured: 1
+2025-09-03 00:09:09,719 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.0.25:5001
+2025-09-03 00:09:09,719 - INFO - [33mPress CTRL+C to quit[0m
+2025-09-03 00:09:09,720 - INFO -  * Restarting with stat
+2025-09-03 00:09:10,008 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:09:10,008 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 00:09:10,008 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 00:09:10,008 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:09:10,028 - INFO - Starting Movie Management API...
+2025-09-03 00:09:10,028 - INFO - TMDB API configured: True
+2025-09-03 00:09:10,028 - INFO - OpenAI API configured: True
+2025-09-03 00:09:10,028 - INFO - Firebase configured: False
+2025-09-03 00:09:10,028 - INFO - Storage type: Local JSON
+2025-09-03 00:09:10,028 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 00:09:10,028 - INFO - Movie paths configured: 1
+2025-09-03 00:09:10,042 - WARNING -  * Debugger is active!
+2025-09-03 00:09:10,048 - INFO -  * Debugger PIN: 135-666-040
+2025-09-03 09:36:55,030 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:36:55,030 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 09:36:55,030 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:36:55,030 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:36:55,058 - INFO - Starting Movie Management API...
+2025-09-03 09:36:55,058 - INFO - TMDB API configured: True
+2025-09-03 09:36:55,058 - INFO - OpenAI API configured: True
+2025-09-03 09:36:55,058 - INFO - Firebase configured: False
+2025-09-03 09:36:55,058 - INFO - Storage type: Local JSON
+2025-09-03 09:36:55,058 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:36:55,058 - INFO - Movie paths configured: 1
+2025-09-03 09:37:12,561 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:37:12,561 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 09:37:12,561 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:37:12,561 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:37:12,586 - INFO - Starting Movie Management API...
+2025-09-03 09:37:12,586 - INFO - TMDB API configured: True
+2025-09-03 09:37:12,586 - INFO - OpenAI API configured: True
+2025-09-03 09:37:12,586 - INFO - Firebase configured: False
+2025-09-03 09:37:12,586 - INFO - Storage type: Local JSON
+2025-09-03 09:37:12,586 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:37:12,587 - INFO - Movie paths configured: 1
+2025-09-03 09:48:41,152 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:48:41,152 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 09:48:41,152 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:48:41,153 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:48:41,178 - INFO - Starting Movie Management API...
+2025-09-03 09:48:41,179 - INFO - TMDB API configured: True
+2025-09-03 09:48:41,179 - INFO - OpenAI API configured: True
+2025-09-03 09:48:41,179 - INFO - Firebase configured: False
+2025-09-03 09:48:41,179 - INFO - Storage type: Local JSON
+2025-09-03 09:48:41,179 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:48:41,179 - INFO - Movie paths configured: 1
+2025-09-03 09:49:18,285 - INFO - Firebase credentials path: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:49:18,286 - INFO - Firebase database URL: https://movie-aa2d5-default-rtdb.firebaseio.com/
+2025-09-03 09:49:18,286 - WARNING - Firebase credentials file not found at: /mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
+2025-09-03 09:49:18,286 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:49:18,318 - INFO - Starting Movie Management API...
+2025-09-03 09:49:18,318 - INFO - TMDB API configured: True
+2025-09-03 09:49:18,318 - INFO - OpenAI API configured: True
+2025-09-03 09:49:18,318 - INFO - Firebase configured: False
+2025-09-03 09:49:18,318 - INFO - Storage type: Local JSON
+2025-09-03 09:49:18,318 - INFO - Config file (fallback): /Users/nathanpieraut/movie-config/config.json
+2025-09-03 09:49:18,318 - INFO - Movie paths configured: 1

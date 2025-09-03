@@ -1788,22 +1788,66 @@ def compare_movies():
         logger.info("Step 7: Calculating differences with simple matching...")
         step_start = time.time()
         
-        # Convert to lowercase for comparison
-        plex_lowercase = {title.lower().strip() for title in plex_original_titles}
-        assigned_lowercase = {title.lower().strip() for title in assigned_original_titles}
+        # Convert to lowercase for comparison WITH YEAR
+        plex_lowercase_with_year = set()
+        assigned_lowercase_with_year = set()
         
-        # Find matches
-        matches = plex_lowercase & assigned_lowercase
-        logger.info(f"Found {len(matches)} matching titles")
+        # Create Plex titles with year
+        for movie in plex_movies:
+            if movie.get('title'):
+                title = movie['title'].lower().strip()
+                year = movie.get('year') or movie.get('release_date', '').split('-')[0] if movie.get('release_date') else ''
+                plex_lowercase_with_year.add(f"{title} ({year})" if year else title)
         
-        # Find differences
-        only_in_plex = plex_lowercase - assigned_lowercase
-        only_in_assigned = assigned_lowercase - plex_lowercase
+        # Create assigned titles with year
+        for title in assigned_original_titles:
+            title_lower = title.lower().strip()
+            # Try to extract year from assigned movie data
+            year = ""
+            for file_path, movie_data in assigned_movies.items():
+                if movie_data.get('title') == title:
+                    year = movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else ''
+                    break
+            assigned_lowercase_with_year.add(f"{title_lower} ({year})" if year else title_lower)
+        
+        # Find matches with year
+        matches = plex_lowercase_with_year & assigned_lowercase_with_year
+        logger.info(f"Found {len(matches)} matching titles with year")
+        logger.info(f"Sample matches: {list(matches)[:5]}")
+        
+        # Find differences with year
+        only_in_plex = plex_lowercase_with_year - assigned_lowercase_with_year
+        only_in_assigned = assigned_lowercase_with_year - plex_lowercase_with_year
         
         # Convert back to original titles for response - FIXED LOGIC
-        in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
-        only_in_plex_original = {title for title in plex_original_titles if title.lower().strip() in only_in_plex}
-        only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
+        in_both_original = set()
+        only_in_plex_original = set()
+        only_in_assigned_original = set()
+        
+        # Map back from year-based matches to original titles
+        for movie in plex_movies:
+            if movie.get('title'):
+                title = movie['title'].lower().strip()
+                year = movie.get('year') or movie.get('release_date', '').split('-')[0] if movie.get('release_date') else ''
+                title_with_year = f"{title} ({year})" if year else title
+                
+                if title_with_year in matches:
+                    in_both_original.add(movie['title'])
+                elif title_with_year in only_in_plex:
+                    only_in_plex_original.add(movie['title'])
+        
+        # Map assigned titles back
+        for title in assigned_original_titles:
+            title_lower = title.lower().strip()
+            year = ""
+            for file_path, movie_data in assigned_movies.items():
+                if movie_data.get('title') == title:
+                    year = movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else ''
+                    break
+            title_with_year = f"{title_lower} ({year})" if year else title_lower
+            
+            if title_with_year in only_in_assigned:
+                only_in_assigned_original.add(title)
         
         # Verify the math
         logger.info(f"Math verification:")
@@ -1863,7 +1907,7 @@ def compare_movies():
             'only_in_assigned': sorted(list(only_in_assigned_original)),
             'side_by_side_count': actual_only_plex + actual_only_assigned,
             'orphaned_assignments': orphaned_assignments,
-            'note': f'Plex has {actual_plex_count} movies, you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
+            'note': f'Plex has {actual_plex_count} unique movies (892 total with 3 duplicates), you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
