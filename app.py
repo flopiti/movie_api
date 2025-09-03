@@ -1696,7 +1696,7 @@ def compare_movies():
         step_time = time.time() - step_start
         logger.info(f"Step 2 completed in {step_time:.2f}s - Retrieved {len(assigned_movies)} assigned movies")
         
-        # Process assigned movies
+        # Process assigned movies WITH YEAR
         logger.info("Step 3: Processing assigned movies...")
         step_start = time.time()
         assigned_titles = set()
@@ -1712,15 +1712,17 @@ def compare_movies():
                 
             original_title = movie_data.get('title', '')
             title = original_title.lower().strip()
+            year = movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else ''
+            title_with_year = f"{original_title} ({year})" if year else original_title
             
             if os.path.exists(file_path):  # Only include existing files
                 if title:
-                    assigned_titles.add(title)
-                    assigned_original_titles.add(original_title)
+                    assigned_titles.add(title_with_year.lower().strip())
+                    assigned_original_titles.add(title_with_year)
                     assigned_files.append({
                         'title': original_title,
                         'file_path': file_path,
-                        'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
+                        'year': year
                     })
             else:
                 # Track orphaned assignments
@@ -1754,11 +1756,18 @@ def compare_movies():
             if movies_without_titles:
                 logger.warning(f"Found {len(movies_without_titles)} movies without titles: {[movie.get('id', 'unknown') for movie in movies_without_titles]}")
             
-            # Store original titles for side-by-side comparison
-            all_titles = [movie['title'] for movie in plex_movies if movie.get('title')]
-            plex_original_titles = set(all_titles)
-            # Store lowercase titles for matching
-            plex_titles = {movie['title'].lower().strip() for movie in plex_movies if movie.get('title')}
+            # Store original titles WITH YEAR for side-by-side comparison
+            all_titles_with_year = []
+            for movie in plex_movies:
+                if movie.get('title'):
+                    title = movie['title']
+                    year = movie.get('year') or movie.get('release_date', '').split('-')[0] if movie.get('release_date') else ''
+                    title_with_year = f"{title} ({year})" if year else title
+                    all_titles_with_year.append(title_with_year)
+            
+            plex_original_titles = set(all_titles_with_year)
+            # Store lowercase titles with year for matching
+            plex_titles = {title.lower().strip() for title in all_titles_with_year}
             
             logger.info(f"🔍 DEBUG: Movies with titles: {len(plex_original_titles)} out of {len(plex_movies)} total")
             logger.info(f"🔍 DEBUG: All titles list length: {len(all_titles)}")
