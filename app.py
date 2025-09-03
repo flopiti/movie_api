@@ -1784,6 +1784,9 @@ def compare_movies():
             else:
                 logger.info(f"🔍 DEBUG: No actual duplicates found - all movies with same title have different years")
                 
+            # Show the actual titles that are being used for comparison
+            logger.info(f"🔍 DEBUG: First 10 titles with year: {all_titles_with_year[:10]}")
+                
             # Show sample titles to verify year format
             logger.info(f"🔍 DEBUG: Sample titles with year: {list(plex_original_titles)[:5]}")
         except Exception as e:
