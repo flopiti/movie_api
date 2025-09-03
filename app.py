@@ -1619,19 +1619,53 @@ def compare_movies():
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
         
-        # Calculate detailed differences
-        logger.info("Step 6: Calculating detailed differences...")
+        # Normalize titles for better matching
+        logger.info("Step 6: Normalizing titles...")
         step_start = time.time()
         
-        only_in_plex = plex_titles - assigned_titles
-        only_in_assigned = assigned_titles - plex_titles
-        in_both = plex_titles & assigned_titles
+        def normalize_title(title):
+            """Normalize title for better matching"""
+            import re
+            # Convert to lowercase and strip whitespace
+            normalized = title.lower().strip()
+            # Remove punctuation except spaces
+            normalized = re.sub(r'[^\w\s]', '', normalized)
+            # Replace multiple spaces with single space
+            normalized = re.sub(r'\s+', ' ', normalized)
+            return normalized.strip()
+        
+        # Create normalized title mappings
+        plex_normalized = {normalize_title(title): title for title in plex_titles}
+        assigned_normalized = {normalize_title(title): title for title in assigned_titles}
+        
+        # Find matches using normalized titles
+        plex_normalized_set = set(plex_normalized.keys())
+        assigned_normalized_set = set(assigned_normalized.keys())
+        
+        # Calculate detailed differences
+        logger.info("Step 7: Calculating detailed differences...")
+        step_start = time.time()
+        
+        # Find movies that match after normalization
+        normalized_matches = plex_normalized_set & assigned_normalized_set
+        
+        # Get original titles for matches
+        in_both_original = set()
+        for normalized_title in normalized_matches:
+            plex_original = plex_normalized[normalized_title]
+            assigned_original = assigned_normalized[normalized_title]
+            in_both_original.add(plex_original)  # Use Plex title as canonical
+        
+        # Find movies only in each set (using original titles)
+        only_in_plex = plex_titles - in_both_original
+        only_in_assigned = assigned_titles - in_both_original
+        in_both = in_both_original
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
         
         # Prepare response
-        logger.info("Step 7: Preparing response...")
+        logger.info("Step 8: Preparing response...")
         step_start = time.time()
         response_data = {
             'summary': {
