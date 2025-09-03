@@ -1636,28 +1636,23 @@ def compare_movies():
             normalized = normalized.strip()
             return normalized
         
-        # Create normalized title mappings
-        plex_normalized = {normalize_title(title): title for title in plex_titles}
-        assigned_normalized = {normalize_title(title): title for title in assigned_titles}
-        
-        # Find matches using normalized titles
-        plex_normalized_set = set(plex_normalized.keys())
-        assigned_normalized_set = set(assigned_normalized.keys())
-        
-        # Calculate detailed differences
+        # Simple direct comparison without normalization
         logger.info("Step 7: Calculating detailed differences...")
         step_start = time.time()
         
-        # Find movies that match after normalization
-        normalized_matches = plex_normalized_set & assigned_normalized_set
+        # Find movies that are in both sets (exact match)
+        in_both = plex_titles & assigned_titles
         
-        # Get original titles for matches
-        in_both_plex = {plex_normalized[normalized_title] for normalized_title in normalized_matches}
-        in_both_assigned = {assigned_normalized[normalized_title] for normalized_title in normalized_matches}
+        # Find movies only in each set
+        only_in_plex = plex_titles - assigned_titles
+        only_in_assigned = assigned_titles - plex_titles
         
-        # Find movies only in each set (using original titles)
-        only_in_plex = plex_titles - in_both_plex
-        only_in_assigned = assigned_titles - in_both_assigned
+        # Debug: Show the math
+        logger.info(f"DEBUG: Math check:")
+        logger.info(f"DEBUG:   plex_titles ({len(plex_titles)}) - in_both ({len(in_both)}) = only_in_plex ({len(only_in_plex)})")
+        logger.info(f"DEBUG:   assigned_titles ({len(assigned_titles)}) - in_both ({len(in_both)}) = only_in_assigned ({len(only_in_assigned)})")
+        logger.info(f"DEBUG:   Total should be: {len(only_in_plex) + len(only_in_assigned) + len(in_both)}")
+        logger.info(f"DEBUG:   Expected total: {len(plex_titles) + len(assigned_titles) - len(in_both)}")
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
@@ -1671,7 +1666,7 @@ def compare_movies():
                 'assigned_total': len(assigned_files),
                 'only_in_plex': len(only_in_plex),
                 'only_in_assigned': len(only_in_assigned),
-                'in_both': len(in_both_plex)
+                'in_both': len(in_both)
             },
             'only_in_plex': list(only_in_plex)[:50],  # Limit to first 50
             'only_in_assigned': list(only_in_assigned)[:50],  # Limit to first 50
