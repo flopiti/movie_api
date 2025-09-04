@@ -1763,7 +1763,10 @@ def compare_movies():
             for movie in plex_movies:
                 if movie.get('title'):
                     title = movie['title']
-                    year = movie.get('year') or movie.get('release_date', '').split('-')[0] if movie.get('release_date') else ''
+                    # Fix: Use the 'year' field directly from Plex data
+                    year = movie.get('year', '')  # Plex provides year directly
+                    if not year and movie.get('release_date'):
+                        year = movie.get('release_date', '').split('-')[0]
                     title_with_year = f"{title} ({year})" if year else title
                     all_titles_with_year.append(title_with_year)
                     # Debug: Show a few examples
