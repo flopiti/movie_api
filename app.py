@@ -342,7 +342,7 @@ class Config:
                 data = self._get_firebase_data()
                 assignments = data.get("movie_assignments", {})
                 logger.info(f"🔧 Firebase assignments count: {len(assignments)}")
-                logger.info(f"🔧 Firebase assignment keys: {list(assignments.keys())}")
+                # Removed verbose logging of assignment keys to reduce log clutter
                 
                 # For Firebase, we need to encode the file path to match the stored key
                 encoded_path = self._encode_path_for_firebase(file_path)
@@ -364,7 +364,7 @@ class Config:
                 # Fallback to local storage
                 assignments = self.data.get("movie_assignments", {})
                 logger.info(f"🔧 Local assignments count: {len(assignments)}")
-                logger.info(f"🔧 Local assignment keys: {list(assignments.keys())}")
+                # Removed verbose logging of assignment keys to reduce log clutter
                 if file_path in assignments:
                     logger.info(f"🔧 Found assignment in local storage, removing...")
                     del assignments[file_path]
@@ -377,7 +377,7 @@ class Config:
         else:
             assignments = self.data.get("movie_assignments", {})
             logger.info(f"🔧 Local-only assignments count: {len(assignments)}")
-            logger.info(f"🔧 Local-only assignment keys: {list(assignments.keys())}")
+            # Removed verbose logging of assignment keys to reduce log clutter
             if file_path in assignments:
                 logger.info(f"🔧 Found assignment in local-only storage, removing...")
                 del assignments[file_path]
