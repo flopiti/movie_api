@@ -263,93 +263,48 @@ class Config:
     
     def assign_movie_to_file(self, file_path: str, movie_data: Dict[str, Any]) -> bool:
         """Assign a movie to a file."""
-        logger.info(f"🎬 ASSIGN MOVIE START: {movie_data.get('title', 'Unknown')} -> {file_path}")
-        logger.info(f"🔥 Using Firebase: {self.use_firebase}")
+        logger.info(f"🎬 ASSIGN MOVIE: {movie_data.get('title', 'Unknown')} -> {file_path}")
         
         if self.use_firebase:
             try:
-                logger.info("📡 Getting Firebase data...")
                 data = self._get_firebase_data()
-                logger.info(f"📡 Firebase data keys: {list(data.keys()) if data else 'None'}")
-                
                 assignments = data.setdefault("movie_assignments", {})
-                logger.info(f"📊 Current assignments count: {len(assignments)}")
                 
                 # Encode file path for Firebase (Firebase keys can't contain / . etc.)
                 encoded_path = self._encode_path_for_firebase(file_path)
-                logger.info(f"🔑 Encoded path: {encoded_path}")
                 
                 assignments[encoded_path] = {**movie_data, 'original_path': file_path}
-                logger.info(f"➕ Added assignment, new count: {len(assignments)}")
                 
-                logger.info("💾 Saving to Firebase...")
                 self._save_firebase_data(data)
-                logger.info("✅ Firebase save completed!")
+                logger.info(f"✅ Movie assigned to Firebase: {movie_data.get('title', 'Unknown')}")
+                return True
                 
-                # Verify the assignment was actually saved by reading it back
-                logger.info("🔍 Verifying assignment was saved...")
-                verification_data = self._get_firebase_data()
-                verification_assignments = verification_data.get("movie_assignments", {})
-                if encoded_path in verification_assignments:
-                    saved_movie = verification_assignments[encoded_path]
-                    if saved_movie.get('title') == movie_data.get('title'):
-                        logger.info(f"✅ VERIFICATION SUCCESS: Assignment confirmed in database!")
-                        logger.info(f"🎉 SUCCESS: Movie '{movie_data.get('title', 'Unknown')}' assigned to Firebase!")
-                        return True
-                    else:
-                        logger.error(f"❌ VERIFICATION FAILED: Title mismatch - expected '{movie_data.get('title')}', got '{saved_movie.get('title')}'")
-                        return False
-                else:
-                    logger.error(f"❌ VERIFICATION FAILED: Assignment not found in database after save")
-                    return False
             except Exception as e:
-                logger.error(f"❌ FIREBASE FAILED: {str(e)}")
-                logger.error(f"Exception type: {type(e).__name__}")
+                logger.error(f"Firebase assignment failed, falling back to local: {str(e)}")
                 # Fallback to local storage
-                logger.info("🔄 Falling back to local storage...")
                 assignments = self.data.setdefault("movie_assignments", {})
                 assignments[file_path] = movie_data
                 self._save_local_config()
-                
-                # Verify local assignment
-                if file_path in self.data.get("movie_assignments", {}):
-                    logger.info("✅ Local verification successful!")
-                    return True
-                else:
-                    logger.error("❌ Local verification failed!")
-                    return False
+                logger.info(f"✅ Movie assigned to local storage: {movie_data.get('title', 'Unknown')}")
+                return True
         else:
-            logger.info("💾 Using local storage only...")
             assignments = self.data.setdefault("movie_assignments", {})
             assignments[file_path] = movie_data
             self._save_local_config()
-            
-            # Verify local assignment
-            if file_path in self.data.get("movie_assignments", {}):
-                logger.info("✅ Local verification successful!")
-                return True
-            else:
-                logger.error("❌ Local verification failed!")
-                return False
+            logger.info(f"✅ Movie assigned to local storage: {movie_data.get('title', 'Unknown')}")
+            return True
     
     def remove_movie_assignment(self, file_path: str) -> bool:
         """Remove a movie assignment from a file."""
-        logger.info(f"🔧 remove_movie_assignment called for: {file_path}")
-        logger.info(f"🔧 Using Firebase: {self.use_firebase}")
-        
         if self.use_firebase:
             try:
                 data = self._get_firebase_data()
                 assignments = data.get("movie_assignments", {})
-                logger.info(f"🔧 Firebase assignments count: {len(assignments)}")
-                # Removed verbose logging of assignment keys to reduce log clutter
                 
                 # For Firebase, we need to encode the file path to match the stored key
                 encoded_path = self._encode_path_for_firebase(file_path)
-                logger.info(f"🔧 Encoded path: {encoded_path}")
                 
                 if encoded_path in assignments:
-                    logger.info(f"🔧 Found assignment in Firebase, removing...")
                     del assignments[encoded_path]
                     self._save_firebase_data(data)
                     # Also update local data to keep it in sync
@@ -357,16 +312,13 @@ class Config:
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
                 else:
-                    logger.debug(f"Assignment not found in Firebase for: {file_path} (encoded: {encoded_path})")
+                    logger.debug(f"Assignment not found in Firebase for: {file_path}")
                     return False
             except Exception as e:
                 logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
                 # Fallback to local storage
                 assignments = self.data.get("movie_assignments", {})
-                logger.info(f"🔧 Local assignments count: {len(assignments)}")
-                # Removed verbose logging of assignment keys to reduce log clutter
                 if file_path in assignments:
-                    logger.info(f"🔧 Found assignment in local storage, removing...")
                     del assignments[file_path]
                     self._save_local_config()
                     logger.info(f"Removed movie assignment from local storage for file: {file_path}")
@@ -376,10 +328,7 @@ class Config:
                     return False
         else:
             assignments = self.data.get("movie_assignments", {})
-            logger.info(f"🔧 Local-only assignments count: {len(assignments)}")
-            # Removed verbose logging of assignment keys to reduce log clutter
             if file_path in assignments:
-                logger.info(f"🔧 Found assignment in local-only storage, removing...")
                 del assignments[file_path]
                 self._save_local_config()
                 logger.info(f"Removed movie assignment from local storage for file: {file_path}")
@@ -387,6 +336,57 @@ class Config:
             else:
                 logger.debug(f"Assignment not found in local storage for: {file_path}")
                 return False
+
+    def batch_update_assignments(self, updates: List[tuple]) -> bool:
+        """Batch update movie assignments to reduce Firebase calls.
+        
+        Args:
+            updates: List of (old_path, new_path, movie_data) tuples
+        """
+        if not updates:
+            return True
+            
+        logger.info(f"🔄 Batch updating {len(updates)} assignments")
+        
+        if self.use_firebase:
+            try:
+                # Get all current data once
+                data = self._get_firebase_data()
+                assignments = data.setdefault("movie_assignments", {})
+                
+                # Process all updates in memory
+                for old_path, new_path, movie_data in updates:
+                    # Remove old assignment
+                    if old_path:
+                        encoded_old_path = self._encode_path_for_firebase(old_path)
+                        if encoded_old_path in assignments:
+                            del assignments[encoded_old_path]
+                    
+                    # Add new assignment
+                    if new_path and movie_data:
+                        encoded_new_path = self._encode_path_for_firebase(new_path)
+                        assignments[encoded_new_path] = {**movie_data, 'original_path': new_path}
+                
+                # Save all changes at once
+                self._save_firebase_data(data)
+                logger.info(f"✅ Batch update completed: {len(updates)} assignments")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Firebase batch update failed: {str(e)}")
+                return False
+        else:
+            # Local storage batch update
+            assignments = self.data.setdefault("movie_assignments", {})
+            for old_path, new_path, movie_data in updates:
+                if old_path and old_path in assignments:
+                    del assignments[old_path]
+                if new_path and movie_data:
+                    assignments[new_path] = movie_data
+            
+            self._save_local_config()
+            logger.info(f"✅ Local batch update completed: {len(updates)} assignments")
+            return True
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
@@ -1334,12 +1334,12 @@ def rename_file():
         # Perform the rename
         current_file.rename(new_path)
         
-        # Update movie assignments if they exist
+        # Update movie assignments if they exist - use batch update for better performance
         movie_assignments = config.get_movie_assignments()
         if current_path in movie_assignments:
             movie_data = movie_assignments[current_path]
-            config.remove_movie_assignment(current_path)
-            config.assign_movie_to_file(str(new_path), movie_data)
+            # Use batch update instead of individual calls
+            config.batch_update_assignments([(current_path, str(new_path), movie_data)])
         
         logger.info(f"Successfully renamed file: {current_path} -> {new_path}")
         
@@ -1399,10 +1399,9 @@ def rename_folder():
         # Perform the folder rename
         current_folder.rename(new_folder_path)
         
-        # Update all movie assignments that were in the renamed folder
-        for old_file_path, new_file_path, movie_data in files_to_update:
-            config.remove_movie_assignment(old_file_path)
-            config.assign_movie_to_file(new_file_path, movie_data)
+        # Batch update all movie assignments that were in the renamed folder
+        if files_to_update:
+            config.batch_update_assignments(files_to_update)
         
         logger.info(f"Successfully renamed folder: {current_folder_path} -> {new_folder_path}")
         logger.info(f"Updated {len(files_to_update)} movie assignments")
