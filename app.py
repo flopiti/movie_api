@@ -1115,26 +1115,26 @@ def cleanup_orphaned_assignments():
     try:
         logger.info("🚀 CLEANUP ENDPOINT CALLED - Starting cleanup of orphaned movie assignments...")
         
-        # Add a simple test response first
-        return jsonify({
-            'message': 'Cleanup endpoint is working!',
-            'test': True,
-            'timestamp': '2025-09-03 15:08:34'
-        }), 200
-        
         # Get all current movie assignments
         movie_assignments = config.get_movie_assignments()
         logger.info(f"Found {len(movie_assignments)} total movie assignments")
         
         orphaned_assignments = []
         removed_count = 0
+        valid_assignments = []
         
         # Check each assignment
         for file_path, movie_data in movie_assignments.items():
             logger.info(f"🔍 Checking assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
-            logger.info(f"🔍 File exists on disk: {os.path.exists(file_path)}")
             
-            if not os.path.exists(file_path):
+            if os.path.exists(file_path):
+                logger.info(f"✅ File exists: {file_path}")
+                valid_assignments.append({
+                    'file_path': file_path,
+                    'movie_title': movie_data.get('title', 'Unknown'),
+                    'movie_id': movie_data.get('id', 'Unknown')
+                })
+            else:
                 logger.info(f"🚨 Found orphaned assignment: {file_path} -> {movie_data.get('title', 'Unknown')}")
                 orphaned_assignments.append({
                     'file_path': file_path,
@@ -1156,13 +1156,16 @@ def cleanup_orphaned_assignments():
                     logger.error(f"❌ Error removing orphaned assignment {file_path}: {str(e)}")
         
         logger.info(f"Cleanup completed: {removed_count} orphaned assignments removed out of {len(orphaned_assignments)} found")
+        logger.info(f"Valid assignments remaining: {len(valid_assignments)}")
         
         return jsonify({
             'message': 'Cleanup completed successfully',
             'total_assignments_checked': len(movie_assignments),
             'orphaned_assignments_found': len(orphaned_assignments),
             'assignments_removed': removed_count,
-            'orphaned_assignments': orphaned_assignments
+            'valid_assignments_remaining': len(valid_assignments),
+            'orphaned_assignments': orphaned_assignments,
+            'valid_assignments': valid_assignments
         }), 200
         
     except Exception as e:
@@ -1955,6 +1958,44 @@ def not_found(error):
 def internal_error(error):
     """Handle 500 errors."""
     return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/firebase-cleanup', methods=['POST'])
+def firebase_cleanup():
+    """Trigger Firebase cleanup to remove orphaned movie assignments."""
+    try:
+        logger.info("🔥 FIREBASE CLEANUP ENDPOINT CALLED")
+        
+        # Import the cleanup script
+        from cleanup_firebase_assignments import FirebaseCleanup
+        
+        # Initialize cleanup
+        cleanup = FirebaseCleanup()
+        
+        # Run cleanup (dry run first to analyze)
+        analysis = cleanup.cleanup(dry_run=True)
+        
+        # If there are orphaned assignments, remove them
+        if analysis['orphaned_assignments'] > 0:
+            logger.info(f"🗑️ Found {analysis['orphaned_assignments']} orphaned assignments, removing...")
+            removed_count = cleanup.remove_orphaned_assignments(analysis['orphaned_assignments_list'])
+            analysis['removed_count'] = removed_count
+            logger.info(f"🎉 Firebase cleanup completed! Removed {removed_count} orphaned assignments")
+        else:
+            logger.info("🎉 No orphaned assignments found - no cleanup needed")
+            analysis['removed_count'] = 0
+        
+        return jsonify({
+            'message': 'Firebase cleanup completed successfully',
+            'total_assignments': analysis['total_assignments'],
+            'valid_assignments': analysis['valid_assignments'],
+            'orphaned_assignments': analysis['orphaned_assignments'],
+            'removed_assignments': analysis['removed_count'],
+            'summary': f"Cleaned up {analysis['removed_count']} orphaned assignments, {analysis['valid_assignments']} valid assignments remaining"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error during Firebase cleanup: {str(e)}")
+        return jsonify({'error': f'Failed to cleanup Firebase: {str(e)}'}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Movie Management API...")
