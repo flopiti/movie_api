@@ -1791,7 +1791,11 @@ def compare_movies():
                 from collections import Counter
                 title_counts = Counter(all_titles_with_year)
                 duplicates = [title for title, count in title_counts.items() if count > 1]
-                logger.warning(f"🔍 DEBUG: ACTUAL Duplicate titles: {duplicates}")
+                logger.warning(f"🔍 DEBUG: ACTUAL Duplicate titles WITH YEARS: {duplicates}")
+                
+                # Also show the original titles without years for reference
+                original_duplicates = list(set([title.split(' (')[0] for title in duplicates]))
+                logger.warning(f"🔍 DEBUG: Original duplicate titles (without years): {original_duplicates}")
             else:
                 logger.info(f"🔍 DEBUG: No actual duplicates found - all movies with same title have different years")
                 
