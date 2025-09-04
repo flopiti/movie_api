@@ -1808,56 +1808,99 @@ def compare_movies():
         step_start = time.time()
         
         # Simple direct comparison - no fancy matching
-        logger.info("Step 7: Calculating differences with simple matching...")
+        logger.info("Step 7: Calculating differences with proper year-aware matching...")
         step_start = time.time()
         
-        # Convert to lowercase for comparison - COMPARE BASE TITLES WITHOUT YEARS
-        # Extract base titles from plex titles (remove year part)
-        plex_base_titles = set()
+        # Create a mapping of base titles to full titles with years for Plex
+        plex_title_mapping = {}
         for title in plex_original_titles:
-            # Remove year part like " (2023)" from title
+            # Extract base title and year
             base_title = title
+            year = None
             if ' (' in title and title.endswith(')'):
-                # Try to extract year and remove it
                 parts = title.rsplit(' (', 1)
                 if len(parts) == 2 and parts[1].endswith(')') and parts[1][:-1].isdigit():
                     base_title = parts[0]
-            plex_base_titles.add(base_title.lower().strip())
+                    year = parts[1][:-1]  # Remove the closing parenthesis
+            
+            base_title_lower = base_title.lower().strip()
+            if base_title_lower not in plex_title_mapping:
+                plex_title_mapping[base_title_lower] = []
+            plex_title_mapping[base_title_lower].append({
+                'full_title': title,
+                'base_title': base_title,
+                'year': year
+            })
         
-        # Use assigned titles as-is (they don't have years)
-        assigned_lowercase = {title.lower().strip() for title in assigned_original_titles}
+        # Create a mapping for assigned titles (they don't have years)
+        # Include both existing files and orphaned assignments
+        assigned_title_mapping = {}
         
-        # Find matches using base titles
-        matches = plex_base_titles & assigned_lowercase
-        logger.info(f"Found {len(matches)} matching titles")
+        # Add titles from existing files
+        for title in assigned_original_titles:
+            base_title_lower = title.lower().strip()
+            if base_title_lower not in assigned_title_mapping:
+                assigned_title_mapping[base_title_lower] = []
+            assigned_title_mapping[base_title_lower].append({
+                'full_title': title,
+                'base_title': title,
+                'year': None,
+                'status': 'existing'
+            })
         
-        # Find differences
-        only_in_plex = plex_base_titles - assigned_lowercase
-        only_in_assigned = assigned_lowercase - plex_base_titles
+        # Add titles from orphaned assignments
+        for orphaned in orphaned_assignments:
+            title = orphaned['title']
+            base_title_lower = title.lower().strip()
+            if base_title_lower not in assigned_title_mapping:
+                assigned_title_mapping[base_title_lower] = []
+            assigned_title_mapping[base_title_lower].append({
+                'full_title': title,
+                'base_title': title,
+                'year': None,
+                'status': 'orphaned'
+            })
         
-
-        
-        # Convert back to original titles for response - HANDLE BASE TITLE MATCHING
-        # For plex titles, we need to match base titles to full titles with years
+        # Find matches and differences with year awareness
         in_both_original = set()
         only_in_plex_original = set()
+        only_in_assigned_original = set()
         
-        for title in plex_original_titles:
-            # Extract base title
-            base_title = title
-            if ' (' in title and title.endswith(')'):
-                parts = title.rsplit(' (', 1)
-                if len(parts) == 2 and parts[1].endswith(')') and parts[1][:-1].isdigit():
-                    base_title = parts[0]
-            base_title_lower = base_title.lower().strip()
+        # Get all unique base titles
+        all_base_titles = set(plex_title_mapping.keys()) | set(assigned_title_mapping.keys())
+        
+        for base_title in all_base_titles:
+            plex_versions = plex_title_mapping.get(base_title, [])
+            assigned_versions = assigned_title_mapping.get(base_title, [])
             
-            if base_title_lower in matches:
-                in_both_original.add(title)
-            elif base_title_lower in only_in_plex:
-                only_in_plex_original.add(title)
+            if plex_versions and assigned_versions:
+                # We have matches - add all plex versions to "in both"
+                for plex_version in plex_versions:
+                    in_both_original.add(plex_version['full_title'])
+                # Add only existing assigned versions to "in both"
+                for assigned_version in assigned_versions:
+                    if assigned_version['status'] == 'existing':
+                        in_both_original.add(assigned_version['full_title'])
+                    else:  # orphaned
+                        only_in_assigned_original.add(assigned_version['full_title'])
+            elif plex_versions:
+                # Only in Plex
+                for plex_version in plex_versions:
+                    only_in_plex_original.add(plex_version['full_title'])
+            else:
+                # Only in assigned
+                for assigned_version in assigned_versions:
+                    only_in_assigned_original.add(assigned_version['full_title'])
         
-        # For assigned titles, use direct matching
-        only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
+        # Debug: Show some examples of the matching
+        logger.info(f"🔍 TITLE MATCHING EXAMPLES:")
+        sample_titles = list(all_base_titles)[:5]
+        for base_title in sample_titles:
+            plex_versions = plex_title_mapping.get(base_title, [])
+            assigned_versions = assigned_title_mapping.get(base_title, [])
+            logger.info(f"  Base title '{base_title}':")
+            logger.info(f"    Plex versions: {[v['full_title'] for v in plex_versions]}")
+            logger.info(f"    Assigned versions: {[v['full_title'] for v in assigned_versions]}")
         
         # Verify the math
         logger.info(f"Math verification:")
@@ -1870,6 +1913,9 @@ def compare_movies():
         logger.info(f"  Assigned math: {len(only_in_assigned_original)} + {len(in_both_original)} = {len(only_in_assigned_original) + len(in_both_original)} (should be {len(assigned_original_titles)})")
         
         logger.info(f"Summary: {len(in_both_original)} in both, {len(only_in_plex_original)} only in Plex, {len(only_in_assigned_original)} only in assigned")
+        
+        step_time = time.time() - step_start
+        logger.info(f"Step 7 completed in {step_time:.2f}s")
         
         step_time = time.time() - step_start
         logger.info(f"Step 6 completed in {step_time:.2f}s")
@@ -1885,7 +1931,7 @@ def compare_movies():
         
         # FIX THE FUCKING MATH - Use the actual Plex count from API
         actual_plex_count = plex_total  # Use the real Plex count from API
-        actual_assigned_count = len(assigned_original_titles)
+        actual_assigned_count = len(assigned_movies)  # Count ALL assignments, not just existing files
         actual_in_both = len(in_both_original)
         actual_only_plex = len(only_in_plex_original)
         actual_only_assigned = len(only_in_assigned_original)
