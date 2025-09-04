@@ -286,8 +286,22 @@ class Config:
                 self._save_firebase_data(data)
                 logger.info("✅ Firebase save completed!")
                 
-                logger.info(f"🎉 SUCCESS: Movie '{movie_data.get('title', 'Unknown')}' assigned to Firebase!")
-                return True
+                # Verify the assignment was actually saved by reading it back
+                logger.info("🔍 Verifying assignment was saved...")
+                verification_data = self._get_firebase_data()
+                verification_assignments = verification_data.get("movie_assignments", {})
+                if encoded_path in verification_assignments:
+                    saved_movie = verification_assignments[encoded_path]
+                    if saved_movie.get('title') == movie_data.get('title'):
+                        logger.info(f"✅ VERIFICATION SUCCESS: Assignment confirmed in database!")
+                        logger.info(f"🎉 SUCCESS: Movie '{movie_data.get('title', 'Unknown')}' assigned to Firebase!")
+                        return True
+                    else:
+                        logger.error(f"❌ VERIFICATION FAILED: Title mismatch - expected '{movie_data.get('title')}', got '{saved_movie.get('title')}'")
+                        return False
+                else:
+                    logger.error(f"❌ VERIFICATION FAILED: Assignment not found in database after save")
+                    return False
             except Exception as e:
                 logger.error(f"❌ FIREBASE FAILED: {str(e)}")
                 logger.error(f"Exception type: {type(e).__name__}")
@@ -296,15 +310,27 @@ class Config:
                 assignments = self.data.setdefault("movie_assignments", {})
                 assignments[file_path] = movie_data
                 self._save_local_config()
-                logger.info("✅ Local fallback completed!")
-                return True
+                
+                # Verify local assignment
+                if file_path in self.data.get("movie_assignments", {}):
+                    logger.info("✅ Local verification successful!")
+                    return True
+                else:
+                    logger.error("❌ Local verification failed!")
+                    return False
         else:
             logger.info("💾 Using local storage only...")
             assignments = self.data.setdefault("movie_assignments", {})
             assignments[file_path] = movie_data
             self._save_local_config()
-            logger.info("✅ Local save completed!")
-            return True
+            
+            # Verify local assignment
+            if file_path in self.data.get("movie_assignments", {}):
+                logger.info("✅ Local verification successful!")
+                return True
+            else:
+                logger.error("❌ Local verification failed!")
+                return False
     
     def remove_movie_assignment(self, file_path: str) -> bool:
         """Remove a movie assignment from a file."""
@@ -2042,6 +2068,34 @@ def firebase_cleanup():
     except Exception as e:
         logger.error(f"Error during Firebase cleanup: {str(e)}")
         return jsonify({'error': f'Failed to cleanup Firebase: {str(e)}'}), 500
+
+@app.route('/verify-assignment', methods=['GET'])
+def verify_assignment():
+    """Verify if a movie assignment exists for a file."""
+    file_path = request.args.get('file_path')
+    
+    if not file_path:
+        return jsonify({'error': 'file_path parameter is required'}), 400
+    
+    try:
+        assignments = config.get_movie_assignments()
+        if file_path in assignments:
+            movie_data = assignments[file_path]
+            return jsonify({
+                'exists': True,
+                'file_path': file_path,
+                'movie': movie_data,
+                'message': 'Assignment confirmed in database'
+            }), 200
+        else:
+            return jsonify({
+                'exists': False,
+                'file_path': file_path,
+                'message': 'No assignment found for this file'
+            }), 404
+    except Exception as e:
+        logger.error(f"Error verifying assignment: {str(e)}")
+        return jsonify({'error': f'Failed to verify assignment: {str(e)}'}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Movie Management API...")
