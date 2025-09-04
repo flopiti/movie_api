@@ -155,7 +155,7 @@ class Config:
             logger.info(f"🔥 Data to save keys: {list(data.keys())}")
             if 'movie_assignments' in data:
                 logger.info(f"🔥 Movie assignments count: {len(data['movie_assignments'])}")
-                logger.info(f"🔥 Assignment file paths: {list(data['movie_assignments'].keys())}")
+                # Removed verbose logging of assignment file paths to reduce log clutter
             
             self.firebase_ref.set(data)
             logger.info("🔥 Firebase ref.set() completed successfully!")
