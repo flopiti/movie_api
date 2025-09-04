@@ -1682,8 +1682,8 @@ def compare_movies():
             plex_total = sum(plex_counts.values())
             logger.info(f"Successfully got Plex count: {plex_total}")
         except Exception as e:
-            logger.warning(f"Failed to get Plex count: {e}, using known value")
-            plex_total = 896  # Known value from your test
+            logger.error(f"Failed to get Plex count: {e}")
+            return jsonify({'error': f'Failed to get Plex movie count: {str(e)}'}), 500
         step_time = time.time() - step_start
         logger.info(f"Step 1 completed in {step_time:.2f}s - Plex total: {plex_total}")
         
@@ -1808,23 +1808,52 @@ def compare_movies():
         logger.info("Step 7: Calculating differences with simple matching...")
         step_start = time.time()
         
-        # Convert to lowercase for comparison - USING YEAR-BASED TITLES
-        plex_lowercase = {title.lower().strip() for title in plex_original_titles}
+        # Convert to lowercase for comparison - COMPARE BASE TITLES WITHOUT YEARS
+        # Extract base titles from plex titles (remove year part)
+        plex_base_titles = set()
+        for title in plex_original_titles:
+            # Remove year part like " (2023)" from title
+            base_title = title
+            if ' (' in title and title.endswith(')'):
+                # Try to extract year and remove it
+                parts = title.rsplit(' (', 1)
+                if len(parts) == 2 and parts[1].endswith(')') and parts[1][:-1].isdigit():
+                    base_title = parts[0]
+            plex_base_titles.add(base_title.lower().strip())
+        
+        # Use assigned titles as-is (they don't have years)
         assigned_lowercase = {title.lower().strip() for title in assigned_original_titles}
         
-        # Find matches
-        matches = plex_lowercase & assigned_lowercase
+        # Find matches using base titles
+        matches = plex_base_titles & assigned_lowercase
         logger.info(f"Found {len(matches)} matching titles")
         
         # Find differences
-        only_in_plex = plex_lowercase - assigned_lowercase
-        only_in_assigned = assigned_lowercase - plex_lowercase
+        only_in_plex = plex_base_titles - assigned_lowercase
+        only_in_assigned = assigned_lowercase - plex_base_titles
         
 
         
-        # Convert back to original titles for response - FIXED LOGIC
-        in_both_original = {title for title in plex_original_titles if title.lower().strip() in matches}
-        only_in_plex_original = {title for title in plex_original_titles if title.lower().strip() in only_in_plex}
+        # Convert back to original titles for response - HANDLE BASE TITLE MATCHING
+        # For plex titles, we need to match base titles to full titles with years
+        in_both_original = set()
+        only_in_plex_original = set()
+        
+        for title in plex_original_titles:
+            # Extract base title
+            base_title = title
+            if ' (' in title and title.endswith(')'):
+                parts = title.rsplit(' (', 1)
+                if len(parts) == 2 and parts[1].endswith(')') and parts[1][:-1].isdigit():
+                    base_title = parts[0]
+            base_title_lower = base_title.lower().strip()
+            
+            if base_title_lower in matches:
+                in_both_original.add(title)
+            elif base_title_lower in only_in_plex:
+                only_in_plex_original.add(title)
+        
+        # For assigned titles, use direct matching
         only_in_assigned_original = {title for title in assigned_original_titles if title.lower().strip() in only_in_assigned}
         
         # Verify the math
@@ -1885,7 +1914,7 @@ def compare_movies():
             'only_in_assigned': sorted(list(only_in_assigned_original)),
             'side_by_side_count': actual_only_plex + actual_only_assigned,
             'orphaned_assignments': orphaned_assignments,
-            'note': f'Plex has {actual_plex_count} unique movies (892 total with 3 duplicates), you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
+            'note': f'Plex has {actual_plex_count} unique movies, you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
         }
         step_time = time.time() - step_start
         logger.info(f"Step 5 completed in {step_time:.2f}s")
