@@ -755,8 +755,9 @@ CRITICAL: DO NOT remove or modify:
 - Actor names that are part of the title
 - Original movie titles in other languages
 - Subtitle information that helps identify the movie
-- Movie sequel numbers (e.g., "Cars 2", "Toy Story 3", "The Matrix 2", "Iron Man 2")
+- Movie sequel numbers (e.g., "Cars 2", "Toy Story 3", "The Matrix 2", "Iron Man 2", "Inside Out 2", "Frozen 2", "Finding Dory", "Monsters University")
 - Roman numerals in titles (e.g., "Rocky IV", "Star Wars Episode IV")
+- ANY numbers that appear to be part of the movie title (e.g., "2", "3", "4", "II", "III", "IV")
 
 Examples:
 - "Akira Anime Eng Jps Rus Ukr Multi Subs" → "Akira"
@@ -764,6 +765,10 @@ Examples:
 - "Cars 2 (2011) 1080p BluRay x264" → "Cars 2 2011"
 - "Toy Story 3 2010 720p WEBRip" → "Toy Story 3 2010"
 - "Iron Man 2 2010 BluRay x264" → "Iron Man 2 2010"
+- "Inside Out 2 2024 1080p BluRay x264" → "Inside Out 2 2024"
+- "Frozen 2 2019 720p WEBRip" → "Frozen 2 2019"
+- "Finding Dory 2016 BluRay x264" → "Finding Dory 2016"
+- "Monsters University 2013 1080p" → "Monsters University 2013"
 - "Certified Copy Criterion Collection 1080p BluRay x264" → "Certified Copy"
 - "The Seventh Seal Criterion Collection 1957" → "The Seventh Seal 1957"
 - "Inception by Christopher Nolan 2010" → "Inception by Christopher Nolan 2010"
@@ -838,7 +843,7 @@ Please provide a cleaner version that removes ALL of these elements:
 - Any collection/label names (Criterion Collection, Arrow Video, Shout Factory, etc.)
 - Any special characters like ~, |, \\, /, etc.
 
-CRITICAL: Preserve movie sequel numbers, Roman numerals in titles, and YEARS (e.g., "Cars 2", "Toy Story 3", "Iron Man 2", "Rocky IV", "1999", "2010", "1968")
+CRITICAL: Preserve movie sequel numbers, Roman numerals in titles, and YEARS (e.g., "Cars 2", "Toy Story 3", "Iron Man 2", "Inside Out 2", "Frozen 2", "Finding Dory", "Monsters University", "Rocky IV", "1999", "2010", "1968")
 
 Focus ONLY on the core movie title. If you're unsure about a word, remove it.
 
@@ -846,6 +851,10 @@ Examples of what to remove:
 - "Cars 2 ~Invincible" → "Cars 2"
 - "Cars 2 (2011) 1080p BluRay x264" → "Cars 2 2011"
 - "Toy Story 3 2010 720p WEBRip" → "Toy Story 3 2010"
+- "Inside Out 2 2024 1080p BluRay x264" → "Inside Out 2 2024"
+- "Frozen 2 2019 720p WEBRip" → "Frozen 2 2019"
+- "Finding Dory 2016 BluRay x264" → "Finding Dory 2016"
+- "Monsters University 2013 1080p" → "Monsters University 2013"
 - "Certified Copy Criterion Collection 1080p BluRay x264" → "Certified Copy"
 - "The Matrix (1999) [YIFY]" → "The Matrix 1999"
 - "Inception 1080p BluRay x264" → "Inception"
