@@ -1715,16 +1715,12 @@ def compare_movies():
             
             if os.path.exists(file_path):  # Only include existing files
                 if title:
-                    # Add year to assigned titles to match Plex format
-                    year = movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else ''
-                    title_with_year = f"{original_title} ({year})" if year else original_title
-                    
                     assigned_titles.add(title)
-                    assigned_original_titles.add(title_with_year)  # Use title with year for comparison
+                    assigned_original_titles.add(original_title)
                     assigned_files.append({
                         'title': original_title,
                         'file_path': file_path,
-                        'year': year
+                        'year': movie_data.get('release_date', '').split('-')[0] if movie_data.get('release_date') else None
                     })
             else:
                 # Track orphaned assignments
