@@ -544,7 +544,9 @@ class Config:
                 }
             
             # Use os.statvfs to get accurate disk usage for mount points
+            print(f"DEBUG: Getting space info for {path}")
             stat = os.statvfs(path)
+            print(f"DEBUG: statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
             logger.info(f"statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
             
             # statvfs returns values in blocks, multiply by block size to get bytes
