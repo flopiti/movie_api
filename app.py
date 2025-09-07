@@ -543,24 +543,13 @@ class Config:
                     'error': 'Path does not exist'
                 }
             
-            # Use df command to get accurate disk usage for mount points
-            import subprocess
-            result = subprocess.run(['df', '-k', path], capture_output=True, text=True, check=True)
-            lines = result.stdout.strip().split('\n')
+            # Use os.statvfs to get accurate disk usage for mount points
+            stat = os.statvfs(path)
             
-            # Parse the df output (skip header line)
-            if len(lines) < 2:
-                raise Exception("Invalid df output")
-                
-            data_line = lines[1].split()
-            if len(data_line) < 4:
-                raise Exception("Incomplete df output")
-            
-            # df output: Filesystem, 1K-blocks, Used, Available, Use%, Mounted on
-            # Values are in 1K blocks, so multiply by 1024 to get bytes
-            total = int(data_line[1]) * 1024
-            used = int(data_line[2]) * 1024
-            free = int(data_line[3]) * 1024
+            # statvfs returns values in blocks, multiply by block size to get bytes
+            total = stat.f_blocks * stat.f_frsize
+            free = stat.f_bavail * stat.f_frsize
+            used = total - free
             
             # Convert to GB
             total_gb = total / (1024**3)
