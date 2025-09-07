@@ -38,7 +38,7 @@ jobs:
             -v /mnt/movie-config:/mnt/movie-config \
             -e TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            -e REDIS_HOST=${{ secrets.SERVER_HOST }} \
+            -e REDIS_HOST=172.17.0.1 \
             -e REDIS_PORT=6379 \
             -e REDIS_DB=0 \
             ${{ secrets.DOCKER_USERNAME }}/movie-api:latest
