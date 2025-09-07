@@ -7,6 +7,6 @@ TMDB_API_KEY=236c30c396c77160d2f8015c0a8c5bcc
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Redis Configuration
-REDIS_HOST=localhost
+REDIS_HOST=192.168.0.10
 REDIS_PORT=6379
 REDIS_DB=0
