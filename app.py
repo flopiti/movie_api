@@ -46,7 +46,7 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
 # Redis Configuration
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_HOST = os.getenv('REDIS_HOST', '192.168.0.10')  # Default to your server IP
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
@@ -2270,6 +2270,8 @@ def compare_movies():
             },
             'only_in_plex': sorted(list(only_in_plex_original)),
             'only_in_assigned': sorted(list(only_in_assigned_original)),
+            'plex_movies': sorted(list(in_both_original)),  # Movies that are in both Plex and assigned
+            'assigned_movies': sorted(list(in_both_original)),  # Movies that are in both Plex and assigned
             'side_by_side_count': actual_only_plex + actual_only_assigned,
             'orphaned_assignments': orphaned_assignments,
             'note': f'Plex has {actual_plex_count} unique movies, you have {actual_assigned_count} assigned movies. {actual_in_both} movies in both, {actual_only_plex} only in Plex, {actual_only_assigned} only in assigned. {len(orphaned_assignments)} orphaned assignments found.'
