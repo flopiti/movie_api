@@ -397,12 +397,27 @@ class Config:
         if self.use_firebase:
             try:
                 data = self._get_firebase_data()
-                return data.get("media_paths", [])
+                paths = data.get("media_paths", [])
             except Exception as e:
                 logger.error(f"Firebase error, falling back to local config: {str(e)}")
-                return self.data.get("media_paths", [])
+                paths = self.data.get("media_paths", [])
         else:
-            return self.data.get("media_paths", [])
+            paths = self.data.get("media_paths", [])
+        
+        # Always refresh space info for all paths
+        updated_paths = []
+        for path_info in paths:
+            path = path_info.get('path', '')
+            if path:
+                updated_info = self._get_path_space_info(path)
+                if updated_info:
+                    updated_paths.append(updated_info)
+                else:
+                    updated_paths.append(path_info)
+            else:
+                updated_paths.append(path_info)
+        
+        return updated_paths
     
     def add_media_path(self, path: str) -> bool:
         """Add a media path if it doesn't already exist."""
@@ -544,9 +559,8 @@ class Config:
                 }
             
             # Use os.statvfs to get accurate disk usage for mount points
-            print(f"DEBUG: Getting space info for {path}")
+            logger.info(f"Getting space info for {path}")
             stat = os.statvfs(path)
-            print(f"DEBUG: statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
             logger.info(f"statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
             
             # statvfs returns values in blocks, multiply by block size to get bytes
@@ -554,7 +568,7 @@ class Config:
             free = stat.f_bavail * stat.f_frsize
             used = total - free
             
-            logger.info(f"Calculated: total={total}, used={used}, free={free}")
+            logger.info(f"Calculated space for {path}: total={total/(1024**3):.2f}GB, used={used/(1024**3):.2f}GB, free={free/(1024**3):.2f}GB")
             
             # Convert to GB
             total_gb = total / (1024**3)
@@ -630,7 +644,6 @@ class FileDiscovery:
                     if file_path_str in movie_assignments:
                         movie_data = movie_assignments[file_path_str]
                         file_info['movie'] = movie_data
-                        logger.info(f"🎬 Found assignment for {file_path_str}: {movie_data.get('title', 'Unknown')}")
                         
                         # Add filename information for existing assignments
                         standard_filename = FilenameFormatter.generate_standard_filename(movie_data, file_path_str)
@@ -656,9 +669,6 @@ class FileDiscovery:
                             'needs_rename': folder_needs_rename
                         }
                         
-                        logger.info(f"📁 Added folder info: {current_foldername} -> {standard_foldername}, needs rename: {folder_needs_rename}")
-                        logger.info(f"🎬 Added filename info for existing assignment: {file_path_str}")
-                        logger.info(f"📝 Current: {current_filename}, Standard: {standard_filename}, Needs rename: {needs_rename}")
                     else:
                         logger.debug(f"📂 No assignment found for: {file_path_str}")
                         # Debug: Check if this is a path normalization issue
