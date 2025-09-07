@@ -545,11 +545,14 @@ class Config:
             
             # Use os.statvfs to get accurate disk usage for mount points
             stat = os.statvfs(path)
+            logger.info(f"statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
             
             # statvfs returns values in blocks, multiply by block size to get bytes
             total = stat.f_blocks * stat.f_frsize
             free = stat.f_bavail * stat.f_frsize
             used = total - free
+            
+            logger.info(f"Calculated: total={total}, used={used}, free={free}")
             
             # Convert to GB
             total_gb = total / (1024**3)
@@ -573,40 +576,18 @@ class Config:
             }
         except Exception as e:
             logger.error(f"Error getting space info for path {path}: {str(e)}")
-            # Fallback to shutil if df fails
-            try:
-                total, used, free = shutil.disk_usage(path)
-                total_gb = total / (1024**3)
-                used_gb = used / (1024**3)
-                free_gb = free / (1024**3)
-                usage_percentage = (used / total) * 100 if total > 0 else 0
-                
-                return {
-                    'path': path,
-                    'exists': True,
-                    'total_space': total,
-                    'used_space': used,
-                    'free_space': free,
-                    'total_space_gb': round(total_gb, 2),
-                    'used_space_gb': round(used_gb, 2),
-                    'free_space_gb': round(free_gb, 2),
-                    'usage_percentage': round(usage_percentage, 2),
-                    'last_updated': int(time.time())
-                }
-            except Exception as fallback_error:
-                logger.error(f"Fallback space calculation also failed for {path}: {str(fallback_error)}")
-                return {
-                    'path': path,
-                    'exists': False,
-                    'total_space': 0,
-                    'used_space': 0,
-                    'free_space': 0,
-                    'total_space_gb': 0,
-                    'used_space_gb': 0,
-                    'free_space_gb': 0,
-                    'usage_percentage': 0,
-                    'error': f"Both df and shutil failed: {str(e)}, {str(fallback_error)}"
-                }
+            return {
+                'path': path,
+                'exists': False,
+                'total_space': 0,
+                'used_space': 0,
+                'free_space': 0,
+                'total_space_gb': 0,
+                'used_space_gb': 0,
+                'free_space_gb': 0,
+                'usage_percentage': 0,
+                'error': f"Failed to get disk space: {str(e)}"
+            }
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
