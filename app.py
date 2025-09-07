@@ -115,8 +115,12 @@ class Config:
     def _get_redis_data(self) -> Dict[str, Any]:
         """Get configuration data from Redis."""
         try:
+            logger.info("🔍 Executing Redis command: redis_client.get('movie_config')")
             data = redis_client.get('movie_config')
+            logger.info(f"🔍 Redis GET result: {type(data)} - {'None' if data is None else f'{len(data)} characters'}")
+            
             if data is None:
+                logger.info("🔍 Redis data is None, initializing with default data")
                 # Initialize Redis with default data
                 default_data = {
                     "movie_file_paths": [],
@@ -124,9 +128,17 @@ class Config:
                     "tmdb_api_key": TMDB_API_KEY,
                     "movie_assignments": {}
                 }
+                logger.info(f"🔍 Setting default data to Redis: {list(default_data.keys())}")
                 redis_client.set('movie_config', json.dumps(default_data))
+                logger.info("🔍 Default data successfully set in Redis")
                 return default_data
-            return json.loads(data)
+            
+            logger.info("🔍 Parsing JSON data from Redis")
+            parsed_data = json.loads(data)
+            logger.info(f"🔍 Parsed data keys: {list(parsed_data.keys())}")
+            if 'movie_file_paths' in parsed_data:
+                logger.info(f"🔍 Found {len(parsed_data['movie_file_paths'])} movie file paths in Redis data")
+            return parsed_data
         except Exception as e:
             logger.error(f"Failed to get Redis data: {str(e)}")
             raise Exception(f"Failed to get Redis configuration: {str(e)}")
@@ -147,15 +159,27 @@ class Config:
     
     def get_movie_paths(self) -> List[str]:
         """Get list of movie file paths."""
+        logger.info(f"🎬 get_movie_paths() called - use_redis: {self.use_redis}")
+        
         if self.use_redis:
             try:
+                logger.info("🎬 Using Redis to get movie paths")
                 data = self._get_redis_data()
-                return data.get("movie_file_paths", [])
+                movie_paths = data.get("movie_file_paths", [])
+                logger.info(f"🎬 Retrieved {len(movie_paths)} movie paths from Redis")
+                if movie_paths:
+                    logger.info(f"🎬 First few paths: {movie_paths[:3]}")
+                return movie_paths
             except Exception as e:
                 logger.error(f"Redis error, falling back to local config: {str(e)}")
-                return self.data.get("movie_file_paths", [])
+                fallback_paths = self.data.get("movie_file_paths", [])
+                logger.info(f"🎬 Fallback: Retrieved {len(fallback_paths)} movie paths from local config")
+                return fallback_paths
         else:
-            return self.data.get("movie_file_paths", [])
+            logger.info("🎬 Using local config to get movie paths")
+            local_paths = self.data.get("movie_file_paths", [])
+            logger.info(f"🎬 Retrieved {len(local_paths)} movie paths from local config")
+            return local_paths
     
     def add_movie_path(self, path: str) -> bool:
         """Add a movie file path if it doesn't already exist."""
