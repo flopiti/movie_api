@@ -2392,7 +2392,6 @@ if __name__ == '__main__':
     logger.info("Starting Movie Management API...")
     logger.info(f"TMDB API configured: {bool(TMDB_API_KEY)}")
     logger.info(f"OpenAI API configured: {bool(OPENAI_API_KEY)}")
-    logger.info(f"Firebase configured: {bool(firebase_app)}")
     logger.info(f"Storage type: {'Firebase' if config.use_firebase else 'Local JSON'}")
     logger.info(f"Config file (fallback): {CONFIG_FILE}")
     logger.info(f"Movie paths configured: {len(config.get_movie_paths())}")
