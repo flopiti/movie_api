@@ -34,6 +34,7 @@ jobs:
           docker rm movie-api || true
           docker run -d --name movie-api -p 5000:5000 \
             -v /mnt:/mnt \
+            -v /mnt/external/seagate/movies:/mnt/external/movies \
             -v /mnt/movie-config:/mnt/movie-config \
             -e TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
