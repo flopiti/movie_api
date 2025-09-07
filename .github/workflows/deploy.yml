@@ -38,6 +38,7 @@ jobs:
             -v /mnt/movie-config:/mnt/movie-config \
             -e TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            -e FIREBASE_CREDENTIALS_PATH=${{ secrets.FIREBASE_CREDENTIALS_PATH }} \
-            -e FIREBASE_DATABASE_URL=${{ secrets.FIREBASE_DATABASE_URL }} \
+            -e REDIS_HOST=${{ secrets.SERVER_HOST }} \
+            -e REDIS_PORT=6379 \
+            -e REDIS_DB=0 \
             ${{ secrets.DOCKER_USERNAME }}/movie-api:latest
