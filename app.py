@@ -558,16 +558,27 @@ class Config:
                     'error': 'Path does not exist'
                 }
             
-            # Use os.statvfs to get accurate disk usage for mount points
+            # Use df command to get accurate disk usage for mount points
             logger.info(f"Getting space info for {path}")
-            stat = os.statvfs(path)
-            logger.info(f"statvfs for {path}: f_blocks={stat.f_blocks}, f_frsize={stat.f_frsize}, f_bavail={stat.f_bavail}")
+            import subprocess
+            result = subprocess.run(['df', '-k', path], capture_output=True, text=True, check=True)
+            lines = result.stdout.strip().split('\n')
             
-            # statvfs returns values in blocks, multiply by block size to get bytes
-            total = stat.f_blocks * stat.f_frsize
-            free = stat.f_bavail * stat.f_frsize
-            used = total - free
+            # Parse the df output (skip header line)
+            if len(lines) < 2:
+                raise Exception("Invalid df output")
+                
+            data_line = lines[1].split()
+            if len(data_line) < 4:
+                raise Exception("Incomplete df output")
             
+            # df output: Filesystem, 1K-blocks, Used, Available, Use%, Mounted on
+            # Values are in 1K blocks, so multiply by 1024 to get bytes
+            total = int(data_line[1]) * 1024
+            used = int(data_line[2]) * 1024
+            free = int(data_line[3]) * 1024
+            
+            logger.info(f"df output for {path}: {data_line[1]}K total, {data_line[2]}K used, {data_line[3]}K free")
             logger.info(f"Calculated space for {path}: total={total/(1024**3):.2f}GB, used={used/(1024**3):.2f}GB, free={free/(1024**3):.2f}GB")
             
             # Convert to GB
