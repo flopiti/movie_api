@@ -527,7 +527,7 @@ class Config:
         return updated_paths
     
     def _get_path_space_info(self, path: str) -> Dict[str, Any]:
-        """Get disk space information for a path."""
+        """Get disk space information for a path using df command."""
         try:
             if not os.path.exists(path):
                 return {
@@ -543,8 +543,24 @@ class Config:
                     'error': 'Path does not exist'
                 }
             
-            # Get disk usage statistics
-            total, used, free = shutil.disk_usage(path)
+            # Use df command to get accurate disk usage for mount points
+            import subprocess
+            result = subprocess.run(['df', '-B1', path], capture_output=True, text=True, check=True)
+            lines = result.stdout.strip().split('\n')
+            
+            # Parse the df output (skip header line)
+            if len(lines) < 2:
+                raise Exception("Invalid df output")
+                
+            data_line = lines[1].split()
+            if len(data_line) < 4:
+                raise Exception("Incomplete df output")
+            
+            # df output: Filesystem, 1K-blocks, Used, Available, Use%, Mounted on
+            # We use -B1 for 1-byte blocks, so the values are already in bytes
+            total = int(data_line[1])
+            used = int(data_line[2])
+            free = int(data_line[3])
             
             # Convert to GB
             total_gb = total / (1024**3)
@@ -568,18 +584,40 @@ class Config:
             }
         except Exception as e:
             logger.error(f"Error getting space info for path {path}: {str(e)}")
-            return {
-                'path': path,
-                'exists': False,
-                'total_space': 0,
-                'used_space': 0,
-                'free_space': 0,
-                'total_space_gb': 0,
-                'used_space_gb': 0,
-                'free_space_gb': 0,
-                'usage_percentage': 0,
-                'error': str(e)
-            }
+            # Fallback to shutil if df fails
+            try:
+                total, used, free = shutil.disk_usage(path)
+                total_gb = total / (1024**3)
+                used_gb = used / (1024**3)
+                free_gb = free / (1024**3)
+                usage_percentage = (used / total) * 100 if total > 0 else 0
+                
+                return {
+                    'path': path,
+                    'exists': True,
+                    'total_space': total,
+                    'used_space': used,
+                    'free_space': free,
+                    'total_space_gb': round(total_gb, 2),
+                    'used_space_gb': round(used_gb, 2),
+                    'free_space_gb': round(free_gb, 2),
+                    'usage_percentage': round(usage_percentage, 2),
+                    'last_updated': int(time.time())
+                }
+            except Exception as fallback_error:
+                logger.error(f"Fallback space calculation also failed for {path}: {str(fallback_error)}")
+                return {
+                    'path': path,
+                    'exists': False,
+                    'total_space': 0,
+                    'used_space': 0,
+                    'free_space': 0,
+                    'total_space_gb': 0,
+                    'used_space_gb': 0,
+                    'free_space_gb': 0,
+                    'usage_percentage': 0,
+                    'error': f"Both df and shutil failed: {str(e)}, {str(fallback_error)}"
+                }
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
@@ -1229,35 +1267,34 @@ def remove_media_path():
 
 @app.route('/media-paths/refresh', methods=['POST'])
 def refresh_media_paths_space():
-    """Refresh space information for all media paths."""
+    """Refresh space information for all media paths or a specific path."""
     try:
-        updated_paths = config.refresh_all_media_paths_space()
-        return jsonify({
-            'message': 'Space information refreshed successfully',
-            'media_paths': updated_paths,
-            'count': len(updated_paths)
-        }), 200
-    except Exception as e:
-        logger.error(f"Error refreshing media paths space: {str(e)}")
-        return jsonify({'error': f'Failed to refresh space information: {str(e)}'}), 500
-
-@app.route('/media-paths/<path:path>/refresh', methods=['POST'])
-def refresh_single_media_path_space(path):
-    """Refresh space information for a specific media path."""
-    try:
-        updated_info = config.refresh_media_path_space(path)
-        if updated_info:
+        data = request.get_json()
+        
+        # If a specific path is provided, refresh only that path
+        if data and 'path' in data:
+            path = data['path']
+            updated_info = config.refresh_media_path_space(path)
+            if updated_info:
+                return jsonify({
+                    'message': 'Space information refreshed successfully',
+                    'path_info': updated_info
+                }), 200
+            else:
+                return jsonify({
+                    'error': 'Media path not found',
+                    'path': path
+                }), 404
+        else:
+            # Refresh all paths
+            updated_paths = config.refresh_all_media_paths_space()
             return jsonify({
                 'message': 'Space information refreshed successfully',
-                'path_info': updated_info
+                'media_paths': updated_paths,
+                'count': len(updated_paths)
             }), 200
-        else:
-            return jsonify({
-                'error': 'Media path not found',
-                'path': path
-            }), 404
     except Exception as e:
-        logger.error(f"Error refreshing media path space: {str(e)}")
+        logger.error(f"Error refreshing media paths space: {str(e)}")
         return jsonify({'error': f'Failed to refresh space information: {str(e)}'}), 500
 
 @app.route('/all-files', methods=['GET'])
