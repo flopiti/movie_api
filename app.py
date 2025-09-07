@@ -52,13 +52,16 @@ REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 # Initialize Redis
 redis_client = None
+logger.info(f"🔧 Redis connection attempt - Host: {REDIS_HOST}, Port: {REDIS_PORT}, DB: {REDIS_DB}")
 try:
     redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+    logger.info(f"🔧 Redis client created, attempting ping to {REDIS_HOST}:{REDIS_PORT}")
     # Test connection
     redis_client.ping()
     logger.info("Redis connected successfully")
 except Exception as e:
     logger.error(f"Failed to connect to Redis: {str(e)}")
+    logger.error(f"🔧 Connection details - Host: {REDIS_HOST}, Port: {REDIS_PORT}, DB: {REDIS_DB}")
     redis_client = None
 
 # Supported media file extensions
