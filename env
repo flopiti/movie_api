@@ -6,5 +6,7 @@ TMDB_API_KEY=236c30c396c77160d2f8015c0a8c5bcc
 # Get your API key from: https://platform.openai.com/api-keys
 OPENAI_API_KEY=your_openai_api_key_here
 
-FIREBASE_CREDENTIALS_PATH=/mnt/movie-config/movie-aa2d5-firebase-adminsdk-fbsvc-ead6c94e12.json
-FIREBASE_DATABASE_URL=https://movie-aa2d5-default-rtdb.firebaseio.com/
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0

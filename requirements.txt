@@ -3,5 +3,5 @@ Flask-CORS==4.0.0
 requests==2.31.0
 python-dotenv==1.0.0
 openai==1.54.5
-firebase-admin==6.4.0
+redis==5.0.1
 httpx==0.27.0

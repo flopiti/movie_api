@@ -18,8 +18,7 @@ from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
 from openai import OpenAI
-import firebase_admin
-from firebase_admin import credentials, db
+import redis
 from plex_client import PlexClient
 
 # Load environment variables (fallback for local development)
@@ -46,30 +45,21 @@ TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
-# Firebase Configuration
-FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH', '')
-FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', '')
+# Redis Configuration
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
-# Initialize Firebase
-firebase_app = None
-logger.info(f"Firebase credentials path: {FIREBASE_CREDENTIALS_PATH}")
-logger.info(f"Firebase database URL: {FIREBASE_DATABASE_URL}")
-
-if FIREBASE_CREDENTIALS_PATH and FIREBASE_DATABASE_URL:
-    try:
-        if os.path.exists(FIREBASE_CREDENTIALS_PATH):
-            cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
-            firebase_app = firebase_admin.initialize_app(cred, {
-                'databaseURL': FIREBASE_DATABASE_URL
-            })
-            logger.info("Firebase initialized successfully")
-        else:
-            
-            logger.warning(f"Firebase credentials file not found at: {FIREBASE_CREDENTIALS_PATH}")
-    except Exception as e:
-        logger.error(f"Failed to initialize Firebase: {str(e)}")
-else:
-    logger.warning("Firebase credentials or database URL not configured")
+# Initialize Redis
+redis_client = None
+try:
+    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+    # Test connection
+    redis_client.ping()
+    logger.info("Redis connected successfully")
+except Exception as e:
+    logger.error(f"Failed to connect to Redis: {str(e)}")
+    redis_client = None
 
 # Supported media file extensions
 MEDIA_EXTENSIONS = {
@@ -78,30 +68,19 @@ MEDIA_EXTENSIONS = {
 }
 
 class Config:
-    """Manages the application configuration including movie file paths using local JSON storage."""
+    """Manages the application configuration including movie file paths using Redis storage."""
     
-    @staticmethod
-    def _encode_path_for_firebase(path: str) -> str:
-        """Encode file path to be safe for Firebase keys."""
-        return base64.urlsafe_b64encode(path.encode('utf-8')).decode('ascii')
-    
-    @staticmethod
-    def _decode_path_from_firebase(encoded_path: str) -> str:
-        """Decode Firebase key back to file path."""
-        return base64.urlsafe_b64decode(encoded_path.encode('ascii')).decode('utf-8')
-    
-    def __init__(self, config_file: str = CONFIG_FILE, use_firebase: bool = True):
+    def __init__(self, config_file: str = CONFIG_FILE, use_redis: bool = True):
         self.config_file = config_file
-        self.use_firebase = use_firebase and firebase_app is not None
-        self.firebase_ref = db.reference('movie_config') if self.use_firebase else None
+        self.use_redis = use_redis and redis_client is not None
         
         # Always initialize local data for fallback purposes
         self.data = self._load_local_config()
         
-        if not self.use_firebase:
+        if not self.use_redis:
             logger.info(f"Using local JSON config at: {self.config_file}")
         else:
-            logger.info(f"Using Firebase config with local fallback at: {self.config_file}")
+            logger.info(f"Using Redis config with local fallback at: {self.config_file}")
     
     def _load_local_config(self) -> Dict[str, Any]:
         """Load configuration from local JSON file (fallback)."""
@@ -133,67 +112,65 @@ class Config:
         except IOError as e:
             raise Exception(f"Failed to save local configuration: {str(e)}")
     
-    def _get_firebase_data(self) -> Dict[str, Any]:
-        """Get configuration data from Firebase."""
+    def _get_redis_data(self) -> Dict[str, Any]:
+        """Get configuration data from Redis."""
         try:
-            data = self.firebase_ref.get()
+            data = redis_client.get('movie_config')
             if data is None:
-                # Initialize Firebase with default data
+                # Initialize Redis with default data
                 default_data = {
                     "movie_file_paths": [],
                     "media_paths": [],
                     "tmdb_api_key": TMDB_API_KEY,
-                    "movie_assignments": {}  # CRITICAL: This was missing!
+                    "movie_assignments": {}
                 }
-                self.firebase_ref.set(default_data)
+                redis_client.set('movie_config', json.dumps(default_data))
                 return default_data
-            return data
+            return json.loads(data)
         except Exception as e:
-            logger.error(f"Failed to get Firebase data: {str(e)}")
-            raise Exception(f"Failed to get Firebase configuration: {str(e)}")
+            logger.error(f"Failed to get Redis data: {str(e)}")
+            raise Exception(f"Failed to get Redis configuration: {str(e)}")
     
-    def _save_firebase_data(self, data: Dict[str, Any]) -> None:
-        """Save configuration data to Firebase."""
+    def _save_redis_data(self, data: Dict[str, Any]) -> None:
+        """Save configuration data to Redis."""
         try:
-            logger.info(f"🔥 Firebase ref path: {self.firebase_ref.path if self.firebase_ref else 'None'}")
-            logger.info(f"🔥 Data to save keys: {list(data.keys())}")
+            logger.info(f"🔥 Redis data keys: {list(data.keys())}")
             if 'movie_assignments' in data:
                 logger.info(f"🔥 Movie assignments count: {len(data['movie_assignments'])}")
-                # Removed verbose logging of assignment file paths to reduce log clutter
             
-            self.firebase_ref.set(data)
-            logger.info("🔥 Firebase ref.set() completed successfully!")
+            redis_client.set('movie_config', json.dumps(data))
+            logger.info("🔥 Redis data saved successfully!")
         except Exception as e:
-            logger.error(f"🔥 Firebase ref.set() failed: {str(e)}")
+            logger.error(f"🔥 Redis save failed: {str(e)}")
             logger.error(f"🔥 Exception type: {type(e).__name__}")
-            raise Exception(f"Failed to save Firebase configuration: {str(e)}")
+            raise Exception(f"Failed to save Redis configuration: {str(e)}")
     
     def get_movie_paths(self) -> List[str]:
         """Get list of movie file paths."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 return data.get("movie_file_paths", [])
             except Exception as e:
-                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                logger.error(f"Redis error, falling back to local config: {str(e)}")
                 return self.data.get("movie_file_paths", [])
         else:
             return self.data.get("movie_file_paths", [])
     
     def add_movie_path(self, path: str) -> bool:
         """Add a movie file path if it doesn't already exist."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.setdefault("movie_file_paths", [])
                 if path not in paths:
                     paths.append(path)
-                    self._save_firebase_data(data)
-                    logger.info(f"Added path to Firebase: {path}")
+                    self._save_redis_data(data)
+                    logger.info(f"Added path to Redis: {path}")
                     return True
                 return False
             except Exception as e:
-                logger.error(f"Firebase error when adding path, falling back to local: {str(e)}")
+                logger.error(f"Redis error when adding path, falling back to local: {str(e)}")
                 # Fallback to local storage
                 paths = self.data.setdefault("movie_file_paths", [])
                 if path not in paths:
@@ -211,18 +188,18 @@ class Config:
     
     def remove_movie_path(self, path: str) -> bool:
         """Remove a movie file path."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.get("movie_file_paths", [])
                 if path in paths:
                     paths.remove(path)
-                    self._save_firebase_data(data)
-                    logger.info(f"Removed path from Firebase: {path}")
+                    self._save_redis_data(data)
+                    logger.info(f"Removed path from Redis: {path}")
                     return True
                 return False
             except Exception as e:
-                logger.error(f"Firebase error when removing path, falling back to local: {str(e)}")
+                logger.error(f"Redis error when removing path, falling back to local: {str(e)}")
                 # Fallback to local storage
                 paths = self.data.get("movie_file_paths", [])
                 if path in paths:
@@ -240,27 +217,15 @@ class Config:
     
     def get_movie_assignments(self) -> Dict[str, Dict[str, Any]]:
         """Get all movie assignments for files."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
-                encoded_assignments = data.get("movie_assignments", {})
-                
-                # Decode Firebase keys back to original file paths
-                decoded_assignments = {}
-                for encoded_path, movie_data in encoded_assignments.items():
-                    try:
-                        # Try to decode - if it fails, assume it's already a plain path (backward compatibility)
-                        original_path = movie_data.get('original_path') or self._decode_path_from_firebase(encoded_path)
-                        decoded_assignments[original_path] = movie_data
-                        logger.debug(f"🔍 Decoded: {encoded_path} -> {original_path}")
-                    except Exception as decode_e:
-                        logger.warning(f"Failed to decode path {encoded_path}, using as-is: {str(decode_e)}")
-                        decoded_assignments[encoded_path] = movie_data
-                logger.info(f"📚 Decoded {len(decoded_assignments)} assignments from Firebase")
-                logger.debug(f"📚 Assignment keys: {list(decoded_assignments.keys())}")
-                return decoded_assignments
+                data = self._get_redis_data()
+                assignments = data.get("movie_assignments", {})
+                logger.info(f"📚 Retrieved {len(assignments)} assignments from Redis")
+                logger.debug(f"📚 Assignment keys: {list(assignments.keys())}")
+                return assignments
             except Exception as e:
-                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                logger.error(f"Redis error, falling back to local config: {str(e)}")
                 return self.data.get("movie_assignments", {})
         else:
             return self.data.get("movie_assignments", {})
@@ -269,22 +234,17 @@ class Config:
         """Assign a movie to a file."""
         logger.info(f"🎬 ASSIGN MOVIE: {movie_data.get('title', 'Unknown')} -> {file_path}")
         
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 assignments = data.setdefault("movie_assignments", {})
-                
-                # Encode file path for Firebase (Firebase keys can't contain / . etc.)
-                encoded_path = self._encode_path_for_firebase(file_path)
-                
-                assignments[encoded_path] = {**movie_data, 'original_path': file_path}
-                
-                self._save_firebase_data(data)
-                logger.info(f"✅ Movie assigned to Firebase: {movie_data.get('title', 'Unknown')}")
+                assignments[file_path] = movie_data
+                self._save_redis_data(data)
+                logger.info(f"✅ Movie assigned to Redis: {movie_data.get('title', 'Unknown')}")
                 return True
                 
             except Exception as e:
-                logger.error(f"Firebase assignment failed, falling back to local: {str(e)}")
+                logger.error(f"Redis assignment failed, falling back to local: {str(e)}")
                 # Fallback to local storage
                 assignments = self.data.setdefault("movie_assignments", {})
                 assignments[file_path] = movie_data
@@ -300,26 +260,23 @@ class Config:
     
     def remove_movie_assignment(self, file_path: str) -> bool:
         """Remove a movie assignment from a file."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 assignments = data.get("movie_assignments", {})
                 
-                # For Firebase, we need to encode the file path to match the stored key
-                encoded_path = self._encode_path_for_firebase(file_path)
-                
-                if encoded_path in assignments:
-                    del assignments[encoded_path]
-                    self._save_firebase_data(data)
+                if file_path in assignments:
+                    del assignments[file_path]
+                    self._save_redis_data(data)
                     # Also update local data to keep it in sync
                     self.data["movie_assignments"] = data.get("movie_assignments", {})
                     logger.info(f"Removed movie assignment for file: {file_path}")
                     return True
                 else:
-                    logger.debug(f"Assignment not found in Firebase for: {file_path}")
+                    logger.debug(f"Assignment not found in Redis for: {file_path}")
                     return False
             except Exception as e:
-                logger.error(f"Firebase error when removing assignment, falling back to local: {str(e)}")
+                logger.error(f"Redis error when removing assignment, falling back to local: {str(e)}")
                 # Fallback to local storage
                 assignments = self.data.get("movie_assignments", {})
                 if file_path in assignments:
@@ -342,7 +299,7 @@ class Config:
                 return False
 
     def batch_update_assignments(self, updates: List[tuple]) -> bool:
-        """Batch update movie assignments to reduce Firebase calls.
+        """Batch update movie assignments to reduce Redis calls.
         
         Args:
             updates: List of (old_path, new_path, movie_data) tuples
@@ -352,32 +309,29 @@ class Config:
             
         logger.info(f"🔄 Batch updating {len(updates)} assignments")
         
-        if self.use_firebase:
+        if self.use_redis:
             try:
                 # Get all current data once
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 assignments = data.setdefault("movie_assignments", {})
                 
                 # Process all updates in memory
                 for old_path, new_path, movie_data in updates:
                     # Remove old assignment
-                    if old_path:
-                        encoded_old_path = self._encode_path_for_firebase(old_path)
-                        if encoded_old_path in assignments:
-                            del assignments[encoded_old_path]
+                    if old_path and old_path in assignments:
+                        del assignments[old_path]
                     
                     # Add new assignment
                     if new_path and movie_data:
-                        encoded_new_path = self._encode_path_for_firebase(new_path)
-                        assignments[encoded_new_path] = {**movie_data, 'original_path': new_path}
+                        assignments[new_path] = movie_data
                 
                 # Save all changes at once
-                self._save_firebase_data(data)
+                self._save_redis_data(data)
                 logger.info(f"✅ Batch update completed: {len(updates)} assignments")
                 return True
                 
             except Exception as e:
-                logger.error(f"Firebase batch update failed: {str(e)}")
+                logger.error(f"Redis batch update failed: {str(e)}")
                 return False
         else:
             # Local storage batch update
@@ -394,12 +348,12 @@ class Config:
 
     def get_media_paths(self) -> List[Dict[str, Any]]:
         """Get list of media paths with space information."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.get("media_paths", [])
             except Exception as e:
-                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                logger.error(f"Redis error, falling back to local config: {str(e)}")
                 paths = self.data.get("media_paths", [])
         else:
             paths = self.data.get("media_paths", [])
@@ -421,9 +375,9 @@ class Config:
     
     def add_media_path(self, path: str) -> bool:
         """Add a media path if it doesn't already exist."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.setdefault("media_paths", [])
                 
                 # Check if path already exists
@@ -433,11 +387,11 @@ class Config:
                 # Add new path with space information
                 new_path_info = self._get_path_space_info(path)
                 paths.append(new_path_info)
-                self._save_firebase_data(data)
-                logger.info(f"Added media path to Firebase: {path}")
+                self._save_redis_data(data)
+                logger.info(f"Added media path to Redis: {path}")
                 return True
             except Exception as e:
-                logger.error(f"Firebase error when adding media path, falling back to local: {str(e)}")
+                logger.error(f"Redis error when adding media path, falling back to local: {str(e)}")
                 # Fallback to local storage
                 paths = self.data.setdefault("media_paths", [])
                 if not any(p.get('path') == path for p in paths):
@@ -457,19 +411,19 @@ class Config:
     
     def remove_media_path(self, path: str) -> bool:
         """Remove a media path."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.get("media_paths", [])
                 original_length = len(paths)
                 paths[:] = [p for p in paths if p.get('path') != path]
                 if len(paths) < original_length:
-                    self._save_firebase_data(data)
-                    logger.info(f"Removed media path from Firebase: {path}")
+                    self._save_redis_data(data)
+                    logger.info(f"Removed media path from Redis: {path}")
                     return True
                 return False
             except Exception as e:
-                logger.error(f"Firebase error when removing media path, falling back to local: {str(e)}")
+                logger.error(f"Redis error when removing media path, falling back to local: {str(e)}")
                 # Fallback to local storage
                 paths = self.data.get("media_paths", [])
                 original_length = len(paths)
@@ -489,20 +443,20 @@ class Config:
     
     def refresh_media_path_space(self, path: str) -> Dict[str, Any]:
         """Refresh space information for a specific media path."""
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 paths = data.get("media_paths", [])
                 for path_info in paths:
                     if path_info.get('path') == path:
                         updated_info = self._get_path_space_info(path)
                         path_info.update(updated_info)
-                        self._save_firebase_data(data)
+                        self._save_redis_data(data)
                         logger.info(f"Refreshed space info for media path: {path}")
                         return updated_info
                 return {}
             except Exception as e:
-                logger.error(f"Firebase error when refreshing media path space: {str(e)}")
+                logger.error(f"Redis error when refreshing media path space: {str(e)}")
                 return {}
         else:
             paths = self.data.get("media_paths", [])
@@ -527,14 +481,14 @@ class Config:
                 updated_paths.append(updated_info)
         
         # Update the stored data
-        if self.use_firebase:
+        if self.use_redis:
             try:
-                data = self._get_firebase_data()
+                data = self._get_redis_data()
                 data['media_paths'] = updated_paths
-                self._save_firebase_data(data)
+                self._save_redis_data(data)
                 logger.info(f"Refreshed space info for {len(updated_paths)} media paths")
             except Exception as e:
-                logger.error(f"Firebase error when refreshing all media paths: {str(e)}")
+                logger.error(f"Redis error when refreshing all media paths: {str(e)}")
         else:
             self.data['media_paths'] = updated_paths
             self._save_local_config()
@@ -616,8 +570,8 @@ class Config:
                 'error': f"Failed to get disk space: {str(e)}"
             }
 
-# Initialize configuration with Firebase enabled by default when available
-config = Config(use_firebase=True)
+# Initialize configuration with Redis enabled by default when available
+config = Config(use_redis=True)
 
 class FileDiscovery:
     """Handles recursive file discovery in movie directories."""
@@ -2344,9 +2298,9 @@ def health_check():
         'movie_paths_count': len(config.get_movie_paths()),
         'tmdb_configured': bool(TMDB_API_KEY),
         'openai_configured': bool(OPENAI_API_KEY),
-        'firebase_configured': bool(firebase_app),
-        'firebase_connection': config.use_firebase,
-        'storage_type': 'Firebase' if config.use_firebase else 'Local JSON',
+        'redis_configured': bool(redis_client),
+        'redis_connection': config.use_redis,
+        'storage_type': 'Redis' if config.use_redis else 'Local JSON',
         'plex_configured': True
     })
 
@@ -2360,43 +2314,51 @@ def internal_error(error):
     """Handle 500 errors."""
     return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/firebase-cleanup', methods=['POST'])
-def firebase_cleanup():
-    """Trigger Firebase cleanup to remove orphaned movie assignments."""
+@app.route('/redis-cleanup', methods=['POST'])
+def redis_cleanup():
+    """Trigger Redis cleanup to remove orphaned movie assignments."""
     try:
-        logger.info("🔥 FIREBASE CLEANUP ENDPOINT CALLED")
+        logger.info("🔥 REDIS CLEANUP ENDPOINT CALLED")
         
-        # Import the cleanup script
-        from cleanup_firebase_assignments import FirebaseCleanup
+        # Get all current assignments
+        assignments = config.get_movie_assignments()
+        total_assignments = len(assignments)
         
-        # Initialize cleanup
-        cleanup = FirebaseCleanup()
+        # Get all current files
+        all_files = file_discovery.get_all_files()
+        file_paths = {file_info['path'] for file_info in all_files['files']}
         
-        # Run cleanup (dry run first to analyze)
-        analysis = cleanup.cleanup(dry_run=True)
+        # Find orphaned assignments
+        orphaned_assignments = []
+        for file_path in assignments.keys():
+            if file_path not in file_paths:
+                orphaned_assignments.append(file_path)
         
-        # If there are orphaned assignments, remove them
-        if analysis['orphaned_assignments'] > 0:
-            logger.info(f"🗑️ Found {analysis['orphaned_assignments']} orphaned assignments, removing...")
-            removed_count = cleanup.remove_orphaned_assignments(analysis['orphaned_assignments_list'])
-            analysis['removed_count'] = removed_count
-            logger.info(f"🎉 Firebase cleanup completed! Removed {removed_count} orphaned assignments")
+        orphaned_count = len(orphaned_assignments)
+        valid_count = total_assignments - orphaned_count
+        
+        logger.info(f"📊 Analysis: {total_assignments} total, {valid_count} valid, {orphaned_count} orphaned")
+        
+        if orphaned_count > 0:
+            logger.info(f"🗑️ Found {orphaned_count} orphaned assignments, removing...")
+            for file_path in orphaned_assignments:
+                config.remove_movie_assignment(file_path)
+            logger.info(f"🎉 Redis cleanup completed! Removed {orphaned_count} orphaned assignments")
         else:
             logger.info("🎉 No orphaned assignments found - no cleanup needed")
-            analysis['removed_count'] = 0
         
         return jsonify({
-            'message': 'Firebase cleanup completed successfully',
-            'total_assignments': analysis['total_assignments'],
-            'valid_assignments': analysis['valid_assignments'],
-            'orphaned_assignments': analysis['orphaned_assignments'],
-            'removed_assignments': analysis['removed_count'],
-            'summary': f"Cleaned up {analysis['removed_count']} orphaned assignments, {analysis['valid_assignments']} valid assignments remaining"
+            'message': 'Redis cleanup completed successfully',
+            'total_assignments': total_assignments,
+            'valid_assignments': valid_count,
+            'orphaned_assignments': orphaned_count,
+            'removed_assignments': orphaned_count,
+            'summary': f"Cleaned up {orphaned_count} orphaned assignments, {valid_count} valid assignments remaining"
         }), 200
         
     except Exception as e:
-        logger.error(f"Error during Firebase cleanup: {str(e)}")
-        return jsonify({'error': f'Failed to cleanup Firebase: {str(e)}'}), 500
+        logger.error(f"Error during Redis cleanup: {str(e)}")
+        return jsonify({'error': f'Failed to cleanup Redis: {str(e)}'}), 500
 
 @app.route('/verify-assignment', methods=['GET'])
 def verify_assignment():
