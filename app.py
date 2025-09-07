@@ -9,6 +9,8 @@ import os
 import json
 import logging
 import base64
+import shutil
+import time
 from pathlib import Path
 from typing import List, Dict, Any
 from flask import Flask, request, jsonify
@@ -113,6 +115,7 @@ class Config:
         # Default configuration
         return {
             "movie_file_paths": [],
+            "media_paths": [],
             "tmdb_api_key": TMDB_API_KEY,
             "movie_assignments": {}
         }
@@ -138,6 +141,7 @@ class Config:
                 # Initialize Firebase with default data
                 default_data = {
                     "movie_file_paths": [],
+                    "media_paths": [],
                     "tmdb_api_key": TMDB_API_KEY,
                     "movie_assignments": {}  # CRITICAL: This was missing!
                 }
@@ -387,6 +391,195 @@ class Config:
             self._save_local_config()
             logger.info(f"✅ Local batch update completed: {len(updates)} assignments")
             return True
+
+    def get_media_paths(self) -> List[Dict[str, Any]]:
+        """Get list of media paths with space information."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                return data.get("media_paths", [])
+            except Exception as e:
+                logger.error(f"Firebase error, falling back to local config: {str(e)}")
+                return self.data.get("media_paths", [])
+        else:
+            return self.data.get("media_paths", [])
+    
+    def add_media_path(self, path: str) -> bool:
+        """Add a media path if it doesn't already exist."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                paths = data.setdefault("media_paths", [])
+                
+                # Check if path already exists
+                if any(p.get('path') == path for p in paths):
+                    return False
+                
+                # Add new path with space information
+                new_path_info = self._get_path_space_info(path)
+                paths.append(new_path_info)
+                self._save_firebase_data(data)
+                logger.info(f"Added media path to Firebase: {path}")
+                return True
+            except Exception as e:
+                logger.error(f"Firebase error when adding media path, falling back to local: {str(e)}")
+                # Fallback to local storage
+                paths = self.data.setdefault("media_paths", [])
+                if not any(p.get('path') == path for p in paths):
+                    new_path_info = self._get_path_space_info(path)
+                    paths.append(new_path_info)
+                    self._save_local_config()
+                    return True
+                return False
+        else:
+            paths = self.data.setdefault("media_paths", [])
+            if not any(p.get('path') == path for p in paths):
+                new_path_info = self._get_path_space_info(path)
+                paths.append(new_path_info)
+                self._save_local_config()
+                return True
+            return False
+    
+    def remove_media_path(self, path: str) -> bool:
+        """Remove a media path."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                paths = data.get("media_paths", [])
+                original_length = len(paths)
+                paths[:] = [p for p in paths if p.get('path') != path]
+                if len(paths) < original_length:
+                    self._save_firebase_data(data)
+                    logger.info(f"Removed media path from Firebase: {path}")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Firebase error when removing media path, falling back to local: {str(e)}")
+                # Fallback to local storage
+                paths = self.data.get("media_paths", [])
+                original_length = len(paths)
+                paths[:] = [p for p in paths if p.get('path') != path]
+                if len(paths) < original_length:
+                    self._save_local_config()
+                    return True
+                return False
+        else:
+            paths = self.data.get("media_paths", [])
+            original_length = len(paths)
+            paths[:] = [p for p in paths if p.get('path') != path]
+            if len(paths) < original_length:
+                self._save_local_config()
+                return True
+            return False
+    
+    def refresh_media_path_space(self, path: str) -> Dict[str, Any]:
+        """Refresh space information for a specific media path."""
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                paths = data.get("media_paths", [])
+                for path_info in paths:
+                    if path_info.get('path') == path:
+                        updated_info = self._get_path_space_info(path)
+                        path_info.update(updated_info)
+                        self._save_firebase_data(data)
+                        logger.info(f"Refreshed space info for media path: {path}")
+                        return updated_info
+                return {}
+            except Exception as e:
+                logger.error(f"Firebase error when refreshing media path space: {str(e)}")
+                return {}
+        else:
+            paths = self.data.get("media_paths", [])
+            for path_info in paths:
+                if path_info.get('path') == path:
+                    updated_info = self._get_path_space_info(path)
+                    path_info.update(updated_info)
+                    self._save_local_config()
+                    return updated_info
+            return {}
+    
+    def refresh_all_media_paths_space(self) -> List[Dict[str, Any]]:
+        """Refresh space information for all media paths."""
+        paths = self.get_media_paths()
+        updated_paths = []
+        
+        for path_info in paths:
+            path = path_info.get('path')
+            if path:
+                updated_info = self._get_path_space_info(path)
+                updated_info['path'] = path  # Ensure path is included
+                updated_paths.append(updated_info)
+        
+        # Update the stored data
+        if self.use_firebase:
+            try:
+                data = self._get_firebase_data()
+                data['media_paths'] = updated_paths
+                self._save_firebase_data(data)
+                logger.info(f"Refreshed space info for {len(updated_paths)} media paths")
+            except Exception as e:
+                logger.error(f"Firebase error when refreshing all media paths: {str(e)}")
+        else:
+            self.data['media_paths'] = updated_paths
+            self._save_local_config()
+        
+        return updated_paths
+    
+    def _get_path_space_info(self, path: str) -> Dict[str, Any]:
+        """Get disk space information for a path."""
+        try:
+            if not os.path.exists(path):
+                return {
+                    'path': path,
+                    'exists': False,
+                    'total_space': 0,
+                    'used_space': 0,
+                    'free_space': 0,
+                    'total_space_gb': 0,
+                    'used_space_gb': 0,
+                    'free_space_gb': 0,
+                    'usage_percentage': 0,
+                    'error': 'Path does not exist'
+                }
+            
+            # Get disk usage statistics
+            total, used, free = shutil.disk_usage(path)
+            
+            # Convert to GB
+            total_gb = total / (1024**3)
+            used_gb = used / (1024**3)
+            free_gb = free / (1024**3)
+            
+            # Calculate usage percentage
+            usage_percentage = (used / total) * 100 if total > 0 else 0
+            
+            return {
+                'path': path,
+                'exists': True,
+                'total_space': total,
+                'used_space': used,
+                'free_space': free,
+                'total_space_gb': round(total_gb, 2),
+                'used_space_gb': round(used_gb, 2),
+                'free_space_gb': round(free_gb, 2),
+                'usage_percentage': round(usage_percentage, 2),
+                'last_updated': int(time.time())
+            }
+        except Exception as e:
+            logger.error(f"Error getting space info for path {path}: {str(e)}")
+            return {
+                'path': path,
+                'exists': False,
+                'total_space': 0,
+                'used_space': 0,
+                'free_space': 0,
+                'total_space_gb': 0,
+                'used_space_gb': 0,
+                'free_space_gb': 0,
+                'usage_percentage': 0,
+                'error': str(e)
+            }
 
 # Initialize configuration with Firebase enabled by default when available
 config = Config(use_firebase=True)
@@ -968,6 +1161,104 @@ def remove_movie_file_path():
             'path': path,
             'movie_file_paths': config.get_movie_paths()
         }), 404
+
+@app.route('/media-paths', methods=['GET'])
+def get_media_paths():
+    """Get all configured media paths with space information."""
+    return jsonify({
+        'media_paths': config.get_media_paths(),
+        'count': len(config.get_media_paths())
+    })
+
+@app.route('/media-paths', methods=['PUT'])
+def add_media_path():
+    """Add a new media path."""
+    data = request.get_json()
+    
+    if not data or 'path' not in data:
+        return jsonify({'error': 'Path is required'}), 400
+    
+    path = data['path'].strip()
+    if not path:
+        return jsonify({'error': 'Path cannot be empty'}), 400
+    
+    # Validate that path exists
+    if not os.path.exists(path):
+        return jsonify({'error': 'Path does not exist'}), 400
+    
+    if not os.path.isdir(path):
+        return jsonify({'error': 'Path must be a directory'}), 400
+    
+    if config.add_media_path(path):
+        return jsonify({
+            'message': 'Media path added successfully',
+            'path': path,
+            'media_paths': config.get_media_paths()
+        }), 201
+    else:
+        return jsonify({
+            'message': 'Media path already exists',
+            'path': path,
+            'media_paths': config.get_media_paths()
+        }), 200
+
+@app.route('/media-paths', methods=['DELETE'])
+def remove_media_path():
+    """Remove a media path."""
+    data = request.get_json()
+    
+    if not data or 'path' not in data:
+        return jsonify({'error': 'Path is required'}), 400
+    
+    path = data['path'].strip()
+    if not path:
+        return jsonify({'error': 'Path cannot be empty'}), 400
+    
+    if config.remove_media_path(path):
+        return jsonify({
+            'message': 'Media path removed successfully',
+            'path': path,
+            'media_paths': config.get_media_paths()
+        }), 200
+    else:
+        return jsonify({
+            'error': 'Media path not found',
+            'path': path,
+            'media_paths': config.get_media_paths()
+        }), 404
+
+@app.route('/media-paths/refresh', methods=['POST'])
+def refresh_media_paths_space():
+    """Refresh space information for all media paths."""
+    try:
+        updated_paths = config.refresh_all_media_paths_space()
+        return jsonify({
+            'message': 'Space information refreshed successfully',
+            'media_paths': updated_paths,
+            'count': len(updated_paths)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error refreshing media paths space: {str(e)}")
+        return jsonify({'error': f'Failed to refresh space information: {str(e)}'}), 500
+
+@app.route('/media-paths/<path:path>/refresh', methods=['POST'])
+def refresh_single_media_path_space(path):
+    """Refresh space information for a specific media path."""
+    try:
+        updated_info = config.refresh_media_path_space(path)
+        if updated_info:
+            return jsonify({
+                'message': 'Space information refreshed successfully',
+                'path_info': updated_info
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Media path not found',
+                'path': path
+            }), 404
+    except Exception as e:
+        logger.error(f"Error refreshing media path space: {str(e)}")
+        return jsonify({'error': f'Failed to refresh space information: {str(e)}'}), 500
 
 @app.route('/all-files', methods=['GET'])
 def get_all_files():
