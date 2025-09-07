@@ -545,7 +545,7 @@ class Config:
             
             # Use df command to get accurate disk usage for mount points
             import subprocess
-            result = subprocess.run(['df', '-B1', path], capture_output=True, text=True, check=True)
+            result = subprocess.run(['df', '-k', path], capture_output=True, text=True, check=True)
             lines = result.stdout.strip().split('\n')
             
             # Parse the df output (skip header line)
@@ -557,10 +557,10 @@ class Config:
                 raise Exception("Incomplete df output")
             
             # df output: Filesystem, 1K-blocks, Used, Available, Use%, Mounted on
-            # We use -B1 for 1-byte blocks, so the values are already in bytes
-            total = int(data_line[1])
-            used = int(data_line[2])
-            free = int(data_line[3])
+            # Values are in 1K blocks, so multiply by 1024 to get bytes
+            total = int(data_line[1]) * 1024
+            used = int(data_line[2]) * 1024
+            free = int(data_line[3]) * 1024
             
             # Convert to GB
             total_gb = total / (1024**3)
