@@ -46,7 +46,7 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
 # Redis Configuration
-REDIS_HOST = os.getenv('REDIS_HOST', '192.168.0.10')  # Default to your server IP
+REDIS_HOST = os.getenv('REDIS_HOST', '172.17.0.1')  # Default to Docker bridge IP
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
