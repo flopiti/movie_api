@@ -11,6 +11,7 @@ import logging
 import base64
 import shutil
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
 from flask import Flask, request, jsonify
@@ -20,6 +21,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import redis
 from plex_client import PlexClient
+from twilio_client import TwilioClient
 
 # Load environment variables (fallback for local development)
 load_dotenv('env')
@@ -63,6 +65,9 @@ except Exception as e:
     logger.error(f"Failed to connect to Redis: {str(e)}")
     logger.error(f"🔧 Connection details - Host: {REDIS_HOST}, Port: {REDIS_PORT}, DB: {REDIS_DB}")
     redis_client = None
+
+# Initialize Twilio client
+twilio_client = TwilioClient()
 
 # Supported media file extensions
 MEDIA_EXTENSIONS = {
@@ -3081,6 +3086,90 @@ def verify_assignment():
     except Exception as e:
         logger.error(f"Error verifying assignment: {str(e)}")
         return jsonify({'error': f'Failed to verify assignment: {str(e)}'}), 500
+
+# SMS/Twilio Endpoints
+@app.route('/api/sms/webhook', methods=['POST'])
+def sms_webhook():
+    """Webhook endpoint to receive SMS messages from Twilio."""
+    try:
+        # Get message data from Twilio webhook
+        message_data = {
+            'MessageSid': request.form.get('MessageSid'),
+            'From': request.form.get('From'),
+            'To': request.form.get('To'),
+            'Body': request.form.get('Body'),
+            'NumMedia': request.form.get('NumMedia', '0'),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        logger.info(f"Received SMS from {message_data['From']}: {message_data['Body']}")
+        
+        # Store the message
+        twilio_client.store_received_message(message_data)
+        
+        # Create response (optional auto-reply)
+        response_message = f"Message received: '{message_data['Body']}'"
+        
+        return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
+        
+    except Exception as e:
+        logger.error(f"Error processing SMS webhook: {str(e)}")
+        return twilio_client.create_webhook_response("Error processing message"), 500, {'Content-Type': 'text/xml'}
+
+@app.route('/api/sms/send', methods=['POST'])
+def send_sms():
+    """Send an SMS message."""
+    try:
+        data = request.get_json()
+        if not data or 'to' not in data or 'message' not in data:
+            return jsonify({'error': 'Missing required fields: to, message'}), 400
+        
+        to = data['to']
+        message = data['message']
+        
+        if not twilio_client.is_configured():
+            return jsonify({'error': 'Twilio not configured'}), 500
+        
+        result = twilio_client.send_sms(to, message)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Error sending SMS: {str(e)}")
+        return jsonify({'error': f'Failed to send SMS: {str(e)}'}), 500
+
+@app.route('/api/sms/messages', methods=['GET'])
+def get_sms_messages():
+    """Get recent SMS messages."""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        messages = twilio_client.get_recent_messages(limit)
+        
+        return jsonify({
+            'messages': messages,
+            'count': len(messages)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error retrieving SMS messages: {str(e)}")
+        return jsonify({'error': f'Failed to retrieve messages: {str(e)}'}), 500
+
+@app.route('/api/sms/status', methods=['GET'])
+def sms_status():
+    """Get SMS service status and configuration."""
+    try:
+        return jsonify({
+            'configured': twilio_client.is_configured(),
+            'phone_number': twilio_client.phone_number if twilio_client.is_configured() else None,
+            'redis_available': twilio_client.redis_client is not None
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting SMS status: {str(e)}")
+        return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Movie Management API...")

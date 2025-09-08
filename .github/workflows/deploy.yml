@@ -38,6 +38,9 @@ jobs:
             -v /mnt/movie-config:/mnt/movie-config \
             -e TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
+            -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            -e TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }} \
             -e REDIS_HOST=172.17.0.1 \
             -e REDIS_PORT=6379 \
             -e REDIS_DB=0 \

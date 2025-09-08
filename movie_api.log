@@ -516,3 +516,68 @@
 2025-09-07 12:36:41,962 - INFO - Using local JSON config at: /Users/nathanpieraut/movie-config/config.json
 2025-09-07 12:36:42,006 - WARNING -  * Debugger is active!
 2025-09-07 12:36:42,011 - INFO -  * Debugger PIN: 135-666-040
+2025-09-07 22:41:05,322 - INFO - 🔧 Redis connection attempt - Host: 192.168.0.10, Port: 6379, DB: 0
+2025-09-07 22:41:05,322 - INFO - 🔧 Redis client created, attempting ping to 192.168.0.10:6379
+2025-09-07 22:41:05,346 - INFO - Redis connected successfully
+2025-09-07 22:41:05,347 - INFO - Using Redis config with local fallback at: /Users/nathanpieraut/movie-config/config.json
+2025-09-07 22:41:11,249 - INFO - 🔧 Redis connection attempt - Host: 192.168.0.10, Port: 6379, DB: 0
+2025-09-07 22:41:11,249 - INFO - 🔧 Redis client created, attempting ping to 192.168.0.10:6379
+2025-09-07 22:41:11,282 - INFO - Redis connected successfully
+2025-09-07 22:41:11,283 - INFO - Using Redis config with local fallback at: /Users/nathanpieraut/movie-config/config.json
+2025-09-07 22:41:11,297 - INFO - 📥 Adding download path: /tmp/test_download
+2025-09-07 22:41:11,297 - INFO - 🔍 Executing Redis command: redis_client.get('movie_config')
+2025-09-07 22:41:11,357 - INFO - 🔍 Redis GET result: <class 'str'> - 707253 characters
+2025-09-07 22:41:11,357 - INFO - 🔍 Parsing JSON data from Redis
+2025-09-07 22:41:11,359 - INFO - 🔍 Parsed data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key']
+2025-09-07 22:41:11,359 - INFO - 🔍 Found 1 movie file paths in Redis data
+2025-09-07 22:41:11,359 - INFO - 🔥 Redis data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key', 'download_paths']
+2025-09-07 22:41:11,359 - INFO - 🔥 Movie assignments count: 882
+2025-09-07 22:41:11,420 - INFO - 🔥 Redis data saved successfully!
+2025-09-07 22:41:11,420 - INFO - Added download path to Redis: /tmp/test_download
+2025-09-07 22:41:11,420 - INFO - 📥 get_download_paths() called - use_redis: True
+2025-09-07 22:41:11,420 - INFO - 🔍 Executing Redis command: redis_client.get('movie_config')
+2025-09-07 22:41:11,452 - INFO - 🔍 Redis GET result: <class 'str'> - 707295 characters
+2025-09-07 22:41:11,452 - INFO - 🔍 Parsing JSON data from Redis
+2025-09-07 22:41:11,455 - INFO - 🔍 Parsed data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key', 'download_paths']
+2025-09-07 22:41:11,455 - INFO - 🔍 Found 1 movie file paths in Redis data
+2025-09-07 22:41:11,455 - INFO - 📥 Using Redis to get download paths
+2025-09-07 22:41:11,455 - INFO - 📥 Retrieved 1 download paths from Redis
+2025-09-07 22:41:11,455 - INFO - 📥 First few paths: ['/tmp/test_download']
+2025-09-07 22:41:11,455 - INFO - 📥 Getting contents of download path: /tmp/test_download
+2025-09-07 22:41:11,456 - INFO - 📥 Removing download path: /tmp/test_download
+2025-09-07 22:41:11,456 - INFO - 🔍 Executing Redis command: redis_client.get('movie_config')
+2025-09-07 22:41:11,486 - INFO - 🔍 Redis GET result: <class 'str'> - 707295 characters
+2025-09-07 22:41:11,486 - INFO - 🔍 Parsing JSON data from Redis
+2025-09-07 22:41:11,488 - INFO - 🔍 Parsed data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key', 'download_paths']
+2025-09-07 22:41:11,488 - INFO - 🔍 Found 1 movie file paths in Redis data
+2025-09-07 22:41:11,488 - INFO - 🔥 Redis data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key', 'download_paths']
+2025-09-07 22:41:11,488 - INFO - 🔥 Movie assignments count: 882
+2025-09-07 22:41:11,519 - INFO - 🔥 Redis data saved successfully!
+2025-09-07 22:41:11,519 - INFO - Removed download path from Redis: /tmp/test_download
+2025-09-07 23:01:36,490 - INFO - 🔧 Redis connection attempt - Host: 192.168.0.10, Port: 6379, DB: 0
+2025-09-07 23:01:36,490 - INFO - 🔧 Redis client created, attempting ping to 192.168.0.10:6379
+2025-09-07 23:01:36,515 - INFO - Redis connected successfully
+2025-09-07 23:01:36,515 - INFO - Using Redis config with local fallback at: /Users/nathanpieraut/movie-config/config.json
+2025-09-07 23:01:36,537 - WARNING - Radarr API key not configured
+2025-09-07 23:01:36,537 - INFO - 📥 Getting download files from all download paths
+2025-09-07 23:01:36,537 - INFO - 📥 get_download_paths() called - use_redis: True
+2025-09-07 23:01:36,537 - INFO - 🔍 Executing Redis command: redis_client.get('movie_config')
+2025-09-07 23:01:36,588 - INFO - 🔍 Redis GET result: <class 'str'> - 707308 characters
+2025-09-07 23:01:36,588 - INFO - 🔍 Parsing JSON data from Redis
+2025-09-07 23:01:36,591 - INFO - 🔍 Parsed data keys: ['media_paths', 'movie_assignments', 'movie_file_paths', 'tmdb_api_key', 'download_paths']
+2025-09-07 23:01:36,591 - INFO - 🔍 Found 1 movie file paths in Redis data
+2025-09-07 23:01:36,591 - INFO - 📥 Using Redis to get download paths
+2025-09-07 23:01:36,591 - INFO - 📥 Retrieved 1 download paths from Redis
+2025-09-07 23:01:36,591 - INFO - 📥 First few paths: ['/mnt/external/seagate/Downloads']
+2025-09-07 23:01:36,591 - WARNING - 📥 Download path does not exist or is not a directory: /mnt/external/seagate/Downloads
+2025-09-07 23:01:36,591 - INFO - 📥 Found 0 media files in download paths
+2025-09-07 23:01:36,591 - INFO - 🔍 Searching Radarr for: test
+2025-09-07 23:01:36,591 - WARNING - Radarr API key not configured
+2025-09-07 23:01:36,591 - ERROR - Radarr client not available
+2025-09-07 23:06:44,345 - INFO - 🔧 Redis connection attempt - Host: 192.168.0.10, Port: 6379, DB: 0
+2025-09-07 23:06:44,346 - INFO - 🔧 Redis client created, attempting ping to 192.168.0.10:6379
+2025-09-07 23:06:44,370 - INFO - Redis connected successfully
+2025-09-07 23:06:44,370 - INFO - Using Redis config with local fallback at: /Users/nathanpieraut/movie-config/config.json
+2025-09-07 23:06:44,389 - INFO - 🔍 Starting Radarr vs Plex comparison
+2025-09-07 23:06:44,391 - WARNING - Radarr API key not configured
+2025-09-07 23:06:44,391 - ERROR - Radarr client not available
