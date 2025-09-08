@@ -1087,6 +1087,149 @@ class Config:
                 'error': f"Failed to get disk space: {str(e)}"
             }
 
+    # SMS Reply Management Methods
+    def get_sms_reply_templates(self) -> List[Dict[str, Any]]:
+        """Get all SMS reply templates."""
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                templates = data.get("sms_reply_templates", [])
+                return templates
+            except Exception as e:
+                logger.error(f"Redis error, falling back to local config: {str(e)}")
+                return self.data.get("sms_reply_templates", [])
+        else:
+            return self.data.get("sms_reply_templates", [])
+
+    def add_sms_reply_template(self, template_data: Dict[str, Any]) -> bool:
+        """Add a new SMS reply template."""
+        import uuid
+        template_data['id'] = str(uuid.uuid4())
+        
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                templates = data.setdefault("sms_reply_templates", [])
+                templates.append(template_data)
+                self._save_redis_data(data)
+                logger.info(f"Added SMS reply template to Redis: {template_data['name']}")
+                return True
+            except Exception as e:
+                logger.error(f"Redis error when adding template, falling back to local: {str(e)}")
+                templates = self.data.setdefault("sms_reply_templates", [])
+                templates.append(template_data)
+                self._save_local_config()
+                return True
+        else:
+            templates = self.data.setdefault("sms_reply_templates", [])
+            templates.append(template_data)
+            self._save_local_config()
+            return True
+
+    def update_sms_reply_template(self, template_id: str, updated_template: Dict[str, Any]) -> bool:
+        """Update an existing SMS reply template."""
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                templates = data.get("sms_reply_templates", [])
+                
+                for i, template in enumerate(templates):
+                    if template.get('id') == template_id:
+                        templates[i] = updated_template
+                        self._save_redis_data(data)
+                        logger.info(f"Updated SMS reply template in Redis: {updated_template['name']}")
+                        return True
+                return False
+            except Exception as e:
+                logger.error(f"Redis error when updating template, falling back to local: {str(e)}")
+                templates = self.data.get("sms_reply_templates", [])
+                for i, template in enumerate(templates):
+                    if template.get('id') == template_id:
+                        templates[i] = updated_template
+                        self._save_local_config()
+                        return True
+                return False
+        else:
+            templates = self.data.get("sms_reply_templates", [])
+            for i, template in enumerate(templates):
+                if template.get('id') == template_id:
+                    templates[i] = updated_template
+                    self._save_local_config()
+                    return True
+            return False
+
+    def delete_sms_reply_template(self, template_id: str) -> bool:
+        """Delete an SMS reply template."""
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                templates = data.get("sms_reply_templates", [])
+                
+                for i, template in enumerate(templates):
+                    if template.get('id') == template_id:
+                        del templates[i]
+                        self._save_redis_data(data)
+                        logger.info(f"Deleted SMS reply template from Redis: {template_id}")
+                        return True
+                return False
+            except Exception as e:
+                logger.error(f"Redis error when deleting template, falling back to local: {str(e)}")
+                templates = self.data.get("sms_reply_templates", [])
+                for i, template in enumerate(templates):
+                    if template.get('id') == template_id:
+                        del templates[i]
+                        self._save_local_config()
+                        return True
+                return False
+        else:
+            templates = self.data.get("sms_reply_templates", [])
+            for i, template in enumerate(templates):
+                if template.get('id') == template_id:
+                    del templates[i]
+                    self._save_local_config()
+                    return True
+            return False
+
+    def get_sms_reply_settings(self) -> Dict[str, Any]:
+        """Get SMS reply settings."""
+        default_settings = {
+            "auto_reply_enabled": False,
+            "fallback_message": "Message received: '{message}'",
+            "reply_delay_seconds": 0,
+            "max_replies_per_day": 10,
+            "blocked_numbers": []
+        }
+        
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                settings = data.get("sms_reply_settings", default_settings)
+                return settings
+            except Exception as e:
+                logger.error(f"Redis error, falling back to local config: {str(e)}")
+                return self.data.get("sms_reply_settings", default_settings)
+        else:
+            return self.data.get("sms_reply_settings", default_settings)
+
+    def update_sms_reply_settings(self, settings: Dict[str, Any]) -> bool:
+        """Update SMS reply settings."""
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                data["sms_reply_settings"] = settings
+                self._save_redis_data(data)
+                logger.info("Updated SMS reply settings in Redis")
+                return True
+            except Exception as e:
+                logger.error(f"Redis error when updating settings, falling back to local: {str(e)}")
+                self.data["sms_reply_settings"] = settings
+                self._save_local_config()
+                return True
+        else:
+            self.data["sms_reply_settings"] = settings
+            self._save_local_config()
+            return True
+
 # Initialize configuration with Redis enabled by default when available
 config = Config(use_redis=True)
 
@@ -3109,12 +3252,54 @@ def sms_webhook():
         
         logger.info(f"Received SMS from {message_data['From']}: {message_data['Body']}")
         
-        # Just log the received message
-        logger.info(f"SMS webhook received: {message_data['Body']}")
+        # Get reply settings and templates
+        reply_settings = config.get_sms_reply_settings()
+        reply_templates = config.get_sms_reply_templates()
         
-        # Create response (optional auto-reply)
-        response_message = f"Message received: '{message_data['Body']}'"
+        response_message = None
         
+        # Check if auto-reply is enabled
+        if reply_settings.get('auto_reply_enabled', False):
+            # Find matching template based on keywords or use default
+            matching_template = None
+            
+            # First, try to find a template with matching keywords
+            for template in reply_templates:
+                if template.get('enabled', True) and template.get('keywords'):
+                    keywords = template['keywords']
+                    message_body = message_data['Body'].lower()
+                    
+                    # Check if any keyword matches
+                    if any(keyword.lower() in message_body for keyword in keywords):
+                        matching_template = template
+                        break
+            
+            # If no keyword match, use the default template
+            if not matching_template:
+                default_template = next((t for t in reply_templates if t.get('name') == 'default'), None)
+                if default_template and default_template.get('enabled', True):
+                    matching_template = default_template
+            
+            # Generate response message
+            if matching_template:
+                template_text = matching_template['template']
+                
+                # Replace placeholders in template
+                response_message = template_text.replace('{sender}', message_data['From'])
+                response_message = response_message.replace('{message}', message_data['Body'])
+                response_message = response_message.replace('{timestamp}', message_data['timestamp'])
+                response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
+                
+                logger.info(f"Using template '{matching_template['name']}' for response")
+            else:
+                # Fallback to simple acknowledgment
+                response_message = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
+        
+        # If no auto-reply is configured, return empty response (no reply)
+        if not response_message:
+            return twilio_client.create_webhook_response(), 200, {'Content-Type': 'text/xml'}
+        
+        logger.info(f"Sending auto-reply: {response_message}")
         return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
@@ -3179,6 +3364,149 @@ def sms_status():
     except Exception as e:
         logger.error(f"Error getting SMS status: {str(e)}")
         return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
+
+# SMS Reply Management Endpoints
+@app.route('/api/sms/reply-templates', methods=['GET'])
+def get_reply_templates():
+    """Get all SMS reply templates."""
+    try:
+        templates = config.get_sms_reply_templates()
+        return jsonify({
+            'templates': templates,
+            'count': len(templates)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting reply templates: {str(e)}")
+        return jsonify({'error': f'Failed to get reply templates: {str(e)}'}), 500
+
+@app.route('/api/sms/reply-templates', methods=['POST'])
+def create_reply_template():
+    """Create a new SMS reply template."""
+    try:
+        data = request.get_json()
+        if not data or 'name' not in data or 'template' not in data:
+            return jsonify({'error': 'Missing required fields: name, template'}), 400
+        
+        template_data = {
+            'name': data['name'],
+            'template': data['template'],
+            'enabled': data.get('enabled', True),
+            'created_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        # Add optional fields
+        if 'description' in data:
+            template_data['description'] = data['description']
+        if 'keywords' in data:
+            template_data['keywords'] = data['keywords']
+        
+        success = config.add_sms_reply_template(template_data)
+        
+        if success:
+            return jsonify({
+                'message': 'Reply template created successfully',
+                'template': template_data
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to create reply template'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error creating reply template: {str(e)}")
+        return jsonify({'error': f'Failed to create reply template: {str(e)}'}), 500
+
+@app.route('/api/sms/reply-templates/<template_id>', methods=['PUT'])
+def update_reply_template(template_id):
+    """Update an existing SMS reply template."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Get existing template
+        templates = config.get_sms_reply_templates()
+        template = next((t for t in templates if t['id'] == template_id), None)
+        
+        if not template:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        # Update template with new data
+        updated_template = template.copy()
+        updated_template['updated_at'] = datetime.now().isoformat()
+        
+        if 'name' in data:
+            updated_template['name'] = data['name']
+        if 'template' in data:
+            updated_template['template'] = data['template']
+        if 'enabled' in data:
+            updated_template['enabled'] = data['enabled']
+        if 'description' in data:
+            updated_template['description'] = data['description']
+        if 'keywords' in data:
+            updated_template['keywords'] = data['keywords']
+        
+        success = config.update_sms_reply_template(template_id, updated_template)
+        
+        if success:
+            return jsonify({
+                'message': 'Reply template updated successfully',
+                'template': updated_template
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to update reply template'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error updating reply template: {str(e)}")
+        return jsonify({'error': f'Failed to update reply template: {str(e)}'}), 500
+
+@app.route('/api/sms/reply-templates/<template_id>', methods=['DELETE'])
+def delete_reply_template(template_id):
+    """Delete an SMS reply template."""
+    try:
+        success = config.delete_sms_reply_template(template_id)
+        
+        if success:
+            return jsonify({'message': 'Reply template deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Template not found or failed to delete'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error deleting reply template: {str(e)}")
+        return jsonify({'error': f'Failed to delete reply template: {str(e)}'}), 500
+
+@app.route('/api/sms/reply-settings', methods=['GET'])
+def get_reply_settings():
+    """Get SMS reply settings."""
+    try:
+        settings = config.get_sms_reply_settings()
+        return jsonify(settings), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting reply settings: {str(e)}")
+        return jsonify({'error': f'Failed to get reply settings: {str(e)}'}), 500
+
+@app.route('/api/sms/reply-settings', methods=['PUT'])
+def update_reply_settings():
+    """Update SMS reply settings."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        success = config.update_sms_reply_settings(data)
+        
+        if success:
+            return jsonify({
+                'message': 'Reply settings updated successfully',
+                'settings': data
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to update reply settings'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error updating reply settings: {str(e)}")
+        return jsonify({'error': f'Failed to update reply settings: {str(e)}'}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Movie Management API...")
