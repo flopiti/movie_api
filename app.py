@@ -100,6 +100,8 @@ class Config:
             "media_paths": [],
             "download_paths": [],
             "tmdb_api_key": TMDB_API_KEY,
+            "radarr_url": "http://192.168.0.10:7878",
+            "radarr_api_key": "",
             "movie_assignments": {}
         }
     
@@ -131,6 +133,8 @@ class Config:
                     "media_paths": [],
                     "download_paths": [],
                     "tmdb_api_key": TMDB_API_KEY,
+                    "radarr_url": "http://192.168.0.10:7878",
+                    "radarr_api_key": "",
                     "movie_assignments": {}
                 }
                 logger.info(f"🔍 Setting default data to Redis: {list(default_data.keys())}")
@@ -748,6 +752,114 @@ class Config:
                 'files': [],
                 'error': str(e)
             }
+
+    def get_radarr_client(self):
+        """Get Radarr client instance."""
+        try:
+            from radarr_client import RadarrClient
+            radarr_url = self.data.get('radarr_url', 'http://192.168.0.10:7878')
+            radarr_api_key = self.data.get('radarr_api_key', '')
+            
+            if not radarr_api_key:
+                logger.warning("Radarr API key not configured")
+                return None
+                
+            return RadarrClient(radarr_url, radarr_api_key)
+        except ImportError as e:
+            logger.error(f"Failed to import RadarrClient: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to create RadarrClient: {str(e)}")
+            return None
+
+    def get_download_files(self) -> List[Dict[str, Any]]:
+        """Get all media files from download paths (flattened, no folders)."""
+        logger.info("📥 Getting download files from all download paths")
+        
+        all_files = []
+        download_paths = self.get_download_paths()
+        
+        if not download_paths:
+            logger.info("📥 No download paths configured")
+            return all_files
+        
+        for path in download_paths:
+            try:
+                if not os.path.exists(path) or not os.path.isdir(path):
+                    logger.warning(f"📥 Download path does not exist or is not a directory: {path}")
+                    continue
+                
+                # Get all files recursively from this download path
+                for root, dirs, files in os.walk(path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        
+                        # Check if it's a media file
+                        if FileDiscovery.is_media_file(Path(file_path)):
+                            try:
+                                stat_info = os.stat(file_path)
+                                relative_path = os.path.relpath(file_path, path)
+                                
+                                file_info = {
+                                    'name': file,
+                                    'path': file_path,
+                                    'relative_path': relative_path,
+                                    'directory': os.path.dirname(file_path),
+                                    'size': stat_info.st_size,
+                                    'modified': stat_info.st_mtime,
+                                    'source_path': path,
+                                    'is_download_file': True
+                                }
+                                
+                                # Check if this file has a movie assignment
+                                movie_assignments = self.get_movie_assignments()
+                                if file_path in movie_assignments:
+                                    file_info['movie'] = movie_assignments[file_path]
+                                    
+                                    # Add filename and folder info
+                                    movie_data = movie_assignments[file_path]
+                                    file_info['filenameInfo'] = FilenameFormatter.generate_filename_info(movie_data, file_path)
+                                    file_info['folderInfo'] = FilenameFormatter.generate_folder_info(movie_data, file_path)
+                                
+                                all_files.append(file_info)
+                                
+                            except Exception as e:
+                                logger.warning(f"Could not get info for file {file_path}: {str(e)}")
+                                continue
+                                
+            except Exception as e:
+                logger.error(f"Error processing download path {path}: {str(e)}")
+                continue
+        
+        # Sort by name for consistent ordering
+        all_files.sort(key=lambda x: x['name'].lower())
+        
+        logger.info(f"📥 Found {len(all_files)} media files in download paths")
+        return all_files
+
+    def search_radarr_movies(self, query: str) -> List[Dict[str, Any]]:
+        """Search for movies using Radarr API."""
+        logger.info(f"🔍 Searching Radarr for: {query}")
+        
+        radarr_client = self.get_radarr_client()
+        if not radarr_client:
+            logger.error("Radarr client not available")
+            return []
+        
+        try:
+            # Test connection first
+            if not radarr_client.test_connection():
+                logger.error("Radarr connection failed")
+                return []
+            
+            # Search for movies
+            movies = radarr_client.search_movies(query)
+            logger.info(f"🔍 Found {len(movies)} movies in Radarr")
+            return movies
+            
+        except Exception as e:
+            logger.error(f"Error searching Radarr: {str(e)}")
+            return []
     
     def _get_path_space_info(self, path: str) -> Dict[str, Any]:
         """Get disk space information for a path using df command."""
@@ -1573,6 +1685,93 @@ def get_download_path_contents():
     
     contents = config.get_download_path_contents(path)
     return jsonify(contents)
+
+@app.route('/download-files', methods=['GET'])
+def get_download_files():
+    """Get all media files from download paths (flattened, no folders)."""
+    try:
+        files = config.get_download_files()
+        return jsonify({
+            'files': files,
+            'count': len(files),
+            'message': f'Found {len(files)} media files in download paths'
+        })
+    except Exception as e:
+        logger.error(f"Error getting download files: {str(e)}")
+        return jsonify({'error': f'Failed to get download files: {str(e)}'}), 500
+
+@app.route('/download-files/search-radarr', methods=['GET'])
+def search_radarr_movies():
+    """Search for movies using Radarr API."""
+    query = request.args.get('q', '').strip()
+    
+    if not query:
+        return jsonify({'error': 'Query parameter is required'}), 400
+    
+    try:
+        movies = config.search_radarr_movies(query)
+        return jsonify({
+            'movies': movies,
+            'count': len(movies),
+            'query': query
+        })
+    except Exception as e:
+        logger.error(f"Error searching Radarr: {str(e)}")
+        return jsonify({'error': f'Failed to search Radarr: {str(e)}'}), 500
+
+@app.route('/download-files/assign-movie', methods=['POST'])
+def assign_movie_to_download_file():
+    """Assign a movie to a download file."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data or 'movie' not in data:
+        return jsonify({'error': 'file_path and movie are required'}), 400
+    
+    file_path = data['file_path']
+    movie_data = data['movie']
+    
+    try:
+        if config.assign_movie_to_file(file_path, movie_data):
+            # Generate filename and folder info for download files
+            filename_info = FilenameFormatter.generate_filename_info(movie_data, file_path)
+            folder_info = FilenameFormatter.generate_folder_info(movie_data, file_path)
+            
+            logger.info(f"Successfully assigned movie '{movie_data.get('title')}' to download file: {file_path}")
+            return jsonify({
+                'message': 'Movie assigned successfully',
+                'file_path': file_path,
+                'movie': movie_data,
+                'filenameInfo': filename_info,
+                'folderInfo': folder_info
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to assign movie'}), 500
+    except Exception as e:
+        logger.error(f"Error assigning movie to download file: {str(e)}")
+        return jsonify({'error': f'Failed to assign movie: {str(e)}'}), 500
+
+@app.route('/download-files/remove-assignment', methods=['DELETE'])
+def remove_movie_assignment_from_download_file():
+    """Remove movie assignment from a download file."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data:
+        return jsonify({'error': 'file_path is required'}), 400
+    
+    file_path = data['file_path']
+    
+    try:
+        if config.remove_movie_assignment(file_path):
+            logger.info(f"Successfully removed movie assignment from download file: {file_path}")
+            return jsonify({
+                'message': 'Movie assignment removed successfully',
+                'file_path': file_path
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to remove movie assignment'}), 500
+    except Exception as e:
+        logger.error(f"Error removing movie assignment from download file: {str(e)}")
+        return jsonify({'error': f'Failed to remove movie assignment: {str(e)}'}), 500
 
 @app.route('/all-files', methods=['GET'])
 def get_all_files():
