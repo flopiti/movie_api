@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from twilio.rest import Client
-from twilio.twiml import MessagingResponse
+from twilio.twiml.messaging_response import MessagingResponse
 import redis
 
 logger = logging.getLogger(__name__)
