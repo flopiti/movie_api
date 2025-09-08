@@ -3365,6 +3365,8 @@ def get_sms_messages():
 def sms_status():
     """Get SMS service status and configuration."""
     try:
+        webhook_info = twilio_client.get_webhook_url()
+        
         return jsonify({
             'configured': twilio_client.is_configured(),
             'phone_number': twilio_client.phone_number if twilio_client.is_configured() else None,
@@ -3372,12 +3374,49 @@ def sms_status():
             'account_sid_set': bool(os.getenv('TWILIO_ACCOUNT_SID')),
             'auth_token_set': bool(os.getenv('TWILIO_AUTH_TOKEN')),
             'phone_number_set': bool(os.getenv('TWILIO_PHONE_NUMBER')),
-            'webhook_url': f"{request.host_url}api/sms/webhook"
+            'webhook_url': f"{request.host_url}api/sms/webhook",
+            'current_webhook': webhook_info.get('webhook_url') if webhook_info.get('success') else None,
+            'webhook_method': webhook_info.get('webhook_method') if webhook_info.get('success') else None
         }), 200
         
     except Exception as e:
         logger.error(f"Error getting SMS status: {str(e)}")
         return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
+
+@app.route('/api/sms/webhook-url', methods=['GET'])
+def get_webhook_url():
+    """Get current webhook URL from Twilio."""
+    try:
+        result = twilio_client.get_webhook_url()
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        logger.error(f"Error getting webhook URL: {str(e)}")
+        return jsonify({'error': f'Failed to get webhook URL: {str(e)}'}), 500
+
+@app.route('/api/sms/webhook-url', methods=['PUT'])
+def update_webhook_url():
+    """Update webhook URL in Twilio."""
+    try:
+        data = request.get_json()
+        if not data or 'webhook_url' not in data:
+            return jsonify({'error': 'Missing webhook_url field'}), 400
+        
+        webhook_url = data['webhook_url']
+        result = twilio_client.update_webhook_url(webhook_url)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        logger.error(f"Error updating webhook URL: {str(e)}")
+        return jsonify({'error': f'Failed to update webhook URL: {str(e)}'}), 500
 
 # SMS Reply Management Endpoints
 @app.route('/api/sms/reply-templates', methods=['GET'])

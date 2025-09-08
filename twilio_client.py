@@ -126,6 +126,88 @@ class TwilioClient:
             response.message(message)
         return str(response)
     
+    def get_webhook_url(self) -> Dict[str, Any]:
+        """
+        Get the current webhook URL for the Twilio phone number.
+        
+        Returns:
+            Dict with webhook URL information
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': 'Twilio client not configured'
+            }
+        
+        try:
+            # Get the phone number resource
+            incoming_phone_numbers = self.client.incoming_phone_numbers.list()
+            
+            for number in incoming_phone_numbers:
+                if number.phone_number == self.phone_number:
+                    return {
+                        'success': True,
+                        'phone_number': self.phone_number,
+                        'webhook_url': number.sms_url,
+                        'webhook_method': number.sms_method
+                    }
+            
+            return {
+                'success': False,
+                'error': f'Phone number {self.phone_number} not found'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get webhook URL: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def update_webhook_url(self, webhook_url: str) -> Dict[str, Any]:
+        """
+        Update the webhook URL for the Twilio phone number.
+        
+        Args:
+            webhook_url: New webhook URL
+            
+        Returns:
+            Dict with success status
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': 'Twilio client not configured'
+            }
+        
+        try:
+            # Get the phone number resource
+            incoming_phone_numbers = self.client.incoming_phone_numbers.list()
+            
+            for number in incoming_phone_numbers:
+                if number.phone_number == self.phone_number:
+                    # Update the webhook URL
+                    number.update(sms_url=webhook_url, sms_method='POST')
+                    
+                    logger.info(f"Updated webhook URL for {self.phone_number} to {webhook_url}")
+                    return {
+                        'success': True,
+                        'phone_number': self.phone_number,
+                        'webhook_url': webhook_url
+                    }
+            
+            return {
+                'success': False,
+                'error': f'Phone number {self.phone_number} not found'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to update webhook URL: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     def is_configured(self) -> bool:
         """Check if Twilio is properly configured."""
         return self.client is not None and all([
