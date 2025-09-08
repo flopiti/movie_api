@@ -98,6 +98,7 @@ class Config:
         return {
             "movie_file_paths": [],
             "media_paths": [],
+            "download_paths": [],
             "tmdb_api_key": TMDB_API_KEY,
             "movie_assignments": {}
         }
@@ -128,6 +129,7 @@ class Config:
                 default_data = {
                     "movie_file_paths": [],
                     "media_paths": [],
+                    "download_paths": [],
                     "tmdb_api_key": TMDB_API_KEY,
                     "movie_assignments": {}
                 }
@@ -521,6 +523,231 @@ class Config:
             self._save_local_config()
         
         return updated_paths
+    
+    def get_download_paths(self) -> List[str]:
+        """Get list of download paths."""
+        logger.info(f"📥 get_download_paths() called - use_redis: {self.use_redis}")
+        
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                if data:
+                    logger.info("📥 Using Redis to get download paths")
+                    download_paths = data.get("download_paths", [])
+                    logger.info(f"📥 Retrieved {len(download_paths)} download paths from Redis")
+                    if download_paths:
+                        logger.info(f"📥 First few paths: {download_paths[:3]}")
+                    return download_paths
+                else:
+                    fallback_paths = self.data.get("download_paths", [])
+                    logger.info(f"📥 Fallback: Retrieved {len(fallback_paths)} download paths from local config")
+                    return fallback_paths
+            except Exception as e:
+                logger.error(f"Redis error when getting download paths, falling back to local: {str(e)}")
+                logger.info("📥 Using local config to get download paths")
+                local_paths = self.data.get("download_paths", [])
+                logger.info(f"📥 Retrieved {len(local_paths)} download paths from local config")
+                return local_paths
+        else:
+            logger.info("📥 Using local config to get download paths")
+            local_paths = self.data.get("download_paths", [])
+            logger.info(f"📥 Retrieved {len(local_paths)} download paths from local config")
+            return local_paths
+
+    def add_download_path(self, path: str) -> bool:
+        """Add a download path if it doesn't already exist."""
+        logger.info(f"📥 Adding download path: {path}")
+        
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                if data:
+                    paths = data.setdefault("download_paths", [])
+                    if path not in paths:
+                        paths.append(path)
+                        self._save_redis_data(data)
+                        logger.info(f"Added download path to Redis: {path}")
+                        return True
+                    else:
+                        logger.info(f"Download path already exists in Redis: {path}")
+                        return False
+                else:
+                    logger.error("Redis error when adding download path, falling back to local")
+                    paths = self.data.setdefault("download_paths", [])
+                    if path not in paths:
+                        paths.append(path)
+                        self._save_local_config()
+                        logger.info(f"Added download path to local config: {path}")
+                        return True
+                    else:
+                        logger.info(f"Download path already exists in local config: {path}")
+                        return False
+            except Exception as e:
+                logger.error(f"Redis error when adding download path, falling back to local: {str(e)}")
+                paths = self.data.setdefault("download_paths", [])
+                if path not in paths:
+                    paths.append(path)
+                    self._save_local_config()
+                    logger.info(f"Added download path to local config: {path}")
+                    return True
+                else:
+                    logger.info(f"Download path already exists in local config: {path}")
+                    return False
+        else:
+            paths = self.data.setdefault("download_paths", [])
+            if path not in paths:
+                paths.append(path)
+                self._save_local_config()
+                logger.info(f"Added download path to local config: {path}")
+                return True
+            else:
+                logger.info(f"Download path already exists in local config: {path}")
+                return False
+
+    def remove_download_path(self, path: str) -> bool:
+        """Remove a download path."""
+        logger.info(f"📥 Removing download path: {path}")
+        
+        if self.use_redis:
+            try:
+                data = self._get_redis_data()
+                if data:
+                    paths = data.get("download_paths", [])
+                    if path in paths:
+                        paths.remove(path)
+                        self._save_redis_data(data)
+                        logger.info(f"Removed download path from Redis: {path}")
+                        return True
+                    else:
+                        logger.info(f"Download path not found in Redis: {path}")
+                        return False
+                else:
+                    logger.error("Redis error when removing download path, falling back to local")
+                    paths = self.data.get("download_paths", [])
+                    if path in paths:
+                        paths.remove(path)
+                        self._save_local_config()
+                        logger.info(f"Removed download path from local config: {path}")
+                        return True
+                    else:
+                        logger.info(f"Download path not found in local config: {path}")
+                        return False
+            except Exception as e:
+                logger.error(f"Redis error when removing download path, falling back to local: {str(e)}")
+                paths = self.data.get("download_paths", [])
+                if path in paths:
+                    paths.remove(path)
+                    self._save_local_config()
+                    logger.info(f"Removed download path from local config: {path}")
+                    return True
+                else:
+                    logger.info(f"Download path not found in local config: {path}")
+                    return False
+        else:
+            paths = self.data.get("download_paths", [])
+            if path in paths:
+                paths.remove(path)
+                self._save_local_config()
+                logger.info(f"Removed download path from local config: {path}")
+                return True
+            else:
+                logger.info(f"Download path not found in local config: {path}")
+                return False
+
+    def get_download_path_contents(self, path: str) -> Dict[str, Any]:
+        """Get contents of a download path (folders and files)."""
+        logger.info(f"📥 Getting contents of download path: {path}")
+        
+        try:
+            if not os.path.exists(path):
+                return {
+                    'path': path,
+                    'exists': False,
+                    'folders': [],
+                    'files': [],
+                    'error': 'Path does not exist'
+                }
+            
+            if not os.path.isdir(path):
+                return {
+                    'path': path,
+                    'exists': False,
+                    'folders': [],
+                    'files': [],
+                    'error': 'Path is not a directory'
+                }
+            
+            folders = []
+            files = []
+            
+            # Get all items in the directory
+            for item in os.listdir(path):
+                item_path = os.path.join(path, item)
+                
+                if os.path.isdir(item_path):
+                    # Get folder info
+                    try:
+                        stat_info = os.stat(item_path)
+                        folders.append({
+                            'name': item,
+                            'path': item_path,
+                            'modified': stat_info.st_mtime,
+                            'size': 0  # Folders don't have a direct size
+                        })
+                    except Exception as e:
+                        logger.warning(f"Could not get info for folder {item_path}: {str(e)}")
+                        folders.append({
+                            'name': item,
+                            'path': item_path,
+                            'modified': 0,
+                            'size': 0,
+                            'error': str(e)
+                        })
+                elif os.path.isfile(item_path):
+                    # Get file info
+                    try:
+                        stat_info = os.stat(item_path)
+                        files.append({
+                            'name': item,
+                            'path': item_path,
+                            'modified': stat_info.st_mtime,
+                            'size': stat_info.st_size,
+                            'is_media': FileDiscovery.is_media_file(Path(item_path))
+                        })
+                    except Exception as e:
+                        logger.warning(f"Could not get info for file {item_path}: {str(e)}")
+                        files.append({
+                            'name': item,
+                            'path': item_path,
+                            'modified': 0,
+                            'size': 0,
+                            'is_media': FileDiscovery.is_media_file(Path(item_path)),
+                            'error': str(e)
+                        })
+            
+            # Sort folders and files by name
+            folders.sort(key=lambda x: x['name'].lower())
+            files.sort(key=lambda x: x['name'].lower())
+            
+            return {
+                'path': path,
+                'exists': True,
+                'folders': folders,
+                'files': files,
+                'total_folders': len(folders),
+                'total_files': len(files),
+                'media_files': len([f for f in files if f.get('is_media', False)])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting download path contents for {path}: {str(e)}")
+            return {
+                'path': path,
+                'exists': False,
+                'folders': [],
+                'files': [],
+                'error': str(e)
+            }
     
     def _get_path_space_info(self, path: str) -> Dict[str, Any]:
         """Get disk space information for a path using df command."""
@@ -1270,6 +1497,82 @@ def refresh_media_paths_space():
     except Exception as e:
         logger.error(f"Error refreshing media paths space: {str(e)}")
         return jsonify({'error': f'Failed to refresh space information: {str(e)}'}), 500
+
+@app.route('/download-paths', methods=['GET'])
+def get_download_paths():
+    """Get all configured download paths."""
+    return jsonify({
+        'download_paths': config.get_download_paths(),
+        'count': len(config.get_download_paths())
+    })
+
+@app.route('/download-paths', methods=['PUT'])
+def add_download_path():
+    """Add a new download path."""
+    data = request.get_json()
+    
+    if not data or 'path' not in data:
+        return jsonify({'error': 'Path is required'}), 400
+    
+    path = data['path'].strip()
+    if not path:
+        return jsonify({'error': 'Path cannot be empty'}), 400
+    
+    # Validate that path exists
+    if not os.path.exists(path):
+        return jsonify({'error': 'Path does not exist'}), 400
+    
+    if not os.path.isdir(path):
+        return jsonify({'error': 'Path must be a directory'}), 400
+    
+    if config.add_download_path(path):
+        return jsonify({
+            'message': 'Download path added successfully',
+            'path': path,
+            'download_paths': config.get_download_paths()
+        }), 201
+    else:
+        return jsonify({
+            'message': 'Download path already exists',
+            'path': path,
+            'download_paths': config.get_download_paths()
+        }), 200
+
+@app.route('/download-paths', methods=['DELETE'])
+def remove_download_path():
+    """Remove a download path."""
+    data = request.get_json()
+    
+    if not data or 'path' not in data:
+        return jsonify({'error': 'Path is required'}), 400
+    
+    path = data['path'].strip()
+    if not path:
+        return jsonify({'error': 'Path cannot be empty'}), 400
+    
+    if config.remove_download_path(path):
+        return jsonify({
+            'message': 'Download path removed successfully',
+            'path': path,
+            'download_paths': config.get_download_paths()
+        }), 200
+    else:
+        return jsonify({
+            'error': 'Download path not found',
+            'path': path,
+            'download_paths': config.get_download_paths()
+        }), 404
+
+@app.route('/download-paths/contents', methods=['GET'])
+def get_download_path_contents():
+    """Get contents of a download path (folders and files)."""
+    path = request.args.get('path', '').strip()
+    
+    if not path:
+        return jsonify({'error': 'Path parameter is required'}), 400
+    
+    contents = config.get_download_path_contents(path)
+    return jsonify(contents)
 
 @app.route('/all-files', methods=['GET'])
 def get_all_files():
