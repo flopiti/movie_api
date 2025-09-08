@@ -3418,6 +3418,40 @@ def update_webhook_url():
         logger.error(f"Error updating webhook URL: {str(e)}")
         return jsonify({'error': f'Failed to update webhook URL: {str(e)}'}), 500
 
+@app.route('/api/sms/phone-settings', methods=['GET'])
+def get_phone_settings():
+    """Get all phone number settings from Twilio."""
+    try:
+        result = twilio_client.get_phone_number_settings()
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        logger.error(f"Error getting phone settings: {str(e)}")
+        return jsonify({'error': f'Failed to get phone settings: {str(e)}'}), 500
+
+@app.route('/api/sms/phone-settings', methods=['PUT'])
+def update_phone_settings():
+    """Update phone number settings in Twilio."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No settings provided'}), 400
+        
+        result = twilio_client.update_phone_number_settings(data)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        logger.error(f"Error updating phone settings: {str(e)}")
+        return jsonify({'error': f'Failed to update phone settings: {str(e)}'}), 500
+
 # SMS Reply Management Endpoints
 @app.route('/api/sms/reply-templates', methods=['GET'])
 def get_reply_templates():

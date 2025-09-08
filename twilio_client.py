@@ -208,6 +208,92 @@ class TwilioClient:
                 'error': str(e)
             }
 
+    def get_phone_number_settings(self) -> Dict[str, Any]:
+        """
+        Get all phone number settings from Twilio.
+        
+        Returns:
+            Dict with phone number settings
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': 'Twilio client not configured'
+            }
+        
+        try:
+            # Get the phone number resource
+            incoming_phone_numbers = self.client.incoming_phone_numbers.list()
+            
+            for number in incoming_phone_numbers:
+                if number.phone_number == self.phone_number:
+                    return {
+                        'success': True,
+                        'phone_number': self.phone_number,
+                        'sms_url': number.sms_url,
+                        'sms_method': number.sms_method,
+                        'voice_url': number.voice_url,
+                        'voice_method': number.voice_method,
+                        'status_callback': number.status_callback,
+                        'status_callback_method': number.status_callback_method
+                    }
+            
+            return {
+                'success': False,
+                'error': f'Phone number {self.phone_number} not found'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get phone number settings: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def update_phone_number_settings(self, settings: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Update phone number settings in Twilio.
+        
+        Args:
+            settings: Dict with settings to update (sms_url, voice_url, etc.)
+            
+        Returns:
+            Dict with success status
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': 'Twilio client not configured'
+            }
+        
+        try:
+            # Get the phone number resource
+            incoming_phone_numbers = self.client.incoming_phone_numbers.list()
+            
+            for number in incoming_phone_numbers:
+                if number.phone_number == self.phone_number:
+                    # Update the settings
+                    number.update(**settings)
+                    
+                    logger.info(f"Updated phone number settings for {self.phone_number}")
+                    return {
+                        'success': True,
+                        'phone_number': self.phone_number,
+                        'updated_settings': settings
+                    }
+            
+            return {
+                'success': False,
+                'error': f'Phone number {self.phone_number} not found'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to update phone number settings: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     def is_configured(self) -> bool:
         """Check if Twilio is properly configured."""
         return self.client is not None and all([
