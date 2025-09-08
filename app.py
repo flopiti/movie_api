@@ -3168,7 +3168,11 @@ def sms_status():
         return jsonify({
             'configured': twilio_client.is_configured(),
             'phone_number': twilio_client.phone_number if twilio_client.is_configured() else None,
-            'redis_available': twilio_client.redis_client is not None
+            'redis_available': twilio_client.redis_client is not None,
+            'account_sid_set': bool(os.getenv('TWILIO_ACCOUNT_SID')),
+            'auth_token_set': bool(os.getenv('TWILIO_AUTH_TOKEN')),
+            'phone_number_set': bool(os.getenv('TWILIO_PHONE_NUMBER')),
+            'webhook_url': f"{request.host_url}api/sms/webhook"
         }), 200
         
     except Exception as e:
