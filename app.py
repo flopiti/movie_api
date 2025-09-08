@@ -3092,6 +3092,9 @@ def verify_assignment():
 def sms_webhook():
     """Webhook endpoint to receive SMS messages from Twilio."""
     try:
+        # Log all incoming webhook data for debugging
+        logger.info(f"SMS Webhook called with data: {dict(request.form)}")
+        
         # Get message data from Twilio webhook
         message_data = {
             'MessageSid': request.form.get('MessageSid'),
@@ -3105,7 +3108,8 @@ def sms_webhook():
         logger.info(f"Received SMS from {message_data['From']}: {message_data['Body']}")
         
         # Store the message
-        twilio_client.store_received_message(message_data)
+        store_result = twilio_client.store_received_message(message_data)
+        logger.info(f"Message storage result: {store_result}")
         
         # Create response (optional auto-reply)
         response_message = f"Message received: '{message_data['Body']}'"

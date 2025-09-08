@@ -30,7 +30,7 @@ class TwilioClient:
             logger.info("Twilio client initialized successfully")
         
         # Redis configuration for message storage
-        self.redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
+        self.redis_host = os.getenv('REDIS_HOST', '192.168.0.10')
         self.redis_port = int(os.getenv('REDIS_PORT', 6379))
         self.redis_db = int(os.getenv('REDIS_DB', 0))
         
