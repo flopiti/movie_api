@@ -87,6 +87,9 @@ class Config:
         # Always initialize local data for fallback purposes
         self.data = self._load_local_config()
         
+        # Initialize default SMS templates if none exist
+        self._initialize_default_sms_templates()
+        
         if not self.use_redis:
             logger.info(f"Using local JSON config at: {self.config_file}")
         else:
@@ -1193,8 +1196,8 @@ class Config:
     def get_sms_reply_settings(self) -> Dict[str, Any]:
         """Get SMS reply settings."""
         default_settings = {
-            "auto_reply_enabled": False,
-            "fallback_message": "Message received: '{message}'",
+            "auto_reply_enabled": True,
+            "fallback_message": "Thanks for your message! I received: '{message}' from {sender} at {timestamp}. Configure your number in the system to get personalized responses.",
             "reply_delay_seconds": 0,
             "max_replies_per_day": 10,
             "blocked_numbers": []
@@ -1229,6 +1232,11 @@ class Config:
             self.data["sms_reply_settings"] = settings
             self._save_local_config()
             return True
+
+    def _initialize_default_sms_templates(self) -> None:
+        """Initialize default SMS reply templates if none exist."""
+        # Don't auto-initialize templates - let user configure via interface
+        pass
 
 # Initialize configuration with Redis enabled by default when available
 config = Config(use_redis=True)
@@ -3293,7 +3301,13 @@ def sms_webhook():
                 logger.info(f"Using template '{matching_template['name']}' for response")
             else:
                 # Fallback to simple acknowledgment
-                response_message = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
+                fallback_template = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
+                
+                # Replace placeholders in fallback message
+                response_message = fallback_template.replace('{sender}', message_data['From'])
+                response_message = response_message.replace('{message}', message_data['Body'])
+                response_message = response_message.replace('{timestamp}', message_data['timestamp'])
+                response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
         
         # If no auto-reply is configured, return empty response (no reply)
         if not response_message:
