@@ -3320,6 +3320,20 @@ def sms_webhook():
         logger.error(f"Error processing SMS webhook: {str(e)}")
         return twilio_client.create_webhook_response("Error processing message"), 500, {'Content-Type': 'text/xml'}
 
+@app.route('/api/sms/ayo', methods=['POST'])
+def sms_ayo():
+    """Simple webhook endpoint that always replies 'AYO'."""
+    try:
+        # Log incoming message
+        logger.info(f"AYO webhook called with data: {dict(request.form)}")
+        
+        # Always reply with 'AYO'
+        return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
+        
+    except Exception as e:
+        logger.error(f"Error in AYO webhook: {str(e)}")
+        return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
+
 @app.route('/api/sms/send', methods=['POST'])
 def send_sms():
     """Send an SMS message."""
