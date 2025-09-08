@@ -860,6 +860,150 @@ class Config:
         except Exception as e:
             logger.error(f"Error searching Radarr: {str(e)}")
             return []
+
+    def compare_radarr_vs_plex(self) -> Dict[str, Any]:
+        """Compare movies between Radarr and Plex to find movies in Radarr but not in Plex."""
+        logger.info("🔍 Starting Radarr vs Plex comparison")
+        
+        try:
+            # Get Radarr client
+            radarr_client = self.get_radarr_client()
+            if not radarr_client:
+                logger.error("Radarr client not available")
+                return {
+                    'error': 'Radarr client not available - check API key configuration',
+                    'radarr_movies': [],
+                    'plex_movies': [],
+                    'movies_in_radarr_not_in_plex': [],
+                    'movies_in_plex_not_in_radarr': [],
+                    'total_radarr': 0,
+                    'total_plex': 0,
+                    'comparison_summary': {}
+                }
+            
+            # Test Radarr connection
+            if not radarr_client.test_connection():
+                logger.error("Radarr connection failed")
+                return {
+                    'error': 'Radarr connection failed',
+                    'radarr_movies': [],
+                    'plex_movies': [],
+                    'movies_in_radarr_not_in_plex': [],
+                    'movies_in_plex_not_in_radarr': [],
+                    'total_radarr': 0,
+                    'total_plex': 0,
+                    'comparison_summary': {}
+                }
+            
+            # Get movies from Radarr
+            logger.info("🔍 Getting movies from Radarr...")
+            radarr_movies = radarr_client.get_movies()
+            logger.info(f"🔍 Found {len(radarr_movies)} movies in Radarr")
+            
+            # Get movies from Plex
+            logger.info("🔍 Getting movies from Plex...")
+            plex_movies = plex_client.get_all_movies()
+            logger.info(f"🔍 Found {len(plex_movies)} movies in Plex")
+            
+            # Create normalized title sets for comparison
+            radarr_titles = set()
+            plex_titles = set()
+            
+            # Process Radarr movies
+            radarr_movie_data = []
+            for movie in radarr_movies:
+                title = movie.get('title', '')
+                year = movie.get('year', '')
+                if title:
+                    # Create normalized title with year
+                    normalized_title = f"{title.lower().strip()} ({year})" if year else title.lower().strip()
+                    radarr_titles.add(normalized_title)
+                    radarr_movie_data.append({
+                        'id': movie.get('id'),
+                        'title': title,
+                        'year': year,
+                        'normalized_title': normalized_title,
+                        'hasFile': movie.get('hasFile', False),
+                        'monitored': movie.get('monitored', False),
+                        'status': movie.get('status', ''),
+                        'qualityProfileId': movie.get('qualityProfileId'),
+                        'rootFolderPath': movie.get('rootFolderPath', ''),
+                        'folderName': movie.get('folderName', '')
+                    })
+            
+            # Process Plex movies
+            plex_movie_data = []
+            for movie in plex_movies:
+                title = movie.get('title', '')
+                year = movie.get('year', '')
+                if title:
+                    # Create normalized title with year
+                    normalized_title = f"{title.lower().strip()} ({year})" if year else title.lower().strip()
+                    plex_titles.add(normalized_title)
+                    plex_movie_data.append({
+                        'id': movie.get('id'),
+                        'title': title,
+                        'year': year,
+                        'normalized_title': normalized_title,
+                        'library': movie.get('library', ''),
+                        'addedAt': movie.get('addedAt', ''),
+                        'updatedAt': movie.get('updatedAt', '')
+                    })
+            
+            # Find movies in Radarr but not in Plex
+            movies_in_radarr_not_in_plex = []
+            for radarr_movie in radarr_movie_data:
+                if radarr_movie['normalized_title'] not in plex_titles:
+                    movies_in_radarr_not_in_plex.append(radarr_movie)
+            
+            # Find movies in Plex but not in Radarr
+            movies_in_plex_not_in_radarr = []
+            for plex_movie in plex_movie_data:
+                if plex_movie['normalized_title'] not in radarr_titles:
+                    movies_in_plex_not_in_radarr.append(plex_movie)
+            
+            # Create comparison summary
+            comparison_summary = {
+                'total_radarr_movies': len(radarr_movie_data),
+                'total_plex_movies': len(plex_movie_data),
+                'movies_in_radarr_not_in_plex_count': len(movies_in_radarr_not_in_plex),
+                'movies_in_plex_not_in_radarr_count': len(movies_in_plex_not_in_radarr),
+                'common_movies_count': len(radarr_titles.intersection(plex_titles)),
+                'radarr_monitored_count': len([m for m in radarr_movie_data if m.get('monitored', False)]),
+                'radarr_with_files_count': len([m for m in radarr_movie_data if m.get('hasFile', False)])
+            }
+            
+            logger.info(f"🔍 Comparison complete:")
+            logger.info(f"  - Radarr movies: {comparison_summary['total_radarr_movies']}")
+            logger.info(f"  - Plex movies: {comparison_summary['total_plex_movies']}")
+            logger.info(f"  - Movies in Radarr but not in Plex: {comparison_summary['movies_in_radarr_not_in_plex_count']}")
+            logger.info(f"  - Movies in Plex but not in Radarr: {comparison_summary['movies_in_plex_not_in_radarr_count']}")
+            logger.info(f"  - Common movies: {comparison_summary['common_movies_count']}")
+            
+            return {
+                'radarr_movies': radarr_movie_data,
+                'plex_movies': plex_movie_data,
+                'movies_in_radarr_not_in_plex': movies_in_radarr_not_in_plex,
+                'movies_in_plex_not_in_radarr': movies_in_plex_not_in_radarr,
+                'total_radarr': len(radarr_movie_data),
+                'total_plex': len(plex_movie_data),
+                'comparison_summary': comparison_summary,
+                'success': True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error comparing Radarr vs Plex: {str(e)}")
+            return {
+                'error': f'Failed to compare Radarr vs Plex: {str(e)}',
+                'radarr_movies': [],
+                'plex_movies': [],
+                'movies_in_radarr_not_in_plex': [],
+                'movies_in_plex_not_in_radarr': [],
+                'total_radarr': 0,
+                'total_plex': 0,
+                'comparison_summary': {},
+                'success': False
+            }
     
     def _get_path_space_info(self, path: str) -> Dict[str, Any]:
         """Get disk space information for a path using df command."""
@@ -1772,6 +1916,25 @@ def remove_movie_assignment_from_download_file():
     except Exception as e:
         logger.error(f"Error removing movie assignment from download file: {str(e)}")
         return jsonify({'error': f'Failed to remove movie assignment: {str(e)}'}), 500
+
+@app.route('/compare-radarr-plex', methods=['GET'])
+def compare_radarr_plex():
+    """Compare movies between Radarr and Plex to find differences."""
+    try:
+        logger.info("Starting Radarr vs Plex comparison")
+        comparison_result = config.compare_radarr_vs_plex()
+        
+        if comparison_result.get('success'):
+            return jsonify(comparison_result), 200
+        else:
+            return jsonify(comparison_result), 500
+            
+    except Exception as e:
+        logger.error(f"Error in Radarr vs Plex comparison endpoint: {str(e)}")
+        return jsonify({
+            'error': f'Failed to compare Radarr vs Plex: {str(e)}',
+            'success': False
+        }), 500
 
 @app.route('/all-files', methods=['GET'])
 def get_all_files():
