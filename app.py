@@ -67,7 +67,9 @@ except Exception as e:
     redis_client = None
 
 # Initialize Twilio client
+logger.info("Initializing Twilio client...")
 twilio_client = TwilioClient()
+logger.info(f"Twilio client initialized. Configured: {twilio_client.is_configured()}")
 
 # Supported media file extensions
 MEDIA_EXTENSIONS = {
@@ -3107,9 +3109,8 @@ def sms_webhook():
         
         logger.info(f"Received SMS from {message_data['From']}: {message_data['Body']}")
         
-        # Store the message
-        store_result = twilio_client.store_received_message(message_data)
-        logger.info(f"Message storage result: {store_result}")
+        # Just log the received message
+        logger.info(f"SMS webhook received: {message_data['Body']}")
         
         # Create response (optional auto-reply)
         response_message = f"Message received: '{message_data['Body']}'"
@@ -3147,7 +3148,7 @@ def send_sms():
 
 @app.route('/api/sms/messages', methods=['GET'])
 def get_sms_messages():
-    """Get recent SMS messages."""
+    """Get recent SMS messages from Twilio API."""
     try:
         limit = request.args.get('limit', 20, type=int)
         messages = twilio_client.get_recent_messages(limit)

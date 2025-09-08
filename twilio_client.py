@@ -29,23 +29,8 @@ class TwilioClient:
             self.client = Client(self.account_sid, self.auth_token)
             logger.info("Twilio client initialized successfully")
         
-        # Redis configuration for message storage
-        self.redis_host = os.getenv('REDIS_HOST', '192.168.0.10')
-        self.redis_port = int(os.getenv('REDIS_PORT', 6379))
-        self.redis_db = int(os.getenv('REDIS_DB', 0))
-        
-        try:
-            self.redis_client = redis.Redis(
-                host=self.redis_host,
-                port=self.redis_port,
-                db=self.redis_db,
-                decode_responses=True
-            )
-            self.redis_client.ping()
-            logger.info("Redis connection established for message storage")
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {str(e)}")
-            self.redis_client = None
+        # No Redis needed - we'll query Twilio API directly
+        self.redis_client = None
     
     def send_sms(self, to: str, message: str) -> Dict[str, Any]:
         """
@@ -88,45 +73,9 @@ class TwilioClient:
                 'error': str(e)
             }
     
-    def store_received_message(self, message_data: Dict[str, Any]) -> bool:
-        """
-        Store a received message in Redis.
-        
-        Args:
-            message_data: Message data from Twilio webhook
-            
-        Returns:
-            True if stored successfully, False otherwise
-        """
-        if not self.redis_client:
-            logger.warning("Redis not available for message storage")
-            return False
-        
-        try:
-            # Create a unique key for the message
-            message_id = message_data.get('MessageSid', f"msg_{datetime.now().timestamp()}")
-            message_key = f"sms_message:{message_id}"
-            
-            # Add timestamp if not present
-            if 'timestamp' not in message_data:
-                message_data['timestamp'] = datetime.now().isoformat()
-            
-            # Store the message
-            self.redis_client.hset(message_key, mapping=message_data)
-            
-            # Add to a list of recent messages (keep last 100)
-            self.redis_client.lpush("sms_messages:recent", message_id)
-            self.redis_client.ltrim("sms_messages:recent", 0, 99)
-            
-            logger.info(f"Stored received message: {message_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to store message: {str(e)}")
-            return False
-    
     def get_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Retrieve recent messages from storage.
+        Get recent SMS messages directly from Twilio API.
         
         Args:
             limit: Maximum number of messages to retrieve
@@ -134,28 +83,32 @@ class TwilioClient:
         Returns:
             List of message dictionaries
         """
-        if not self.redis_client:
-            logger.warning("Redis not available for message retrieval")
+        if not self.client:
+            logger.warning("Twilio client not configured")
             return []
         
         try:
-            # Get recent message IDs
-            message_ids = self.redis_client.lrange("sms_messages:recent", 0, limit - 1)
+            # Get messages from Twilio API
+            messages = self.client.messages.list(limit=limit)
             
-            messages = []
-            for message_id in message_ids:
-                message_key = f"sms_message:{message_id}"
-                message_data = self.redis_client.hgetall(message_key)
-                if message_data:
-                    messages.append(message_data)
+            message_list = []
+            for message in messages:
+                message_data = {
+                    'MessageSid': message.sid,
+                    'From': message.from_,
+                    'To': message.to,
+                    'Body': message.body,
+                    'Status': message.status,
+                    'DateCreated': message.date_created.isoformat() if message.date_created else None,
+                    'Direction': message.direction
+                }
+                message_list.append(message_data)
             
-            # Sort by timestamp (most recent first)
-            messages.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            logger.info(f"Retrieved {len(message_list)} messages from Twilio API")
+            return message_list
             
-            logger.info(f"Retrieved {len(messages)} recent messages")
-            return messages
         except Exception as e:
-            logger.error(f"Failed to retrieve messages: {str(e)}")
+            logger.error(f"Failed to retrieve messages from Twilio: {str(e)}")
             return []
     
     def create_webhook_response(self, message: str = None) -> str:
