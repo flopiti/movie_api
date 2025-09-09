@@ -32,7 +32,7 @@ jobs:
           docker pull ${{ secrets.DOCKER_USERNAME }}/movie-api:latest
           docker stop movie-api || true
           docker rm movie-api || true
-          docker run -d --name movie-api -p 8000:5000 \
+          docker run -d --name movie-api -p 81:5000 \
             -v /mnt:/mnt \
             -v /mnt/external/seagate/movies:/mnt/external/movies \
             -v /mnt/movie-config:/mnt/movie-config \
