@@ -3260,6 +3260,9 @@ def sms_webhook():
         
         logger.info(f"Received SMS from {message_data['From']}: {message_data['Body']}")
         
+        # Store incoming message in Redis
+        twilio_client.store_incoming_message(message_data)
+        
         # Get reply settings and templates
         reply_settings = config.get_sms_reply_settings()
         reply_templates = config.get_sms_reply_templates()

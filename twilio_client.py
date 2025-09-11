@@ -29,8 +29,45 @@ class TwilioClient:
             self.client = Client(self.account_sid, self.auth_token)
             logger.info("Twilio client initialized successfully")
         
-        # No Redis needed - we'll query Twilio API directly
-        self.redis_client = None
+        # Initialize Redis for message storage
+        self._init_redis()
+    
+    def _init_redis(self):
+        """Initialize Redis connection for message storage."""
+        try:
+            # Use same Redis config as main app
+            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
+            redis_port = int(os.getenv('REDIS_PORT', 6379))
+            redis_db = int(os.getenv('REDIS_DB', 0))
+            
+            self.redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+            self.redis_client.ping()  # Test connection
+            logger.info(f"TwilioClient Redis connected: {redis_host}:{redis_port}")
+        except Exception as e:
+            logger.error(f"Failed to connect TwilioClient to Redis: {str(e)}")
+            self.redis_client = None
+    
+    def _store_message_in_redis(self, message_data: Dict[str, Any]) -> None:
+        """Store a message in Redis."""
+        if not self.redis_client:
+            logger.warning("Redis not available, cannot store message")
+            return
+        
+        try:
+            # Create a unique key for the message
+            message_sid = message_data.get('message_sid', f"local_{datetime.now().timestamp()}")
+            redis_key = f"sms_message:{message_sid}"
+            
+            # Store message data as JSON
+            self.redis_client.set(redis_key, json.dumps(message_data))
+            
+            # Add to sorted set for chronological ordering (timestamp as score)
+            timestamp = datetime.now().timestamp()
+            self.redis_client.zadd("sms_messages", {message_sid: timestamp})
+            
+            logger.info(f"Stored SMS message in Redis: {message_sid}")
+        except Exception as e:
+            logger.error(f"Failed to store message in Redis: {str(e)}")
     
     def send_sms(self, to: str, message: str) -> Dict[str, Any]:
         """
@@ -57,6 +94,22 @@ class TwilioClient:
             )
             
             logger.info(f"SMS sent successfully to {to}: {message_obj.sid}")
+            
+            # Prepare message data for storage
+            message_data = {
+                'message_sid': message_obj.sid,
+                'status': message_obj.status,
+                'to': to,
+                'from': self.phone_number,
+                'body': message,
+                'date_created': message_obj.date_created.isoformat(),
+                'direction': 'outbound',
+                'stored_at': datetime.now().isoformat()
+            }
+            
+            # Store message in Redis
+            self._store_message_in_redis(message_data)
+            
             return {
                 'success': True,
                 'message_sid': message_obj.sid,
@@ -75,7 +128,57 @@ class TwilioClient:
     
     def get_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Get recent SMS messages directly from Twilio API.
+        Get recent SMS messages from Redis database.
+        
+        Args:
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of message dictionaries
+        """
+        if not self.redis_client:
+            logger.warning("Redis client not configured, falling back to Twilio API")
+            return self._get_messages_from_twilio_api(limit)
+        
+        try:
+            # Get message SIDs from Redis sorted set (most recent first)
+            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit - 1)
+            
+            message_list = []
+            for message_sid in message_sids:
+                redis_key = f"sms_message:{message_sid}"
+                message_json = self.redis_client.get(redis_key)
+                
+                if message_json:
+                    try:
+                        message_data = json.loads(message_json)
+                        # Convert to expected format for API compatibility
+                        formatted_message = {
+                            'MessageSid': message_data.get('message_sid'),
+                            'From': message_data.get('from'),
+                            'To': message_data.get('to'),
+                            'Body': message_data.get('body'),
+                            'Status': message_data.get('status'),
+                            'DateCreated': message_data.get('date_created'),
+                            'Direction': message_data.get('direction'),
+                            'StoredAt': message_data.get('stored_at')
+                        }
+                        message_list.append(formatted_message)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse message {message_sid}: {str(e)}")
+                        continue
+            
+            logger.info(f"Retrieved {len(message_list)} messages from Redis")
+            return message_list
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve messages from Redis: {str(e)}")
+            # Fallback to Twilio API
+            return self._get_messages_from_twilio_api(limit)
+    
+    def _get_messages_from_twilio_api(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Fallback method to get messages from Twilio API.
         
         Args:
             limit: Maximum number of messages to retrieve
@@ -104,11 +207,11 @@ class TwilioClient:
                 }
                 message_list.append(message_data)
             
-            logger.info(f"Retrieved {len(message_list)} messages from Twilio API")
+            logger.info(f"Retrieved {len(message_list)} messages from Twilio API (fallback)")
             return message_list
             
         except Exception as e:
-            logger.error(f"Failed to retrieve messages from Twilio: {str(e)}")
+            logger.error(f"Failed to retrieve messages from Twilio API: {str(e)}")
             return []
     
     def create_webhook_response(self, message: str = None) -> str:
@@ -125,6 +228,46 @@ class TwilioClient:
         if message:
             response.message(message)
         return str(response)
+    
+    def store_incoming_message(self, message_data: Dict[str, Any]) -> None:
+        """
+        Store an incoming message in Redis.
+        
+        Args:
+            message_data: Dictionary containing message information from webhook
+        """
+        if not self.redis_client:
+            logger.warning("Redis not available, cannot store incoming message")
+            return
+        
+        try:
+            # Create a unique key for the message
+            message_sid = message_data.get('MessageSid', f"incoming_{datetime.now().timestamp()}")
+            redis_key = f"sms_message:{message_sid}"
+            
+            # Prepare message data for storage
+            stored_message = {
+                'message_sid': message_sid,
+                'status': 'received',
+                'to': message_data.get('To'),
+                'from': message_data.get('From'),
+                'body': message_data.get('Body'),
+                'date_created': message_data.get('timestamp', datetime.now().isoformat()),
+                'direction': 'inbound',
+                'stored_at': datetime.now().isoformat(),
+                'num_media': message_data.get('NumMedia', '0')
+            }
+            
+            # Store message data as JSON
+            self.redis_client.set(redis_key, json.dumps(stored_message))
+            
+            # Add to sorted set for chronological ordering (timestamp as score)
+            timestamp = datetime.now().timestamp()
+            self.redis_client.zadd("sms_messages", {message_sid: timestamp})
+            
+            logger.info(f"Stored incoming SMS message in Redis: {message_sid}")
+        except Exception as e:
+            logger.error(f"Failed to store incoming message in Redis: {str(e)}")
     
     def get_webhook_url(self) -> Dict[str, Any]:
         """
