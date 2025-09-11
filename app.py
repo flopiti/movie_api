@@ -3420,6 +3420,85 @@ def get_sms_messages():
         logger.error(f"Error retrieving SMS messages: {str(e)}")
         return jsonify({'error': f'Failed to retrieve messages: {str(e)}'}), 500
 
+@app.route('/api/sms/conversations', methods=['GET'])
+def get_sms_conversations():
+    """Get SMS conversations grouped by phone number."""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        messages = twilio_client.get_recent_messages(limit)
+        
+        # Group messages by conversation (phone number)
+        conversations = {}
+        
+        for message in messages:
+            # Determine the other participant in the conversation
+            # If message is from our number, the other participant is the 'To' field
+            # If message is to our number, the other participant is the 'From' field
+            if message.get('From') == twilio_client.phone_number:
+                # Outgoing message - other participant is the recipient
+                other_participant = message.get('To')
+                is_from_us = True
+            else:
+                # Incoming message - other participant is the sender
+                other_participant = message.get('From')
+                is_from_us = False
+            
+            if not other_participant:
+                continue
+                
+            # Create conversation key
+            conversation_key = other_participant
+            
+            if conversation_key not in conversations:
+                conversations[conversation_key] = {
+                    'phone_number': other_participant,
+                    'participant': other_participant,
+                    'messages': [],
+                    'last_message': None,
+                    'last_message_time': None,
+                    'unread_count': 0,
+                    'message_count': 0
+                }
+            
+            # Add message to conversation
+            conversation_message = {
+                'id': message.get('MessageSid'),
+                'body': message.get('Body'),
+                'timestamp': message.get('DateCreated') or message.get('StoredAt'),
+                'direction': message.get('Direction'),
+                'status': message.get('Status'),
+                'is_from_us': is_from_us,
+                'from': message.get('From'),
+                'to': message.get('To')
+            }
+            
+            conversations[conversation_key]['messages'].append(conversation_message)
+            conversations[conversation_key]['message_count'] += 1
+            
+            # Update last message info
+            message_time = conversation_message['timestamp']
+            if not conversations[conversation_key]['last_message_time'] or message_time > conversations[conversation_key]['last_message_time']:
+                conversations[conversation_key]['last_message'] = conversation_message
+                conversations[conversation_key]['last_message_time'] = message_time
+        
+        # Sort messages within each conversation by timestamp
+        for conversation in conversations.values():
+            conversation['messages'].sort(key=lambda x: x['timestamp'] or '')
+        
+        # Convert to list and sort by last message time
+        conversation_list = list(conversations.values())
+        conversation_list.sort(key=lambda x: x['last_message_time'] or '', reverse=True)
+        
+        return jsonify({
+            'conversations': conversation_list,
+            'count': len(conversation_list),
+            'total_messages': sum(len(conv['messages']) for conv in conversation_list)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error retrieving SMS conversations: {str(e)}")
+        return jsonify({'error': f'Failed to retrieve conversations: {str(e)}'}), 500
+
 @app.route('/api/sms/status', methods=['GET'])
 def sms_status():
     """Get SMS service status and configuration."""
