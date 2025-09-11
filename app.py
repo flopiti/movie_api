@@ -3317,6 +3317,23 @@ def sms_webhook():
             return twilio_client.create_webhook_response(), 200, {'Content-Type': 'text/xml'}
         
         logger.info(f"Sending auto-reply: {response_message}")
+        
+        # Store the outgoing reply message in Redis
+        outgoing_message_data = {
+            'message_sid': f"webhook_reply_{datetime.now().timestamp()}",
+            'status': 'sent',
+            'to': message_data['From'],  # Reply goes to the sender
+            'from': message_data['To'],  # From our Twilio number
+            'body': response_message,
+            'date_created': datetime.now().isoformat(),
+            'direction': 'outbound',
+            'stored_at': datetime.now().isoformat(),
+            'num_media': '0'
+        }
+        
+        # Store the outgoing message
+        twilio_client._store_message_in_redis(outgoing_message_data)
+        
         return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
@@ -3329,6 +3346,31 @@ def sms_ayo():
     try:
         # Log incoming message
         logger.info(f"AYO webhook called with data: {dict(request.form)}")
+        
+        # Store incoming message
+        message_data = {
+            'MessageSid': request.form.get('MessageSid'),
+            'From': request.form.get('From'),
+            'To': request.form.get('To'),
+            'Body': request.form.get('Body'),
+            'NumMedia': request.form.get('NumMedia', '0'),
+            'timestamp': datetime.now().isoformat()
+        }
+        twilio_client.store_incoming_message(message_data)
+        
+        # Store the outgoing AYO reply message
+        outgoing_message_data = {
+            'message_sid': f"ayo_reply_{datetime.now().timestamp()}",
+            'status': 'sent',
+            'to': message_data['From'],  # Reply goes to the sender
+            'from': message_data['To'],  # From our Twilio number
+            'body': 'AYO',
+            'date_created': datetime.now().isoformat(),
+            'direction': 'outbound',
+            'stored_at': datetime.now().isoformat(),
+            'num_media': '0'
+        }
+        twilio_client._store_message_in_redis(outgoing_message_data)
         
         # Always reply with 'AYO'
         return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
