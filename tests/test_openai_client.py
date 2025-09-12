@@ -27,6 +27,50 @@ from test_openai_expectations import (
 )
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+def flexible_movie_match(detected_movie, expected_movie):
+    """Compare movie titles flexibly, accepting both with and without year formats."""
+    if detected_movie == expected_movie:
+        return True
+    
+    # If expected has year but detected doesn't, check if base titles match
+    if expected_movie and '(' in expected_movie:
+        expected_base = expected_movie.split(' (')[0]
+        if detected_movie == expected_base:
+            return True
+    
+    # If detected has year but expected doesn't, check if base titles match
+    if detected_movie and '(' in detected_movie:
+        detected_base = detected_movie.split(' (')[0]
+        if detected_base == expected_movie:
+            return True
+    
+    # Handle "The" prefix differences
+    def normalize_title(title):
+        """Remove 'The' prefix for comparison."""
+        if title and title.startswith('The '):
+            return title[4:]  # Remove "The "
+        return title
+    
+    # Compare normalized titles (without "The")
+    normalized_detected = normalize_title(detected_movie)
+    normalized_expected = normalize_title(expected_movie)
+    
+    if normalized_detected == normalized_expected:
+        return True
+    
+    # Also check if one has year and the other doesn't, with normalized titles
+    if expected_movie and '(' in expected_movie:
+        expected_base = normalize_title(expected_movie.split(' (')[0])
+        if normalized_detected == expected_base:
+            return True
+    
+    if detected_movie and '(' in detected_movie:
+        detected_base = normalize_title(detected_movie.split(' (')[0])
+        if detected_base == normalized_expected:
+            return True
+    
+    return False
  
 def test_openai_connection():
     """Test if OpenAI client can be initialized and connected."""
@@ -70,7 +114,7 @@ def test_movie_detection():
                 if detected_movie == "No movie identified":
                     detected_movie = None
                 
-                if detected_movie == test_case['expected_movie']:
+                if flexible_movie_match(detected_movie, test_case['expected_movie']):
                     print(f"  ✅ {test_case['name']}")
                     passed += 1
                 else:

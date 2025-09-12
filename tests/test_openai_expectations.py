@@ -81,6 +81,13 @@ MOVIE_DETECTION_TEST_CASES = [
             "USER: Hey! I was thinking about Planet of the Apes movies today"
         ],
         "expected_movie": "Titane (2021)"
+    },
+    {
+        "name": "Devil Wears Prada 2 request",
+        "conversation": [
+            "USER: yoo do you know about devil wears prada 2?"
+        ],
+        "expected_movie": "The Devil Wears Prada 2"  # Should detect sequel reference
     }
 ]
 
@@ -127,6 +134,13 @@ SMS_RESPONSE_TEST_CASES = [
         "sender": "+1234567890",
         "movie_context": " (Note: A movie 'Titane (2021)' was identified and found in our database)",
         "expected_keywords": ["Titane", "download", "found"]
+    },
+    {
+        "name": "Devil Wears Prada 2 request with detection failure",
+        "message": "yoo do you know about devil wears prada 2?",
+        "sender": "+14384109395",
+        "movie_context": " (Note: A movie 'No movie identified.' was identified but not found in our database)",
+        "expected_keywords": ["couldn't find", "Devil Wears Prada", "details", "another"]
     }
 ]
 

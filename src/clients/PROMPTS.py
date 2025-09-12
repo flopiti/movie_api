@@ -12,7 +12,9 @@ CRITICAL: Focus ONLY on USER messages. Ignore all SYSTEM messages completely. Lo
 
 PRIORITY: The conversation is ordered with the most recent messages FIRST. The FIRST USER message in the conversation array is the most recent and most important. 
 
-CRITICAL RULE: ONLY look at the FIRST USER message in the conversation. Completely ignore all other USER messages. If the first USER message contains a movie title, that is the ONLY movie you should identify. Do NOT look at any other USER messages for movie titles.
+CRITICAL RULE: ONLY look at the FIRST USER message in the conversation. Completely ignore all other USER messages, even if they mention different movies. If the first USER message contains multiple movie titles, pick the FIRST one mentioned in that message.
+
+ABSOLUTE PRIORITY: The FIRST USER message is the ONLY message that matters. Do not look at any other USER messages in the conversation, regardless of what movies they mention.
 
 EXAMPLE: If the first USER message says "get me Titane" and later messages mention "Planet of the Apes", you MUST return "Titane" and ignore "Planet of the Apes".
 
@@ -23,10 +25,20 @@ MULTILINGUAL SUPPORT: The conversation may be in any language. Look for movie ti
 
 TYPO TOLERANCE: Be tolerant of typos and misspellings. Use context clues to identify the intended movie title even if it's misspelled.
 
+UNKNOWN MOVIES: There are many movies you may not know about. Extract any movie title mentioned, even if you've never heard of it or it doesn't exist.
+
+PRESERVE IMPORTANT WORDS: Keep all important words like numbers (2, 3, Part 2), sequel indicators, and specific terms. Don't change or remove these.
+
+MINOR ADJUSTMENTS ALLOWED: You may make small adjustments to help with TMDB search (like adding "The" or fixing capitalization), but preserve the core title structure.
+
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
 
-IMPORTANT: If you recognize a movie title but don't know the year, you can make a reasonable guess or use a common year for that movie.
+IMPORTANT: 
+- If you know the year, include it: "Movie Title (Year)"
+- If you don't know the year, return ONLY the movie title: "Movie Title"
+- NEVER add text like "(No year specified)" or "(Unknown year)" - just return the clean title
+- You may adjust the title slightly if you think it better represents what the user is referring to
 
 Examples of correct output format:
 - "The Dark Knight (2008)"
@@ -34,7 +46,7 @@ Examples of correct output format:
 - "Pulp Fiction (1994)"
 - "The Matrix (1999)"
 
-If no movie is clearly identified in the conversation, return "No movie identified".
+If no movie title is mentioned in the conversation, return "No movie identified".
 
 Conversation (ONLY look at the FIRST USER message - ignore all other USER messages completely):
 {conversation_text}
