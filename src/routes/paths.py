@@ -6,7 +6,7 @@ Routes for managing movie file paths, media paths, and download paths.
 
 import os
 from flask import Blueprint, request, jsonify
-from config import config
+from ..config.config import config
 
 # Create blueprint
 paths_bp = Blueprint('paths', __name__)

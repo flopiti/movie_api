@@ -7,10 +7,10 @@ Routes for movie search, assignment, and management operations.
 import os
 from pathlib import Path
 from flask import Blueprint, request, jsonify
-from config import config
-from openai_client import OpenAIClient
-from tmdb_client import TMDBClient
-from config import TMDB_API_KEY, OPENAI_API_KEY
+from ..config.config import config
+from ..clients.openai_client import OpenAIClient
+from ..clients.tmdb_client import TMDBClient
+from ..config.config import TMDB_API_KEY, OPENAI_API_KEY
 
 # Create blueprint
 movies_bp = Blueprint('movies', __name__)

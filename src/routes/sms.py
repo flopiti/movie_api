@@ -8,10 +8,10 @@ import os
 import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from twilio_client import TwilioClient
-from openai_client import OpenAIClient
-from tmdb_client import TMDBClient
-from config import config, OPENAI_API_KEY, TMDB_API_KEY
+from ..clients.twilio_client import TwilioClient
+from ..clients.openai_client import OpenAIClient
+from ..clients.tmdb_client import TMDBClient
+from ..config.config import config, OPENAI_API_KEY, TMDB_API_KEY
 from PROMPTS import SMS_RESPONSE_PROMPT
 from download_monitor import download_monitor
 

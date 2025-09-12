@@ -12,7 +12,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 
 # Load environment variables (fallback for local development)
-load_dotenv('env')
+load_dotenv('../config/env')
 
 app = Flask(__name__)
 CORS(app)
@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('movie_api.log'),
+        logging.FileHandler('../logs/movie_api.log'),
         logging.StreamHandler()
     ]
 )
@@ -34,15 +34,15 @@ logging.getLogger('twilio.http').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # Import route blueprints
-from routes.paths import paths_bp
-from routes.movies import movies_bp
-from routes.files import files_bp
-from routes.plex import plex_bp
-from routes.sms import sms_bp
-from routes.system import system_bp
+from .routes.paths import paths_bp
+from .routes.movies import movies_bp
+from .routes.files import files_bp
+from .routes.plex import plex_bp
+from .routes.sms import sms_bp
+from .routes.system import system_bp
 
 # Import download monitor
-from download_monitor import download_monitor
+from .services.download_monitor import download_monitor
 
 # Register blueprints
 app.register_blueprint(paths_bp)

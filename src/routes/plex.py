@@ -7,8 +7,8 @@ Routes for Plex API integration and movie comparison.
 import time
 import os
 from flask import Blueprint, request, jsonify
-from plex_client import PlexClient
-from config import config
+from ..clients.plex_client import PlexClient
+from ..config.config import config
 
 # Create blueprint
 plex_bp = Blueprint('plex', __name__)

@@ -8,8 +8,8 @@ import os
 import shutil
 from pathlib import Path
 from flask import Blueprint, request, jsonify
-from config import config
-from file_discovery import FileDiscovery
+from ..config.config import config
+from ..utils.file_discovery import FileDiscovery
 
 # Create blueprint
 files_bp = Blueprint('files', __name__)
