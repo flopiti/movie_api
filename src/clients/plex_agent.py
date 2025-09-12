@@ -134,9 +134,9 @@ class PlexAgent:
                 release_date = movie_data.get('release_date', '')
                 year = release_date.split('-')[0] if release_date else 'Unknown year'
                 if movie_downloaded:
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified, found in our database, and successfully added to download queue)"
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified, found in our database, and successfully added to Radarr for downloading)"
                 else:
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database, but download request failed)"
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database, but could not be added to Radarr - it may be unreleased or unavailable)"
             else:
                 movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
         else:

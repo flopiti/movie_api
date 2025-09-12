@@ -91,7 +91,7 @@ class DownloadMonitor:
             phone_number: Phone number to notify
             
         Returns:
-            True if request was added successfully, False otherwise
+            True if request was added successfully AND movie was added to Radarr, False otherwise
         """
         try:
             # Check if movie is already being requested
@@ -117,10 +117,16 @@ class DownloadMonitor:
             
             logger.info(f"📱 Download Monitor: Added download request for {movie_title} ({movie_year}) from {phone_number}")
             
-            # Try to add movie to Radarr immediately
+            # Try to add movie to Radarr immediately and wait for result
             self._process_download_request(request)
             
-            return True
+            # Only return True if the movie was actually added to Radarr
+            if request.status in ["added_to_radarr", "downloading"]:
+                logger.info(f"✅ Download Monitor: Movie {movie_title} successfully added to Radarr")
+                return True
+            else:
+                logger.warning(f"⚠️ Download Monitor: Movie {movie_title} could not be added to Radarr - status: {request.status}")
+                return False
             
         except Exception as e:
             logger.error(f"❌ Download Monitor: Failed to add download request: {str(e)}")
