@@ -10,6 +10,8 @@ IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for cl
 
 CRITICAL: Focus on the MOST RECENT messages in the conversation. Look for the latest movie being discussed, not old movies from earlier in the conversation. The conversation might have talked about other movies before, but you need to find the MOST RECENT movie mentioned.
 
+IMPORTANT: Pay attention to who is speaking (USER vs SYSTEM). You need to find the movie that the USER is talking about, not movies mentioned by the SYSTEM.
+
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
 

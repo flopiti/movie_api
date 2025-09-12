@@ -121,7 +121,7 @@ class OpenAIClient:
                 "success": False
             }
     
-    def generate_sms_response(self, message: str, sender: str, prompt_template: str) -> Dict[str, Any]:
+    def generate_sms_response(self, message: str, sender: str, prompt_template: str, movie_context: str = "") -> Dict[str, Any]:
         """Generate an SMS response using ChatGPT with a custom prompt."""
         if not self.client:
             return {"error": "OpenAI API key not configured", "success": False}
@@ -130,6 +130,10 @@ class OpenAIClient:
             # Replace placeholders in the prompt template
             formatted_prompt = prompt_template.replace('{message}', message)
             formatted_prompt = formatted_prompt.replace('{sender}', sender)
+            
+            # Add movie context if provided
+            if movie_context:
+                formatted_prompt += f"\n\nContext: {movie_context}"
 
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",

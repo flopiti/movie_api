@@ -29,9 +29,19 @@ def get_conversation_history(phone_number: str, limit: int = 5) -> list:
                 message.get('To') == phone_number or
                 message.get('from') == phone_number or 
                 message.get('to') == phone_number):
-                conversation_messages.append(message.get('Body', message.get('body', '')))
+                
+                # Determine who sent the message
+                sender = message.get('From', message.get('from', ''))
+                if sender == phone_number:
+                    speaker = "USER"
+                else:
+                    speaker = "SYSTEM"
+                
+                # Format: "SPEAKER: message content"
+                formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
+                conversation_messages.append(formatted_message)
         
-        # Return only the message bodies, limited to recent messages
+        # Return only the formatted messages, limited to recent messages
         return conversation_messages[:limit]
     except Exception as e:
         logger.error(f"Error getting conversation history: {str(e)}")
@@ -102,6 +112,7 @@ def sms_webhook():
                 response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
         else:
             logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
+            # Don't set response_message - let it fall through to ChatGPT
         
         # Get reply settings and templates
         reply_settings = config.get_sms_reply_settings()
@@ -115,11 +126,19 @@ def sms_webhook():
                 # Use ChatGPT to generate response
                 chatgpt_prompt = reply_settings.get('chatgpt_prompt', SMS_RESPONSE_PROMPT)
                 
-                logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'")
+                # Add context about movie detection result
+                movie_context = ""
+                if movie_result and movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
+                    movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
+                else:
+                    movie_context = " (Note: No movie was identified in the conversation)"
+                
+                logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
                 chatgpt_result = openai_client.generate_sms_response(
                     message_data['Body'], 
                     message_data['From'], 
-                    chatgpt_prompt
+                    chatgpt_prompt,
+                    movie_context=movie_context
                 )
                 
                 if chatgpt_result.get('success'):
