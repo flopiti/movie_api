@@ -111,7 +111,7 @@ class TMDBTestRunner:
         errors = []
         
         # Check required fields
-        required_fields = VALIDATION_RULES['movie_search']['required_fields']
+        required_fields = ['success', 'results', 'total_results']
         for field in required_fields:
             if field not in response:
                 errors.append(f"Missing required field: {field}")
@@ -125,14 +125,17 @@ class TMDBTestRunner:
             expected_total = expected['total_results']
             actual_total = response.get('total_results', 0)
             
-            if isinstance(expected_total, str) and expected_total.startswith('>'):
-                min_expected = int(expected_total[1:])
+            if isinstance(expected_total, str) and expected_total.startswith('>') and not expected_total.startswith('>='):
+                min_expected = int(expected_total[1:].strip())
                 if actual_total <= min_expected:
                     errors.append(f"Total results too low: got {actual_total}, expected > {min_expected}")
             elif isinstance(expected_total, str) and expected_total.startswith('>='):
-                min_expected = int(expected_total[2:].strip())
-                if actual_total < min_expected:
-                    errors.append(f"Total results too low: got {actual_total}, expected >= {min_expected}")
+                try:
+                    min_expected = int(expected_total[2:].strip())
+                    if actual_total < min_expected:
+                        errors.append(f"Total results too low: got {actual_total}, expected >= {min_expected}")
+                except ValueError as e:
+                    errors.append(f"Error parsing expected_total '{expected_total}': {str(e)}")
             elif isinstance(expected_total, str) and expected_total == ">= 0":
                 # This is always true, so no validation needed
                 pass
@@ -144,14 +147,17 @@ class TMDBTestRunner:
             expected_year_matches = expected['year_matches']
             actual_year_matches = response.get('year_matches', 0)
             
-            if isinstance(expected_year_matches, str) and expected_year_matches.startswith('>'):
-                min_expected = int(expected_year_matches[1:])
+            if isinstance(expected_year_matches, str) and expected_year_matches.startswith('>') and not expected_year_matches.startswith('>='):
+                min_expected = int(expected_year_matches[1:].strip())
                 if actual_year_matches <= min_expected:
                     errors.append(f"Year matches too low: got {actual_year_matches}, expected > {min_expected}")
             elif isinstance(expected_year_matches, str) and expected_year_matches.startswith('>='):
-                min_expected = int(expected_year_matches[2:].strip())
-                if actual_year_matches < min_expected:
-                    errors.append(f"Year matches too low: got {actual_year_matches}, expected >= {min_expected}")
+                try:
+                    min_expected = int(expected_year_matches[2:].strip())
+                    if actual_year_matches < min_expected:
+                        errors.append(f"Year matches too low: got {actual_year_matches}, expected >= {min_expected}")
+                except ValueError as e:
+                    errors.append(f"Error parsing expected_year_matches '{expected_year_matches}': {str(e)}")
             elif isinstance(expected_year_matches, str) and expected_year_matches == ">= 0":
                 # This is always true, so no validation needed
                 pass

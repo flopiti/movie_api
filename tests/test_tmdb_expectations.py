@@ -152,6 +152,15 @@ MOVIE_SEARCH_TEST_CASES = [
                 "id": 603
             }
         }
+    },
+    {
+        "name": "Unreleased sequel",
+        "query": "Devil Wears Prada 2",
+        "expected_results": {
+            "success": True,
+            "total_results": ">= 0",  # May or may not find results
+            "year_matches": ">= 0"
+        }
     }
 ]
 
