@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 from config.config import config, OPENAI_API_KEY, TMDB_API_KEY, redis_client
 from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
 from ..services.download_monitor import download_monitor
+from ..clients.plex_agent import plex_agent
 from ..services.sms_conversations import sms_conversations
 
 logger = logging.getLogger(__name__)
@@ -382,7 +383,7 @@ def create_download_request():
 def start_download_monitor():
     """Start the download monitoring service."""
     try:
-        download_monitor.start_monitoring()
+        plex_agent.start_monitoring()
         return jsonify({'message': 'Download monitoring service started'}), 200
         
     except Exception as e:
@@ -393,7 +394,7 @@ def start_download_monitor():
 def stop_download_monitor():
     """Stop the download monitoring service."""
     try:
-        download_monitor.stop_monitoring()
+        plex_agent.stop_monitoring()
         return jsonify({'message': 'Download monitoring service stopped'}), 200
         
     except Exception as e:
@@ -432,9 +433,9 @@ def get_download_monitor_status():
         radarr_status = download_monitor.get_radarr_config_status()
         
         return jsonify({
-            'running': download_monitor.running,
+            'running': plex_agent.monitoring,
             'radarr_available': download_monitor.radarr_client is not None,
-            'twilio_available': download_monitor.twilio_client.is_configured(),
+            'twilio_available': plex_agent.twilio_client.is_configured(),
             'redis_available': download_monitor.redis_client.is_available(),
             'active_requests': len(download_monitor.download_requests),
             'radarr_config': radarr_status

@@ -47,8 +47,8 @@ from .routes.plex import plex_bp
 from .routes.sms import sms_bp
 from .routes.system import system_bp
 
-# Import download monitor
-from .services.download_monitor import download_monitor
+# Import plex agent for monitoring
+from .clients.plex_agent import plex_agent
 
 # Register blueprints
 app.register_blueprint(paths_bp)
@@ -70,11 +70,11 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    # Start the download monitoring service
+    # Start the plex agent monitoring service
     try:
-        download_monitor.start_monitoring()
-        logging.info("📱 Download Monitor: Service started successfully")
+        plex_agent.start_monitoring()
+        logging.info("📱 PlexAgent: Download monitoring service started successfully")
     except Exception as e:
-        logging.error(f"❌ Download Monitor: Failed to start service: {str(e)}")
+        logging.error(f"❌ PlexAgent: Failed to start monitoring service: {str(e)}")
     
     app.run(debug=True, host='0.0.0.0', port=5000)

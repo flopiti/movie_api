@@ -29,9 +29,9 @@ The system continuously monitors:
 
 ### 3. SMS Notifications
 Users receive SMS notifications for:
-- **Download Started**: "🎬 Download started for [Movie Title] ([Year])! I'll let you know when it's ready."
-- **Download Completed**: "✅ [Movie Title] ([Year]) is ready! The movie has been downloaded and added to your library."
-- **Download Failed**: "❌ Sorry, the download for [Movie Title] ([Year]) failed. [Error message]"
+- **Download Started**: "🎬 Great! I'm getting [Movie Title] ([Year]) ready for you. I'll text you when it's ready to watch!"
+- **Download Completed**: "🎉 [Movie Title] ([Year]) is ready to watch! Enjoy your movie!"
+- **Download Failed**: "😔 Sorry, I couldn't get [Movie Title] ([Year]) ready for you. [Error message]"
 
 ## Configuration
 
@@ -85,10 +85,10 @@ User sends: "Can you get The Dark Knight for me?"
 System responds: "🎬 Great! I found 'The Dark Knight (2008)' and added it to your download queue. I'll send you updates as the download progresses!"
 
 ### Download Started Notification
-System sends: "🎬 Download started for The Dark Knight (2008)! I'll let you know when it's ready."
+System sends: "🎬 Great! I'm getting The Dark Knight (2008) ready for you. I'll text you when it's ready to watch!"
 
 ### Download Completed Notification
-System sends: "✅ The Dark Knight (2008) is ready! The movie has been downloaded and added to your library."
+System sends: "🎉 The Dark Knight (2008) is ready to watch! Enjoy your movie!"
 
 ## Testing
 

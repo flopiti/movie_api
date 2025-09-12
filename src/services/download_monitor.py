@@ -311,7 +311,7 @@ class DownloadMonitor:
     def _send_download_started_notification(self, request: DownloadRequest):
         """Send SMS notification when download starts"""
         try:
-            message = f"🎬 Download started for {request.movie_title} ({request.movie_year})! I'll let you know when it's ready."
+            message = f"🎬 Great! I'm getting {request.movie_title} ({request.movie_year}) ready for you. I'll text you when it's ready to watch!"
             
             result = self.twilio_client.send_sms(request.phone_number, message)
             
@@ -326,7 +326,7 @@ class DownloadMonitor:
     def _send_download_completed_notification(self, request: DownloadRequest):
         """Send SMS notification when download completes"""
         try:
-            message = f"✅ {request.movie_title} ({request.movie_year}) is ready! The movie has been downloaded and added to your library."
+            message = f"🎉 {request.movie_title} ({request.movie_year}) is ready to watch! Enjoy your movie!"
             
             result = self.twilio_client.send_sms(request.phone_number, message)
             
@@ -341,7 +341,7 @@ class DownloadMonitor:
     def _send_download_failed_notification(self, request: DownloadRequest):
         """Send SMS notification when download fails"""
         try:
-            message = f"❌ Sorry, the download for {request.movie_title} ({request.movie_year}) failed. {request.error_message or 'Please try again later.'}"
+            message = f"😔 Sorry, I couldn't get {request.movie_title} ({request.movie_year}) ready for you. {request.error_message or 'Please try again later.'}"
             
             result = self.twilio_client.send_sms(request.phone_number, message)
             
