@@ -420,14 +420,29 @@ class RadarrClient:
         """
         logger.info(f"🎬 Adding movie to Radarr: TMDB ID={tmdb_id}, monitored={monitored}, search_for_movie={search_for_movie}")
         
-        # Get movie details from TMDB lookup
-        logger.info(f"🔍 Looking up movie details for TMDB ID: {tmdb_id}")
-        movie_lookup = self._make_request('GET', f'/api/v3/movie/lookup/tmdb/{tmdb_id}')
-        if not movie_lookup:
-            logger.error(f"❌ Failed to lookup movie with TMDB ID: {tmdb_id}")
+        # Validate TMDB ID first
+        if not self.validate_tmdb_id(tmdb_id):
+            logger.error(f"❌ Invalid TMDB ID: {tmdb_id}")
             return None
         
-        logger.info(f"✅ Movie lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
+        # First, try to get movie details from TMDB lookup
+        logger.info(f"🔍 Looking up movie details for TMDB ID: {tmdb_id}")
+        movie_lookup = self._make_request('GET', f'/api/v3/movie/lookup/tmdb/{tmdb_id}')
+        
+        if not movie_lookup:
+            logger.warning(f"⚠️ Direct TMDB lookup failed for ID {tmdb_id}, trying alternative lookup...")
+            
+            # Try alternative lookup using the general lookup endpoint
+            # This is a fallback method that might work better
+            alternative_lookup = self._lookup_movie_by_tmdb_id_alternative(tmdb_id)
+            if alternative_lookup:
+                movie_lookup = alternative_lookup
+                logger.info(f"✅ Alternative lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
+            else:
+                logger.error(f"❌ All lookup methods failed for TMDB ID: {tmdb_id}")
+                return None
+        else:
+            logger.info(f"✅ Movie lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
         
         # Get default root folder if not provided
         if not root_folder_path:
@@ -610,3 +625,130 @@ class RadarrClient:
             config_info['error'] = str(e)
         
         return config_info
+    
+    def _lookup_movie_by_tmdb_id_alternative(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Alternative method to lookup movie by TMDB ID using different approaches
+        
+        Args:
+            tmdb_id: TMDB movie ID
+            
+        Returns:
+            Movie data or None if not found
+        """
+        logger.info(f"🔍 Trying alternative lookup for TMDB ID: {tmdb_id}")
+        
+        # Method 1: Try using the general lookup endpoint with TMDB ID as search term
+        try:
+            # Sometimes Radarr's lookup works better with the TMDB ID as a search term
+            params = {'term': str(tmdb_id)}
+            result = self._make_request('GET', '/api/v3/movie/lookup', params=params)
+            
+            if result:
+                # Look for exact TMDB ID match in results
+                for movie in result:
+                    if movie.get('tmdbId') == tmdb_id:
+                        logger.info(f"✅ Alternative lookup found movie: {movie.get('title', 'Unknown')}")
+                        return movie
+                        
+        except Exception as e:
+            logger.debug(f"Alternative lookup method 1 failed: {str(e)}")
+        
+        # Method 2: Try using the import list endpoint (if available)
+        try:
+            # Some Radarr versions have different endpoints
+            result = self._make_request('GET', f'/api/v3/movie/lookup/imdb/{tmdb_id}')
+            if result:
+                logger.info(f"✅ Alternative lookup (IMDB method) found movie: {result.get('title', 'Unknown')}")
+                return result
+        except Exception as e:
+            logger.debug(f"Alternative lookup method 2 failed: {str(e)}")
+        
+        # Method 3: Try with different endpoint variations
+        try:
+            # Try without the 'lookup' part
+            result = self._make_request('GET', f'/api/v3/movie/tmdb/{tmdb_id}')
+            if result:
+                logger.info(f"✅ Alternative lookup (direct TMDB) found movie: {result.get('title', 'Unknown')}")
+                return result
+        except Exception as e:
+            logger.debug(f"Alternative lookup method 3 failed: {str(e)}")
+        
+        logger.warning(f"⚠️ All alternative lookup methods failed for TMDB ID: {tmdb_id}")
+        return None
+    
+    def validate_tmdb_id(self, tmdb_id: int) -> bool:
+        """
+        Validate if a TMDB ID is likely valid
+        
+        Args:
+            tmdb_id: TMDB movie ID
+            
+        Returns:
+            True if ID appears valid, False otherwise
+        """
+        # Basic validation - TMDB IDs are typically positive integers
+        if not isinstance(tmdb_id, int) or tmdb_id <= 0:
+            logger.warning(f"⚠️ Invalid TMDB ID format: {tmdb_id}")
+            return False
+        
+        # TMDB IDs are typically in a reasonable range
+        if tmdb_id > 999999999:  # Very large numbers are suspicious
+            logger.warning(f"⚠️ TMDB ID seems unusually large: {tmdb_id}")
+            return False
+        
+        logger.debug(f"✅ TMDB ID format appears valid: {tmdb_id}")
+        return True
+    
+    def test_tmdb_lookup(self, tmdb_id: int) -> Dict[str, Any]:
+        """
+        Test TMDB lookup with detailed debugging information
+        
+        Args:
+            tmdb_id: TMDB movie ID to test
+            
+        Returns:
+            Dictionary with test results and debugging info
+        """
+        logger.info(f"🧪 Testing TMDB lookup for ID: {tmdb_id}")
+        
+        test_results = {
+            'tmdb_id': tmdb_id,
+            'validation': self.validate_tmdb_id(tmdb_id),
+            'direct_lookup': None,
+            'alternative_lookup': None,
+            'error_messages': []
+        }
+        
+        # Test direct lookup
+        try:
+            logger.info(f"🧪 Testing direct lookup: /api/v3/movie/lookup/tmdb/{tmdb_id}")
+            result = self._make_request('GET', f'/api/v3/movie/lookup/tmdb/{tmdb_id}')
+            test_results['direct_lookup'] = result is not None
+            if result:
+                test_results['direct_lookup_data'] = {
+                    'title': result.get('title'),
+                    'year': result.get('year'),
+                    'tmdbId': result.get('tmdbId')
+                }
+            else:
+                test_results['error_messages'].append("Direct lookup returned None")
+        except Exception as e:
+            test_results['error_messages'].append(f"Direct lookup exception: {str(e)}")
+        
+        # Test alternative lookup
+        try:
+            logger.info(f"🧪 Testing alternative lookup methods")
+            alt_result = self._lookup_movie_by_tmdb_id_alternative(tmdb_id)
+            test_results['alternative_lookup'] = alt_result is not None
+            if alt_result:
+                test_results['alternative_lookup_data'] = {
+                    'title': alt_result.get('title'),
+                    'year': alt_result.get('year'),
+                    'tmdbId': alt_result.get('tmdbId')
+                }
+        except Exception as e:
+            test_results['error_messages'].append(f"Alternative lookup exception: {str(e)}")
+        
+        logger.info(f"🧪 TMDB lookup test results: {test_results}")
+        return test_results
