@@ -145,7 +145,16 @@ class Config:
                     "tmdb_api_key": TMDB_API_KEY,
                     "radarr_url": "http://192.168.0.10:7878",
                     "radarr_api_key": "",
-                    "movie_assignments": {}
+                    "movie_assignments": {},
+                    "sms_reply_settings": {
+                        "auto_reply_enabled": True,
+                        "fallback_message": "Thanks for your message! I received: '{message}' from {sender} at {timestamp}. Configure your number in the system to get personalized responses.",
+                        "reply_delay_seconds": 0,
+                        "max_replies_per_day": 10,
+                        "blocked_numbers": [],
+                        "use_chatgpt": False,
+                        "chatgpt_prompt": "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}"
+                    }
                 }
                 logger.info(f"🔍 Setting default data to Redis: {list(default_data.keys())}")
                 redis_client.set('movie_config', json.dumps(default_data))
@@ -1200,7 +1209,9 @@ class Config:
             "fallback_message": "Thanks for your message! I received: '{message}' from {sender} at {timestamp}. Configure your number in the system to get personalized responses.",
             "reply_delay_seconds": 0,
             "max_replies_per_day": 10,
-            "blocked_numbers": []
+            "blocked_numbers": [],
+            "use_chatgpt": False,
+            "chatgpt_prompt": "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}"
         }
         
         if self.use_redis:
@@ -1741,6 +1752,50 @@ Provide ONLY the clean movie title:"""
             return {
                 "error": f"OpenAI API error: {str(e)}",
                 "original_filename": filename,
+                "success": False
+            }
+    
+    def generate_sms_response(self, message: str, sender: str, prompt_template: str) -> Dict[str, Any]:
+        """Generate an SMS response using ChatGPT with a custom prompt."""
+        if not self.client:
+            logger.error("OpenAI API key not configured")
+            return {"error": "OpenAI API key not configured", "success": False}
+        
+        try:
+            # Replace placeholders in the prompt template
+            formatted_prompt = prompt_template.replace('{message}', message)
+            formatted_prompt = formatted_prompt.replace('{sender}', sender)
+            
+            logger.info(f"Generating SMS response with ChatGPT for message: {message}")
+            
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": formatted_prompt}
+                ],
+                max_tokens=200,
+                temperature=0.7
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            
+            # Ensure response is SMS-friendly (under 160 characters)
+            if len(response_text) > 160:
+                response_text = response_text[:157] + "..."
+            
+            logger.info(f"ChatGPT generated response: {response_text}")
+            
+            return {
+                "success": True,
+                "response": response_text,
+                "original_message": message,
+                "sender": sender
+            }
+            
+        except Exception as e:
+            logger.error(f"OpenAI API error for SMS response: {str(e)}")
+            return {
+                "error": f"OpenAI API error: {str(e)}",
                 "success": False
             }
 
@@ -3271,46 +3326,70 @@ def sms_webhook():
         
         # Check if auto-reply is enabled
         if reply_settings.get('auto_reply_enabled', False):
-            # Find matching template based on keywords or use default
-            matching_template = None
-            
-            # First, try to find a template with matching keywords
-            for template in reply_templates:
-                if template.get('enabled', True) and template.get('keywords'):
-                    keywords = template['keywords']
-                    message_body = message_data['Body'].lower()
-                    
-                    # Check if any keyword matches
-                    if any(keyword.lower() in message_body for keyword in keywords):
-                        matching_template = template
-                        break
-            
-            # If no keyword match, use the default template
-            if not matching_template:
-                default_template = next((t for t in reply_templates if t.get('name') == 'default'), None)
-                if default_template and default_template.get('enabled', True):
-                    matching_template = default_template
-            
-            # Generate response message
-            if matching_template:
-                template_text = matching_template['template']
+            # Check if ChatGPT is enabled
+            if reply_settings.get('use_chatgpt', False):
+                # Use ChatGPT to generate response
+                chatgpt_prompt = reply_settings.get('chatgpt_prompt', 
+                    "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}")
                 
-                # Replace placeholders in template
-                response_message = template_text.replace('{sender}', message_data['From'])
-                response_message = response_message.replace('{message}', message_data['Body'])
-                response_message = response_message.replace('{timestamp}', message_data['timestamp'])
-                response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
+                chatgpt_result = openai_client.generate_sms_response(
+                    message_data['Body'], 
+                    message_data['From'], 
+                    chatgpt_prompt
+                )
                 
-                logger.info(f"Using template '{matching_template['name']}' for response")
+                if chatgpt_result.get('success'):
+                    response_message = chatgpt_result['response']
+                    logger.info(f"Using ChatGPT response: {response_message}")
+                else:
+                    # Fallback to template system if ChatGPT fails
+                    logger.warning(f"ChatGPT failed: {chatgpt_result.get('error')}, falling back to templates")
+                    response_message = None
             else:
-                # Fallback to simple acknowledgment
-                fallback_template = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
+                response_message = None
+            
+            # If ChatGPT is not enabled or failed, use template system
+            if not response_message:
+                # Find matching template based on keywords or use default
+                matching_template = None
                 
-                # Replace placeholders in fallback message
-                response_message = fallback_template.replace('{sender}', message_data['From'])
-                response_message = response_message.replace('{message}', message_data['Body'])
-                response_message = response_message.replace('{timestamp}', message_data['timestamp'])
-                response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
+                # First, try to find a template with matching keywords
+                for template in reply_templates:
+                    if template.get('enabled', True) and template.get('keywords'):
+                        keywords = template['keywords']
+                        message_body = message_data['Body'].lower()
+                        
+                        # Check if any keyword matches
+                        if any(keyword.lower() in message_body for keyword in keywords):
+                            matching_template = template
+                            break
+                
+                # If no keyword match, use the default template
+                if not matching_template:
+                    default_template = next((t for t in reply_templates if t.get('name') == 'default'), None)
+                    if default_template and default_template.get('enabled', True):
+                        matching_template = default_template
+                
+                # Generate response message
+                if matching_template:
+                    template_text = matching_template['template']
+                    
+                    # Replace placeholders in template
+                    response_message = template_text.replace('{sender}', message_data['From'])
+                    response_message = response_message.replace('{message}', message_data['Body'])
+                    response_message = response_message.replace('{timestamp}', message_data['timestamp'])
+                    response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
+                    
+                    logger.info(f"Using template '{matching_template['name']}' for response")
+                else:
+                    # Fallback to simple acknowledgment
+                    fallback_template = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
+                    
+                    # Replace placeholders in fallback message
+                    response_message = fallback_template.replace('{sender}', message_data['From'])
+                    response_message = response_message.replace('{message}', message_data['Body'])
+                    response_message = response_message.replace('{timestamp}', message_data['timestamp'])
+                    response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
         
         # If no auto-reply is configured, return empty response (no reply)
         if not response_message:
