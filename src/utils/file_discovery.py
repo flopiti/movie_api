@@ -50,7 +50,10 @@ class FileDiscovery:
                         file_info['movie'] = movie_data
                         
                         # Add filename information for existing assignments
-                        from config import config
+                        import sys
+                        import os
+                        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+                        from config.config import config
                         standard_filename = config._generate_standard_filename(movie_data, file_path_str)
                         current_filename = file_path.name
                         needs_rename = config._should_rename_file(file_path_str, standard_filename)
