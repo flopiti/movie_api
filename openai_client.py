@@ -249,9 +249,7 @@ Provide ONLY the clean movie title:"""
             conversation_text = "\n".join(limited_conversation)
             
             # Log what we're sending to OpenAI
-            logger.info(f"🎬 OpenAI getMovieName: Sending conversation to OpenAI:")
-            logger.info(f"🎬 OpenAI getMovieName: Conversation length: {len(limited_conversation)} messages")
-            logger.info(f"🎬 OpenAI getMovieName: Conversation content: {limited_conversation}")
+            logger.info(f"🎬 OpenAI getMovieName: Analyzing {len(limited_conversation)} messages for movie detection")
             
             prompt = f"""
 You are a movie identification expert. I will provide you with a conversation, and you must extract the movie title and year that is being discussed.
@@ -275,6 +273,10 @@ Conversation (FIRST messages are most important):
 {conversation_text}
 
 Movie Title with Year:"""
+            
+            # Log the full prompt being sent to OpenAI
+            logger.info(f"🎬 OpenAI getMovieName: FULL PROMPT SENT TO OPENAI:")
+            logger.info(f"🎬 OpenAI getMovieName: {prompt}")
 
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -287,14 +289,11 @@ Movie Title with Year:"""
             
             response_text = response.choices[0].message.content.strip()
             
-            # Log the raw response from OpenAI
-            logger.info(f"🎬 OpenAI getMovieName: Raw response from OpenAI: '{response_text}'")
-            
             # Clean up the response
             if response_text.startswith('"') and response_text.endswith('"'):
                 response_text = response_text[1:-1]
             
-            logger.info(f"🎬 OpenAI getMovieName: Cleaned response: '{response_text}'")
+            logger.info(f"🎬 OpenAI getMovieName: Detected movie: '{response_text}'")
             
             return {
                 "success": True,

@@ -85,13 +85,17 @@ def sms_webhook():
             
             # Search TMDB for the movie
             tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
-            logger.info(f"🎬 SMS Webhook: TMDB search result: {tmdb_result}")
             if tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
                 movie_data = tmdb_result['results'][0]  # Get first result
-                logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})")
+                
+                # Extract year from release_date (format: YYYY-MM-DD)
+                release_date = movie_data.get('release_date', '')
+                year = release_date.split('-')[0] if release_date else 'Unknown year'
+                
+                logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({year})")
                 
                 # Generate movie-specific response
-                response_message = f"Yes sure I'll get {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})"
+                response_message = f"Yes sure I'll get {movie_data.get('title')} ({year})"
             else:
                 logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
                 response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
