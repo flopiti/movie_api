@@ -110,10 +110,16 @@ class RedisClient:
             
             # Store message data as JSON
             self.client.set(redis_key, json.dumps(stored_message))
+            logger.info(f"🔍 Redis Client: Stored message {message_sid}: from='{stored_message['from']}', to='{stored_message['to']}', body='{stored_message['body']}'")
             
             # Add to sorted set for chronological ordering (timestamp as score)
-            timestamp = datetime.now().timestamp()
+            timestamp = message_data.get('timestamp', datetime.now().timestamp())
+            if isinstance(timestamp, str):
+                # Convert ISO format to timestamp if needed
+                from datetime import datetime
+                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).timestamp()
             self.client.zadd("sms_messages", {message_sid: timestamp})
+            logger.info(f"🔍 Redis Client: Added message {message_sid} to sorted set with timestamp {timestamp}")
             
             return True
             

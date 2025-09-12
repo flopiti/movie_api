@@ -57,6 +57,10 @@ def sms_webhook():
         
         # Get conversation history for movie detection
         messages = sms_conversations.get_conversation(message_data['From'], 10)
+        logger.info(f"🔍 SMS Webhook: Retrieved {len(messages)} messages from Redis for conversation")
+        for i, msg in enumerate(messages):
+            logger.info(f"🔍 SMS Webhook: Message {i+1}: From={msg.get('From')}, To={msg.get('To')}, Body='{msg.get('Body')}'")
+        
         conversation_history = []
         for message in messages:
             # Determine who sent the message
@@ -69,6 +73,7 @@ def sms_webhook():
             # Format: "SPEAKER: message content"
             formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
             conversation_history.append(formatted_message)
+            logger.info(f"🔍 SMS Webhook: Added to conversation: {formatted_message}")
         
         # Only process with PlexAgent if we have conversation history
         if conversation_history:
@@ -80,23 +85,28 @@ def sms_webhook():
             response_message = "I received your message but couldn't process it. Please try again."
 
         # Store the outgoing reply message in Redis
+        now_timestamp = datetime.now().timestamp()
         outgoing_message_data = {
-            'message_sid': f"webhook_reply_{datetime.now().timestamp()}",
+            'MessageSid': f"webhook_reply_{now_timestamp}",
             'status': 'sent',
-            'to': message_data['From'],  # Reply goes to the sender
-            'from': message_data['To'],  # From our Twilio number
-            'body': response_message,
-            'date_created': datetime.now().isoformat(),
+            'To': message_data['From'],  # Reply goes to the sender
+            'From': message_data['To'],  # From our Twilio number
+            'Body': response_message,
+            'timestamp': now_timestamp,
             'direction': 'outbound',
             'stored_at': datetime.now().isoformat(),
-            'num_media': '0'
+            'NumMedia': '0'
         }
+        
+        logger.info(f"🔍 SMS Webhook: Storing outgoing message: From={outgoing_message_data['From']}, To={outgoing_message_data['To']}, Body='{outgoing_message_data['Body']}'")
         
         # Store the outgoing message
         if redis_client.is_available():
             success = redis_client.store_sms_message(outgoing_message_data)
             if not success:
                 logger.error(f"❌ Failed to store outgoing message in Redis")
+            else:
+                logger.info(f"✅ SMS Webhook: Successfully stored outgoing message in Redis")
         
         logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
         
