@@ -9,7 +9,7 @@ import sys
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from radarr_client import RadarrClient
+from clients.radarr_client import RadarrClient
 
 def test_radarr_connection():
     """Test the Radarr connection and basic functionality"""

@@ -622,7 +622,7 @@ class Config:
     def get_radarr_client(self):
         """Get Radarr client instance."""
         try:
-            from radarr_client import RadarrClient
+            from clients.radarr_client import RadarrClient
             radarr_url = self.data.get('radarr_url', 'http://192.168.0.10:7878')
             radarr_api_key = self.data.get('radarr_api_key', '')
             
@@ -744,7 +744,7 @@ class Config:
             radarr_movies = radarr_client.get_movies()
 
             # Get movies from Plex
-            from plex_client import PlexClient
+            from clients.plex_client import PlexClient
             plex_client = PlexClient()
             plex_movies = plex_client.get_all_movies()
 
