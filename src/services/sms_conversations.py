@@ -34,9 +34,9 @@ class SmsConversations:
             return []
         
         try:
-            # Get message SIDs from Redis sorted set (most recent first)
-            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
-            logger.info(f"🔍 SmsConversations: Retrieved {len(message_sids)} message SIDs from Redis sorted set: {message_sids}")
+            # Get message SIDs from Redis sorted set (oldest first for proper conversation order)
+            message_sids = self.redis_client.zrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
+            logger.info(f"🔍 SmsConversations: Retrieved {len(message_sids)} message SIDs from Redis sorted set (chronological order): {message_sids}")
             
             message_list = []
             for message_sid in message_sids:

@@ -74,6 +74,17 @@ class RedisClient:
             logger.error(f"❌ Redis Client: Failed to zadd to '{key}': {str(e)}")
             return False
     
+    def zrange(self, key: str, start: int, end: int) -> List[str]:
+        """Get members from a sorted set in order."""
+        if not self.client:
+            return []
+        
+        try:
+            return self.client.zrange(key, start, end)
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to zrange '{key}': {str(e)}")
+            return []
+    
     def zrevrange(self, key: str, start: int, end: int) -> List[str]:
         """Get members from a sorted set in reverse order."""
         if not self.client:
