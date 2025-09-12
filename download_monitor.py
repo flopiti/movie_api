@@ -410,6 +410,38 @@ class DownloadMonitor:
                 'error_message': request.error_message
             }
         return None
+    
+    def is_radarr_configured(self) -> bool:
+        """Check if Radarr is properly configured"""
+        try:
+            radarr_api_key = config.data.get('radarr_api_key', '')
+            radarr_url = config.data.get('radarr_url', '')
+            return bool(radarr_api_key and radarr_url)
+        except Exception:
+            return False
+    
+    def get_radarr_config_status(self) -> Dict[str, Any]:
+        """Get Radarr configuration status"""
+        try:
+            radarr_api_key = config.data.get('radarr_api_key', '')
+            radarr_url = config.data.get('radarr_url', '')
+            
+            return {
+                'configured': bool(radarr_api_key and radarr_url),
+                'url': radarr_url,
+                'api_key_set': bool(radarr_api_key),
+                'client_available': self.radarr_client is not None,
+                'connection_test': self.radarr_client.test_connection() if self.radarr_client else False
+            }
+        except Exception as e:
+            return {
+                'configured': False,
+                'url': '',
+                'api_key_set': False,
+                'client_available': False,
+                'connection_test': False,
+                'error': str(e)
+            }
 
 # Global instance
 download_monitor = DownloadMonitor()

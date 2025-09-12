@@ -61,7 +61,7 @@ class Config:
             "download_paths": [],
             "tmdb_api_key": TMDB_API_KEY,
             "radarr_url": "http://192.168.0.10:7878",
-            "radarr_api_key": "",
+            "radarr_api_key": "5a71ac347fb845da90e2284762335a1a",
             "movie_assignments": {}
         }
     

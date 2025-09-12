@@ -111,19 +111,25 @@ def sms_webhook():
                 tmdb_id = movie_data.get('id')
                 if tmdb_id:
                     logger.info(f"📱 SMS Webhook: Adding download request for {movie_data.get('title')} ({year}) from {message_data['From']}")
-                    success = download_monitor.add_download_request(
-                        tmdb_id=tmdb_id,
-                        movie_title=movie_data.get('title'),
-                        movie_year=year,
-                        phone_number=message_data['From']
-                    )
                     
-                    if success:
-                        response_message = f"🎬 Great! I found '{movie_data.get('title')} ({year})' and added it to your download queue. I'll send you updates as the download progresses!"
-                        logger.info(f"✅ SMS Webhook: Download request added successfully for {movie_data.get('title')}")
+                    # Check if Radarr is configured first
+                    if not download_monitor.is_radarr_configured():
+                        response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but Radarr is not configured yet. Please set up your Radarr API key to enable downloads!"
+                        logger.warning(f"⚠️ SMS Webhook: Radarr not configured - cannot process download request for {movie_data.get('title')}")
                     else:
-                        response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but it's already in your download queue. I'll keep you updated on the progress!"
-                        logger.info(f"ℹ️ SMS Webhook: Download request already exists for {movie_data.get('title')}")
+                        success = download_monitor.add_download_request(
+                            tmdb_id=tmdb_id,
+                            movie_title=movie_data.get('title'),
+                            movie_year=year,
+                            phone_number=message_data['From']
+                        )
+                        
+                        if success:
+                            response_message = f"🎬 Great! I found '{movie_data.get('title')} ({year})' and added it to your download queue. I'll send you updates as the download progresses!"
+                            logger.info(f"✅ SMS Webhook: Download request added successfully for {movie_data.get('title')}")
+                        else:
+                            response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but it's already in your download queue. I'll keep you updated on the progress!"
+                            logger.info(f"ℹ️ SMS Webhook: Download request already exists for {movie_data.get('title')}")
                 
                 # Don't set response_message - let it fall through to ChatGPT with movie context
             else:
@@ -747,14 +753,28 @@ def stop_download_monitor():
 def get_download_monitor_status():
     """Get download monitoring service status."""
     try:
+        radarr_status = download_monitor.get_radarr_config_status()
+        
         return jsonify({
             'running': download_monitor.running,
             'radarr_available': download_monitor.radarr_client is not None,
             'twilio_available': download_monitor.twilio_client.is_configured(),
             'redis_available': download_monitor.redis_client is not None,
-            'active_requests': len(download_monitor.download_requests)
+            'active_requests': len(download_monitor.download_requests),
+            'radarr_config': radarr_status
         }), 200
         
     except Exception as e:
         logger.error(f"❌ SMS Monitor Status Error: {str(e)}")
         return jsonify({'error': f'Failed to get monitor status: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/radarr-config', methods=['GET'])
+def get_radarr_config():
+    """Get Radarr configuration status."""
+    try:
+        radarr_status = download_monitor.get_radarr_config_status()
+        return jsonify(radarr_status), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Radarr Config Error: {str(e)}")
+        return jsonify({'error': f'Failed to get Radarr config: {str(e)}'}), 500
