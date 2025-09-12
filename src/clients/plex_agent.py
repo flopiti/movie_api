@@ -20,17 +20,7 @@ class PlexAgent:
         self.download_monitor = download_monitor
         self.sms_response_prompt = SMS_RESPONSE_PROMPT
     
-    def Answer(self, message_data, conversation_history=None):
-        """
-        Process an incoming SMS message and generate an appropriate response.
-        
-        Args:
-            message_data (dict): The incoming SMS message data
-            conversation_history (list, optional): Previous messages in the conversation
-            
-        Returns:
-            dict: Response containing the generated message and any relevant metadata
-        """
+    def Answer(self, message_data, conversation_history):
         logger.info(f"🎬 PlexAgent: Processing message from {message_data['From']}")
         
         # Try to detect movie in conversation

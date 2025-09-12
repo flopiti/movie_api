@@ -181,6 +181,32 @@ class SmsConversations:
             logger.error(f"Error getting conversations: {str(e)}")
             return []
     
+    def delete_conversation(self, phone_number: str) -> bool:
+        """
+        Delete all messages for a specific phone number conversation.
+        
+        Args:
+            phone_number: The phone number to delete conversation for
+            
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        if not self.redis_client.is_available():
+            logger.warning("Redis not available for deleting conversation")
+            return False
+        
+        try:
+            success = self.redis_client.delete_conversation(phone_number)
+            if success:
+                logger.info(f"✅ SmsConversations: Successfully deleted conversation for {phone_number}")
+            else:
+                logger.error(f"❌ SmsConversations: Failed to delete conversation for {phone_number}")
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ SmsConversations: Failed to delete conversation: {str(e)}")
+            return False
+    
     def _get_our_phone_number(self) -> str:
         """Get our Twilio phone number from environment."""
         import os

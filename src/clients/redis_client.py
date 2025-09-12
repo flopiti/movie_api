@@ -121,3 +121,44 @@ class RedisClient:
             logger.error(f"❌ Redis Client: Failed to store SMS message: {str(e)}")
             return False
     
+    def delete_conversation(self, phone_number: str) -> bool:
+        """Delete all messages for a specific phone number conversation."""
+        if not self.client:
+            return False
+        
+        try:
+            # Get all message SIDs from Redis sorted set
+            message_sids = self.client.zrevrange("sms_messages", 0, -1)
+            deleted_count = 0
+            
+            for message_sid in message_sids:
+                redis_key = f"sms_message:{message_sid}"
+                message_json = self.client.get(redis_key)
+                
+                if message_json:
+                    try:
+                        message_data = json.loads(message_json)
+                        
+                        # Check if this message belongs to the conversation
+                        if (message_data.get('from') == phone_number or 
+                            message_data.get('to') == phone_number):
+                            
+                            # Delete the message data
+                            self.client.delete(redis_key)
+                            
+                            # Remove from sorted set
+                            self.client.zrem("sms_messages", message_sid)
+                            
+                            deleted_count += 1
+                            
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ Redis Client: Failed to parse message JSON for deletion: {str(e)}")
+                        continue
+            
+            logger.info(f"✅ Redis Client: Deleted {deleted_count} messages for conversation {phone_number}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to delete conversation: {str(e)}")
+            return False
+    

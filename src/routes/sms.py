@@ -168,6 +168,27 @@ def get_sms_conversations():
         logger.error(f"Failed to retrieve conversations: {str(e)}")
         return jsonify({'error': f'Failed to retrieve conversations: {str(e)}'}), 500
 
+@sms_bp.route('/api/sms/conversations/<phone_number>', methods=['DELETE'])
+def delete_sms_conversation(phone_number):
+    """Delete all messages for a specific phone number conversation."""
+    try:
+        if not phone_number:
+            return jsonify({'error': 'Phone number is required'}), 400
+        
+        success = sms_conversations.delete_conversation(phone_number)
+        
+        if success:
+            return jsonify({
+                'message': f'Conversation for {phone_number} deleted successfully',
+                'phone_number': phone_number
+            }), 200
+        else:
+            return jsonify({'error': f'Failed to delete conversation for {phone_number}'}), 500
+            
+    except Exception as e:
+        logger.error(f"❌ SMS Delete Conversation Error: {str(e)}")
+        return jsonify({'error': f'Failed to delete conversation: {str(e)}'}), 500
+
 @sms_bp.route('/api/sms/status', methods=['GET'])
 def sms_status():
     """Get SMS service status and configuration."""
