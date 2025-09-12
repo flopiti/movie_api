@@ -273,47 +273,7 @@ def sms_webhook():
         logger.error(f"❌ SMS Webhook Traceback: {traceback.format_exc()}")
         return twilio_client.create_webhook_response("Error processing message"), 500, {'Content-Type': 'text/xml'}
 
-@sms_bp.route('/api/sms/ayo', methods=['POST'])
-def sms_ayo():
-    """Simple webhook endpoint that always replies 'AYO'."""
-    try:
-        # Log incoming message
-
-        # Store incoming message
-        message_data = {
-            'MessageSid': request.form.get('MessageSid'),
-            'From': request.form.get('From'),
-            'To': request.form.get('To'),
-            'Body': request.form.get('Body'),
-            'NumMedia': request.form.get('NumMedia', '0'),
-            'timestamp': datetime.now().isoformat()
-        }
-        twilio_client.store_incoming_message(message_data)
-        
-        # Store the outgoing AYO reply message
-        outgoing_message_data = {
-            'message_sid': f"ayo_reply_{datetime.now().timestamp()}",
-            'status': 'sent',
-            'to': message_data['From'],  # Reply goes to the sender
-            'from': message_data['To'],  # From our Twilio number
-            'body': 'AYO',
-            'date_created': datetime.now().isoformat(),
-            'direction': 'outbound',
-            'stored_at': datetime.now().isoformat(),
-            'num_media': '0'
-        }
-        twilio_client._store_message_in_redis(outgoing_message_data)
-        
-        # Always reply with 'AYO'
-        return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
-        
-    except Exception as e:
-        logger.error(f"❌ SMS AYO Error: {str(e)}")
-        logger.error(f"❌ SMS AYO Error Details: {type(e).__name__}")
-        import traceback
-        logger.error(f"❌ SMS AYO Traceback: {traceback.format_exc()}")
-        return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
-
+# For testing, sending SMS messages directly
 @sms_bp.route('/api/sms/send', methods=['POST'])
 def send_sms():
     """Send an SMS message."""
