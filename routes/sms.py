@@ -70,23 +70,32 @@ def sms_webhook():
         movie_result = None
         if conversation_history:
             logger.info(f"🎬 SMS Webhook: Analyzing conversation for movie detection...")
+            logger.info(f"🎬 SMS Webhook: Conversation history: {conversation_history}")
             movie_result = openai_client.getMovieName(conversation_history)
-            if movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
-                logger.info(f"🎬 SMS Webhook: Movie detected: {movie_result['movie_name']}")
+            logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
+        else:
+            # Fallback: analyze just the current message
+            logger.info(f"🎬 SMS Webhook: No conversation history, analyzing current message...")
+            logger.info(f"🎬 SMS Webhook: Current message: {[message_data['Body']]}")
+            movie_result = openai_client.getMovieName([message_data['Body']])
+            logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
+        
+        if movie_result and movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
+            logger.info(f"🎬 SMS Webhook: Movie detected: {movie_result['movie_name']}")
+            
+            # Search TMDB for the movie
+            tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
+            if tmdb_result.get('success') and tmdb_result.get('movies'):
+                movie_data = tmdb_result['movies'][0]  # Get first result
+                logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})")
                 
-                # Search TMDB for the movie
-                tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
-                if tmdb_result.get('success') and tmdb_result.get('movies'):
-                    movie_data = tmdb_result['movies'][0]  # Get first result
-                    logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})")
-                    
-                    # Generate movie-specific response
-                    response_message = f"Yes sure I'll get {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})"
-                else:
-                    logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
-                    response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
+                # Generate movie-specific response
+                response_message = f"Yes sure I'll get {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})"
             else:
-                logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
+                logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
+                response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
+        else:
+            logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
         
         # Get reply settings and templates
         reply_settings = config.get_sms_reply_settings()
