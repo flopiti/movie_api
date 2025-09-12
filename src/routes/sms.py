@@ -12,6 +12,7 @@ from flask import Blueprint, request, jsonify
 from ..clients.twilio_client import TwilioClient
 from ..clients.openai_client import OpenAIClient
 from ..clients.tmdb_client import TMDBClient
+from ..clients.plex_agent import PlexAgent
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
@@ -30,6 +31,7 @@ sms_bp = Blueprint('sms', __name__)
 twilio_client = TwilioClient()
 openai_client = OpenAIClient(OPENAI_API_KEY)
 tmdb_client = TMDBClient(TMDB_API_KEY)
+plex_agent = PlexAgent()
 
 @sms_bp.route('/api/sms/webhook', methods=['POST'])
 def sms_webhook():
@@ -54,7 +56,7 @@ def sms_webhook():
                 logger.error(f"❌ Failed to store incoming message in Redis")
         
         # Get conversation history for movie detection
-        messages = sms_conversations.get_conversation(message_data['From'], 5)
+        messages = sms_conversations.get_conversation(message_data['From'], 10)
         conversation_history = []
         for message in messages:
             # Determine who sent the message
@@ -68,101 +70,10 @@ def sms_webhook():
             formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
             conversation_history.append(formatted_message)
         
-        # Try to detect movie in conversation
-        movie_result = None
-        response_message = None  # Initialize response message
-        if conversation_history:
-            logger.info(f"🎬 SMS Webhook: Analyzing conversation for movie detection...")
-            logger.info(f"🎬 SMS Webhook: Conversation history ({len(conversation_history)} messages): {conversation_history}")
-            movie_result = openai_client.getMovieName(conversation_history)
-            logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
-        else:
-            # Fallback: analyze just the current message
-            logger.info(f"🎬 SMS Webhook: No conversation history, analyzing current message...")
-            logger.info(f"🎬 SMS Webhook: Current message: {[message_data['Body']]}")
-            movie_result = openai_client.getMovieName([message_data['Body']])
-            logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
-        
-        if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-            logger.info(f"🎬 SMS Webhook: Movie detected: {movie_result['movie_name']}")
-            
-            # Search TMDB for the movie
-            tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
-            if tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                movie_data = tmdb_result['results'][0]  # Get first result
-                
-                # Extract year from release_date (format: YYYY-MM-DD)
-                release_date = movie_data.get('release_date', '')
-                year = release_date.split('-')[0] if release_date else 'Unknown year'
-                
-                logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({year})")
-                
-                # Add download request to the monitor
-                tmdb_id = movie_data.get('id')
-                if tmdb_id:
-                    logger.info(f"📱 SMS Webhook: Adding download request for {movie_data.get('title')} ({year}) from {message_data['From']}")
-                    
-                    # Check if Radarr is configured first
-                    if not download_monitor.is_radarr_configured():
-                        response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but Radarr is not configured yet. Please set up your Radarr API key to enable downloads!"
-                        logger.warning(f"⚠️ SMS Webhook: Radarr not configured - cannot process download request for {movie_data.get('title')}")
-                    else:
-                        success = download_monitor.add_download_request(
-                            tmdb_id=tmdb_id,
-                            movie_title=movie_data.get('title'),
-                            movie_year=year,
-                            phone_number=message_data['From']
-                        )
-                        
-                        if success:
-                            response_message = f"🎬 Great! I found '{movie_data.get('title')} ({year})' and added it to your download queue. I'll send you updates as the download progresses!"
-                            logger.info(f"✅ SMS Webhook: Download request added successfully for {movie_data.get('title')}")
-                        else:
-                            response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but it's already in your download queue. I'll keep you updated on the progress!"
-                            logger.info(f"ℹ️ SMS Webhook: Download request already exists for {movie_data.get('title')}")
-                
-                # Don't set response_message - let it fall through to ChatGPT with movie context
-            else:
-                logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
-                # Don't set response_message - let it fall through to ChatGPT with movie context
-        else:
-            logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
-            # Don't set response_message - let it fall through to ChatGPT
-        
-        # Always try ChatGPT if no movie-specific response was generated
-        if not response_message:
-            logger.info(f"🤖 SMS Webhook: No movie response, calling ChatGPT...")
-            
-            # Add context about movie detection result
-            movie_context = ""
-            if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-                # Check if movie was found in TMDB
-                if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                    movie_data = tmdb_result['results'][0]
-                    release_date = movie_data.get('release_date', '')
-                    year = release_date.split('-')[0] if release_date else 'Unknown year'
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
-                else:
-                    movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
-            else:
-                movie_context = " (Note: No movie was identified in the conversation)"
-            
-            logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
-            chatgpt_result = openai_client.generate_sms_response(
-                message_data['Body'], 
-                message_data['From'], 
-                SMS_RESPONSE_PROMPT,
-                movie_context=movie_context
-            )
-            
-            logger.info(f"🤖 OpenAI SMS Result: {chatgpt_result}")
-            
-            if chatgpt_result.get('success'):
-                response_message = chatgpt_result['response']
-                logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
-            else:
-                logger.error(f"❌ OpenAI SMS Failed: {chatgpt_result.get('error', 'Unknown error')}")
-                response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
+        # Use PlexAgent to process the message and generate response
+        logger.info(f"🎬 SMS Webhook: Processing message with PlexAgent...")
+        agent_result = plex_agent.Answer(message_data, conversation_history)
+        response_message = agent_result['response_message']
 
         # Store the outgoing reply message in Redis
         outgoing_message_data = {
