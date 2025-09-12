@@ -242,13 +242,23 @@ Provide ONLY the clean movie title:"""
             return {"error": "OpenAI API key not configured", "success": False}
         
         try:
+            # Limit to last 10 messages (most recent are first)
+            limited_conversation = conversation[:10]
+            
             # Join conversation into a single string
-            conversation_text = "\n".join(conversation)
+            conversation_text = "\n".join(limited_conversation)
+            
+            # Log what we're sending to OpenAI
+            logger.info(f"🎬 OpenAI getMovieName: Sending conversation to OpenAI:")
+            logger.info(f"🎬 OpenAI getMovieName: Conversation length: {len(limited_conversation)} messages")
+            logger.info(f"🎬 OpenAI getMovieName: Conversation content: {limited_conversation}")
             
             prompt = f"""
 You are a movie identification expert. I will provide you with a conversation, and you must extract the movie title and year that is being discussed.
 
 IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for clarification or more information.
+
+CRITICAL: The FIRST messages in the conversation are the MOST IMPORTANT ones. Focus on the beginning of the conversation for movie identification.
 
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
@@ -261,7 +271,7 @@ Examples of correct output:
 
 If no movie is clearly identified in the conversation, return "No movie identified".
 
-Conversation:
+Conversation (FIRST messages are most important):
 {conversation_text}
 
 Movie Title with Year:"""
@@ -277,14 +287,19 @@ Movie Title with Year:"""
             
             response_text = response.choices[0].message.content.strip()
             
+            # Log the raw response from OpenAI
+            logger.info(f"🎬 OpenAI getMovieName: Raw response from OpenAI: '{response_text}'")
+            
             # Clean up the response
             if response_text.startswith('"') and response_text.endswith('"'):
                 response_text = response_text[1:-1]
             
+            logger.info(f"🎬 OpenAI getMovieName: Cleaned response: '{response_text}'")
+            
             return {
                 "success": True,
                 "movie_name": response_text,
-                "conversation": conversation
+                "conversation": limited_conversation
             }
             
         except Exception as e:
