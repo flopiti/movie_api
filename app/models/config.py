@@ -1016,9 +1016,7 @@ class Config:
             "fallback_message": "Thanks for your message! I received: '{message}' from {sender} at {timestamp}. Configure your number in the system to get personalized responses.",
             "reply_delay_seconds": 0,
             "max_replies_per_day": 10,
-            "blocked_numbers": [],
-            "openai_enabled": False,
-            "openai_system_prompt": "You are a helpful assistant responding to SMS messages. Keep responses concise and friendly."
+            "blocked_numbers": []
         }
         
         if self.use_redis:
