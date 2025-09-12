@@ -129,15 +129,9 @@ def sms_webhook():
             logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
             # Don't set response_message - let it fall through to ChatGPT
         
-        # Get reply settings and templates
-        reply_settings = config.get_sms_reply_settings()
-        reply_templates = config.get_sms_reply_templates()
-        
-        # Always try ChatGPT first if no movie-specific response was generated
+        # Always try ChatGPT if no movie-specific response was generated
         if not response_message:
             logger.info(f"🤖 SMS Webhook: No movie response, calling ChatGPT...")
-            # Use ChatGPT to generate response
-            chatgpt_prompt = reply_settings.get('chatgpt_prompt', SMS_RESPONSE_PROMPT)
             
             # Add context about movie detection result
             movie_context = ""
@@ -157,7 +151,7 @@ def sms_webhook():
             chatgpt_result = openai_client.generate_sms_response(
                 message_data['Body'], 
                 message_data['From'], 
-                chatgpt_prompt,
+                SMS_RESPONSE_PROMPT,
                 movie_context=movie_context
             )
             
@@ -168,68 +162,6 @@ def sms_webhook():
                 logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
             else:
                 logger.error(f"❌ OpenAI SMS Failed: {chatgpt_result.get('error', 'Unknown error')}")
-                # Fallback to template system if ChatGPT fails
-                response_message = None
-            
-            # If ChatGPT is not enabled or failed, use template system
-            if not response_message:
-                # Find matching template based on keywords or use default
-                matching_template = None
-                
-                # First, try to find a template with matching keywords
-                for template in reply_templates:
-                    if template.get('enabled', True) and template.get('keywords'):
-                        keywords = template['keywords']
-                        message_body = message_data['Body'].lower()
-                        
-                        # Check if any keyword matches
-                        if any(keyword.lower() in message_body for keyword in keywords):
-                            matching_template = template
-                            break
-                
-                # If no keyword match, use the default template
-                if not matching_template:
-                    default_template = next((t for t in reply_templates if t.get('name') == 'default'), None)
-                    if default_template and default_template.get('enabled', True):
-                        matching_template = default_template
-                
-                # Generate response message
-                if matching_template:
-                    template_text = matching_template['template']
-                    
-                    # Replace placeholders in template
-                    response_message = template_text.replace('{sender}', message_data['From'])
-                    response_message = response_message.replace('{message}', message_data['Body'])
-                    response_message = response_message.replace('{timestamp}', message_data['timestamp'])
-                    response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
-
-                else:
-                    # Fallback to simple acknowledgment
-                    fallback_template = reply_settings.get('fallback_message', f"Message received: '{message_data['Body']}'")
-                    
-                    # Replace placeholders in fallback message
-                    response_message = fallback_template.replace('{sender}', message_data['From'])
-                    response_message = response_message.replace('{message}', message_data['Body'])
-                    response_message = response_message.replace('{timestamp}', message_data['timestamp'])
-                    response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
-        
-        # If no auto-reply is configured, use ChatGPT to generate a response
-        if not response_message:
-            logger.info(f"🤖 SMS Webhook: No response generated, calling ChatGPT as fallback...")
-            chatgpt_result = openai_client.generate_sms_response(
-                message_data['Body'], 
-                message_data['From'], 
-                SMS_RESPONSE_PROMPT,
-                movie_context=" (Note: No movie was identified in the conversation)"
-            )
-            
-            logger.info(f"🤖 OpenAI Fallback Result: {chatgpt_result}")
-            
-            if chatgpt_result.get('success'):
-                response_message = chatgpt_result['response']
-                logger.info(f"✅ OpenAI Fallback Response: Generated response '{response_message}'")
-            else:
-                logger.error(f"❌ OpenAI Fallback Failed: {chatgpt_result.get('error', 'Unknown error')}")
                 response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
 
         # Store the outgoing reply message in Redis
@@ -416,116 +348,6 @@ def update_phone_settings():
         pass
         return jsonify({'error': f'Failed to update phone settings: {str(e)}'}), 500
 
-# SMS Reply Management Endpoints
-@sms_bp.route('/api/sms/reply-templates', methods=['GET'])
-def get_reply_templates():
-    """Get all SMS reply templates."""
-    try:
-        templates = config.get_sms_reply_templates()
-        return jsonify({
-            'templates': templates,
-            'count': len(templates)
-        }), 200
-        
-    except Exception as e:
-        pass
-        return jsonify({'error': f'Failed to get reply templates: {str(e)}'}), 500
-
-@sms_bp.route('/api/sms/reply-templates', methods=['POST'])
-def create_reply_template():
-    """Create a new SMS reply template."""
-    try:
-        data = request.get_json()
-        if not data or 'name' not in data or 'template' not in data:
-            return jsonify({'error': 'Missing required fields: name, template'}), 400
-        
-        template_data = {
-            'name': data['name'],
-            'template': data['template'],
-            'enabled': data.get('enabled', True),
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat()
-        }
-        
-        # Add optional fields
-        if 'description' in data:
-            template_data['description'] = data['description']
-        if 'keywords' in data:
-            template_data['keywords'] = data['keywords']
-        
-        success = config.add_sms_reply_template(template_data)
-        
-        if success:
-            return jsonify({
-                'message': 'Reply template created successfully',
-                'template': template_data
-            }), 201
-        else:
-            return jsonify({'error': 'Failed to create reply template'}), 500
-            
-    except Exception as e:
-        pass
-        return jsonify({'error': f'Failed to create reply template: {str(e)}'}), 500
-
-@sms_bp.route('/api/sms/reply-templates/<template_id>', methods=['PUT'])
-def update_reply_template(template_id):
-    """Update an existing SMS reply template."""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        # Get existing template
-        templates = config.get_sms_reply_templates()
-        template = next((t for t in templates if t['id'] == template_id), None)
-        
-        if not template:
-            return jsonify({'error': 'Template not found'}), 404
-        
-        # Update template with new data
-        updated_template = template.copy()
-        updated_template['updated_at'] = datetime.now().isoformat()
-        
-        if 'name' in data:
-            updated_template['name'] = data['name']
-        if 'template' in data:
-            updated_template['template'] = data['template']
-        if 'enabled' in data:
-            updated_template['enabled'] = data['enabled']
-        if 'description' in data:
-            updated_template['description'] = data['description']
-        if 'keywords' in data:
-            updated_template['keywords'] = data['keywords']
-        
-        success = config.update_sms_reply_template(template_id, updated_template)
-        
-        if success:
-            return jsonify({
-                'message': 'Reply template updated successfully',
-                'template': updated_template
-            }), 200
-        else:
-            return jsonify({'error': 'Failed to update reply template'}), 500
-            
-    except Exception as e:
-        pass
-        return jsonify({'error': f'Failed to update reply template: {str(e)}'}), 500
-
-@sms_bp.route('/api/sms/reply-templates/<template_id>', methods=['DELETE'])
-def delete_reply_template(template_id):
-    """Delete an SMS reply template."""
-    try:
-        success = config.delete_sms_reply_template(template_id)
-        
-        if success:
-            return jsonify({'message': 'Reply template deleted successfully'}), 200
-        else:
-            return jsonify({'error': 'Template not found or failed to delete'}), 404
-            
-    except Exception as e:
-        pass
-        return jsonify({'error': f'Failed to delete reply template: {str(e)}'}), 500
-
 @sms_bp.route('/api/sms/reply-settings', methods=['GET'])
 def get_reply_settings():
     """Get SMS reply settings."""
@@ -534,7 +356,7 @@ def get_reply_settings():
         return jsonify(settings), 200
         
     except Exception as e:
-        pass
+        logger.error(f"Failed to get reply settings: {str(e)}")
         return jsonify({'error': f'Failed to get reply settings: {str(e)}'}), 500
 
 @sms_bp.route('/api/sms/reply-settings', methods=['PUT'])
@@ -556,7 +378,7 @@ def update_reply_settings():
             return jsonify({'error': 'Failed to update reply settings'}), 500
             
     except Exception as e:
-        pass
+        logger.error(f"Failed to update reply settings: {str(e)}")
         return jsonify({'error': f'Failed to update reply settings: {str(e)}'}), 500
 
 # Download Management Endpoints
