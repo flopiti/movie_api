@@ -79,6 +79,7 @@ def sms_webhook():
         
         # Try to detect movie in conversation
         movie_result = None
+        response_message = None  # Initialize response message
         if conversation_history:
             logger.info(f"🎬 SMS Webhook: Analyzing conversation for movie detection...")
             logger.info(f"🎬 SMS Webhook: Conversation history ({len(conversation_history)} messages): {conversation_history}")
