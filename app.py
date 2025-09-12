@@ -114,7 +114,7 @@ register_download_routes(app, config)
 register_plex_routes(app, plex_client, config)
 
 # SMS routes
-register_sms_routes(app, twilio_client, config)
+register_sms_routes(app, twilio_client, config, openai_client)
 
 # Utility routes
 register_utility_routes(app, config)

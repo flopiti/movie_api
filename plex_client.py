@@ -26,6 +26,15 @@ class PlexClient:
         if self.token:
             self.session.headers.update({'X-Plex-Token': self.token})
     
+    def is_configured(self) -> bool:
+        """
+        Check if Plex client is properly configured
+        
+        Returns:
+            True if client has server URL and token, False otherwise
+        """
+        return bool(self.server_url and self.token)
+    
     def get_libraries(self) -> List[Dict]:
         """
         Get all libraries from Plex server

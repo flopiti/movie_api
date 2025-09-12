@@ -8,7 +8,7 @@ from flask import request, jsonify
 
 logger = logging.getLogger(__name__)
 
-def register_sms_routes(app, twilio_client, config):
+def register_sms_routes(app, twilio_client, config, openai_client):
     """Register SMS/Twilio-related routes with the Flask app."""
     
     @app.route('/api/sms/webhook', methods=['POST'])
@@ -23,7 +23,27 @@ def register_sms_routes(app, twilio_client, config):
             
             logger.info(f"Received SMS from {from_number} to {to_number}: {message_body}")
             
-            # Process the SMS message
+            # Get SMS reply settings to check if OpenAI is enabled
+            reply_settings = config.get_sms_reply_settings()
+            openai_enabled = reply_settings.get('openai_enabled', False)
+            
+            # Process the SMS message through OpenAI if enabled
+            if openai_enabled and openai_client.client:
+                logger.info("Processing SMS message through OpenAI")
+                openai_result = openai_client.process_sms_message(
+                    message_body, 
+                    reply_settings.get('openai_system_prompt')
+                )
+                
+                if openai_result.get('success'):
+                    logger.info(f"OpenAI generated response: {openai_result['response'][:50]}...")
+                    # Use OpenAI response as the message body for further processing
+                    message_body = openai_result['response']
+                else:
+                    logger.warning(f"OpenAI processing failed: {openai_result.get('error', 'Unknown error')}")
+                    # Continue with original message if OpenAI fails
+            
+            # Process the SMS message (either original or OpenAI-processed)
             response = twilio_client.process_incoming_sms(
                 from_number=from_number,
                 to_number=to_number,
@@ -281,4 +301,33 @@ def register_sms_routes(app, twilio_client, config):
                 
         except Exception as e:
             logger.error(f"Error updating reply settings: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/sms/test-openai', methods=['POST'])
+    def test_openai_sms():
+        """Test OpenAI SMS processing."""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Request body is required'}), 400
+            
+            message = data.get('message', '')
+            if not message:
+                return jsonify({'error': 'message is required'}), 400
+            
+            # Get current settings
+            reply_settings = config.get_sms_reply_settings()
+            system_prompt = reply_settings.get('openai_system_prompt')
+            
+            # Process through OpenAI
+            result = openai_client.process_sms_message(message, system_prompt)
+            
+            return jsonify({
+                'original_message': message,
+                'system_prompt': system_prompt,
+                'result': result
+            })
+                
+        except Exception as e:
+            logger.error(f"Error testing OpenAI SMS: {str(e)}")
             return jsonify({'error': str(e)}), 500
