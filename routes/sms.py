@@ -91,7 +91,7 @@ def sms_webhook():
             movie_result = openai_client.getMovieName([message_data['Body']])
             logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
         
-        if movie_result and movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
+        if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
             logger.info(f"🎬 SMS Webhook: Movie detected: {movie_result['movie_name']}")
             
             # Search TMDB for the movie
@@ -105,11 +105,10 @@ def sms_webhook():
                 
                 logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({year})")
                 
-                # Generate movie-specific response
-                response_message = f"Yes sure I'll get {movie_data.get('title')} ({year})"
+                # Don't set response_message - let it fall through to ChatGPT with movie context
             else:
                 logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
-                response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
+                # Don't set response_message - let it fall through to ChatGPT with movie context
         else:
             logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
             # Don't set response_message - let it fall through to ChatGPT
@@ -128,8 +127,15 @@ def sms_webhook():
                 
                 # Add context about movie detection result
                 movie_context = ""
-                if movie_result and movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
-                    movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
+                if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
+                    # Check if movie was found in TMDB
+                    if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+                        movie_data = tmdb_result['results'][0]
+                        release_date = movie_data.get('release_date', '')
+                        year = release_date.split('-')[0] if release_date else 'Unknown year'
+                        movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
+                    else:
+                        movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
                 else:
                     movie_context = " (Note: No movie was identified in the conversation)"
                 
