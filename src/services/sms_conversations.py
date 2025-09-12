@@ -165,17 +165,23 @@ class SmsConversations:
                 
                 # Update last message info
                 message_time = conversation_message['timestamp']
-                if not conversations[conversation_key]['last_message_time'] or (message_time and message_time > conversations[conversation_key]['last_message_time']):
+                current_last_time = conversations[conversation_key]['last_message_time']
+                
+                # Convert both times to strings for consistent comparison
+                message_time_str = str(message_time) if message_time else ''
+                current_last_time_str = str(current_last_time) if current_last_time else ''
+                
+                if not current_last_time or (message_time_str and message_time_str > current_last_time_str):
                     conversations[conversation_key]['last_message'] = conversation_message
                     conversations[conversation_key]['last_message_time'] = message_time
             
             # Sort messages within each conversation by timestamp
             for conversation in conversations.values():
-                conversation['messages'].sort(key=lambda x: x['timestamp'] or '')
+                conversation['messages'].sort(key=lambda x: str(x['timestamp']) if x['timestamp'] else '')
             
             # Convert to list and sort by last message time
             conversation_list = list(conversations.values())
-            conversation_list.sort(key=lambda x: x['last_message_time'] or '', reverse=True)
+            conversation_list.sort(key=lambda x: str(x['last_message_time']) if x['last_message_time'] else '', reverse=True)
             
             return conversation_list
             
