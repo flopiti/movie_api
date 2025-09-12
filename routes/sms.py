@@ -13,6 +13,7 @@ from openai_client import OpenAIClient
 from tmdb_client import TMDBClient
 from config import config, OPENAI_API_KEY, TMDB_API_KEY
 from PROMPTS import SMS_RESPONSE_PROMPT
+from download_monitor import download_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,24 @@ def sms_webhook():
                 year = release_date.split('-')[0] if release_date else 'Unknown year'
                 
                 logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({year})")
+                
+                # Add download request to the monitor
+                tmdb_id = movie_data.get('id')
+                if tmdb_id:
+                    logger.info(f"📱 SMS Webhook: Adding download request for {movie_data.get('title')} ({year}) from {message_data['From']}")
+                    success = download_monitor.add_download_request(
+                        tmdb_id=tmdb_id,
+                        movie_title=movie_data.get('title'),
+                        movie_year=year,
+                        phone_number=message_data['From']
+                    )
+                    
+                    if success:
+                        response_message = f"🎬 Great! I found '{movie_data.get('title')} ({year})' and added it to your download queue. I'll send you updates as the download progresses!"
+                        logger.info(f"✅ SMS Webhook: Download request added successfully for {movie_data.get('title')}")
+                    else:
+                        response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but it's already in your download queue. I'll keep you updated on the progress!"
+                        logger.info(f"ℹ️ SMS Webhook: Download request already exists for {movie_data.get('title')}")
                 
                 # Don't set response_message - let it fall through to ChatGPT with movie context
             else:
@@ -642,3 +661,100 @@ def update_reply_settings():
     except Exception as e:
         pass
         return jsonify({'error': f'Failed to update reply settings: {str(e)}'}), 500
+
+# Download Management Endpoints
+@sms_bp.route('/api/sms/downloads', methods=['GET'])
+def get_download_requests():
+    """Get all download requests."""
+    try:
+        requests = download_monitor.get_download_requests()
+        return jsonify({
+            'download_requests': requests,
+            'count': len(requests)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Downloads Error: {str(e)}")
+        return jsonify({'error': f'Failed to get download requests: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/downloads/<int:tmdb_id>', methods=['GET'])
+def get_download_request(tmdb_id):
+    """Get a specific download request."""
+    try:
+        request = download_monitor.get_download_request(tmdb_id)
+        if request:
+            return jsonify(request), 200
+        else:
+            return jsonify({'error': 'Download request not found'}), 404
+            
+    except Exception as e:
+        logger.error(f"❌ SMS Download Request Error: {str(e)}")
+        return jsonify({'error': f'Failed to get download request: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/downloads', methods=['POST'])
+def create_download_request():
+    """Create a new download request."""
+    try:
+        data = request.get_json()
+        if not data or 'tmdb_id' not in data or 'movie_title' not in data or 'movie_year' not in data or 'phone_number' not in data:
+            return jsonify({'error': 'Missing required fields: tmdb_id, movie_title, movie_year, phone_number'}), 400
+        
+        success = download_monitor.add_download_request(
+            tmdb_id=data['tmdb_id'],
+            movie_title=data['movie_title'],
+            movie_year=data['movie_year'],
+            phone_number=data['phone_number']
+        )
+        
+        if success:
+            return jsonify({
+                'message': 'Download request created successfully',
+                'tmdb_id': data['tmdb_id'],
+                'movie_title': data['movie_title'],
+                'movie_year': data['movie_year'],
+                'phone_number': data['phone_number']
+            }), 201
+        else:
+            return jsonify({'error': 'Download request already exists or failed to create'}), 400
+            
+    except Exception as e:
+        logger.error(f"❌ SMS Create Download Request Error: {str(e)}")
+        return jsonify({'error': f'Failed to create download request: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/download-monitor/start', methods=['POST'])
+def start_download_monitor():
+    """Start the download monitoring service."""
+    try:
+        download_monitor.start_monitoring()
+        return jsonify({'message': 'Download monitoring service started'}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Start Monitor Error: {str(e)}")
+        return jsonify({'error': f'Failed to start download monitor: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/download-monitor/stop', methods=['POST'])
+def stop_download_monitor():
+    """Stop the download monitoring service."""
+    try:
+        download_monitor.stop_monitoring()
+        return jsonify({'message': 'Download monitoring service stopped'}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Stop Monitor Error: {str(e)}")
+        return jsonify({'error': f'Failed to stop download monitor: {str(e)}'}), 500
+
+@sms_bp.route('/api/sms/download-monitor/status', methods=['GET'])
+def get_download_monitor_status():
+    """Get download monitoring service status."""
+    try:
+        return jsonify({
+            'running': download_monitor.running,
+            'radarr_available': download_monitor.radarr_client is not None,
+            'twilio_available': download_monitor.twilio_client.is_configured(),
+            'redis_available': download_monitor.redis_client is not None,
+            'active_requests': len(download_monitor.download_requests)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Monitor Status Error: {str(e)}")
+        return jsonify({'error': f'Failed to get monitor status: {str(e)}'}), 500

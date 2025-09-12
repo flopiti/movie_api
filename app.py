@@ -41,6 +41,9 @@ from routes.plex import plex_bp
 from routes.sms import sms_bp
 from routes.system import system_bp
 
+# Import download monitor
+from download_monitor import download_monitor
+
 # Register blueprints
 app.register_blueprint(paths_bp)
 app.register_blueprint(movies_bp)
@@ -61,4 +64,11 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
+    # Start the download monitoring service
+    try:
+        download_monitor.start_monitoring()
+        logging.info("📱 Download Monitor: Service started successfully")
+    except Exception as e:
+        logging.error(f"❌ Download Monitor: Failed to start service: {str(e)}")
+    
     app.run(debug=True, host='0.0.0.0', port=5000)

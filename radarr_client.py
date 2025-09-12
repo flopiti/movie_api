@@ -360,3 +360,126 @@ class RadarrClient:
             Command status or None if error
         """
         return self._make_request('GET', f'/api/v3/command/{command_id}')
+    
+    def add_movie_from_tmdb(self, tmdb_id: int, root_folder_path: str = None, quality_profile_id: int = None, monitored: bool = True, search_for_movie: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        Add a movie to Radarr using TMDB ID
+        
+        Args:
+            tmdb_id: TMDB movie ID
+            root_folder_path: Root folder path for the movie
+            quality_profile_id: Quality profile ID
+            monitored: Whether to monitor the movie
+            search_for_movie: Whether to search for the movie immediately
+            
+        Returns:
+            Added movie data or None if error
+        """
+        # Get movie details from TMDB lookup
+        movie_lookup = self._make_request('GET', f'/api/v3/movie/lookup/tmdb/{tmdb_id}')
+        if not movie_lookup:
+            return None
+        
+        # Get default root folder if not provided
+        if not root_folder_path:
+            root_folders = self.get_root_folders()
+            if not root_folders:
+                return None
+            root_folder_path = root_folders[0]['path']
+        
+        # Get default quality profile if not provided
+        if not quality_profile_id:
+            quality_profiles = self.get_quality_profiles()
+            if not quality_profiles:
+                return None
+            quality_profile_id = quality_profiles[0]['id']
+        
+        # Prepare movie data for adding
+        movie_data = {
+            'title': movie_lookup['title'],
+            'titleSlug': movie_lookup['titleSlug'],
+            'year': movie_lookup['year'],
+            'tmdbId': tmdb_id,
+            'rootFolderPath': root_folder_path,
+            'qualityProfileId': quality_profile_id,
+            'monitored': monitored,
+            'addOptions': {
+                'searchForMovie': search_for_movie,
+                'monitor': 'movieOnly' if monitored else 'none'
+            }
+        }
+        
+        return self._make_request('POST', '/api/v3/movie', json=movie_data)
+    
+    def search_for_movie(self, movie_id: int) -> bool:
+        """
+        Search for a specific movie in Radarr
+        
+        Args:
+            movie_id: Radarr movie ID
+            
+        Returns:
+            True if search command was sent successfully, False otherwise
+        """
+        result = self._make_request('POST', '/api/v3/command', json={
+            'name': 'MoviesSearch',
+            'movieIds': [movie_id]
+        })
+        return result is not None
+    
+    def get_movie_by_tmdb_id(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get movie by TMDB ID
+        
+        Args:
+            tmdb_id: TMDB movie ID
+            
+        Returns:
+            Movie dictionary or None if not found
+        """
+        movies = self.get_movies()
+        for movie in movies:
+            if movie.get('tmdbId') == tmdb_id:
+                return movie
+        return None
+    
+    def is_movie_downloading(self, movie_id: int) -> bool:
+        """
+        Check if a movie is currently downloading
+        
+        Args:
+            movie_id: Radarr movie ID
+            
+        Returns:
+            True if movie is downloading, False otherwise
+        """
+        downloads = self.get_downloads()
+        for download in downloads:
+            if download.get('movieId') == movie_id:
+                status = download.get('status', '').lower()
+                return status in ['downloading', 'queued', 'paused']
+        return False
+    
+    def get_download_status_for_movie(self, movie_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get download status for a specific movie
+        
+        Args:
+            movie_id: Radarr movie ID
+            
+        Returns:
+            Download status dictionary or None if not downloading
+        """
+        downloads = self.get_downloads()
+        for download in downloads:
+            if download.get('movieId') == movie_id:
+                return {
+                    'status': download.get('status'),
+                    'progress': download.get('sizeleft', 0),
+                    'size': download.get('size', 0),
+                    'timeleft': download.get('timeleft'),
+                    'trackedDownloadState': download.get('trackedDownloadState'),
+                    'trackedDownloadStatus': download.get('trackedDownloadStatus'),
+                    'errorMessage': download.get('errorMessage')
+                }
+        return None

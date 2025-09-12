@@ -34,7 +34,9 @@ Conversation (scan THE LASTEST messages for movie titles because the converastio
 Movie Title with Year:"""
 
 # SMS Response Prompt (Default)
-SMS_RESPONSE_PROMPT = """You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.
+SMS_RESPONSE_PROMPT = """You are a helpful movie assistant. When someone mentions a movie, you should be encouraging and helpful. Keep your response under 160 characters and appropriate for SMS communication.
+
+If someone mentions a movie, respond positively and let them know you're working on it. If no movie is mentioned, respond helpfully to their message.
 
 Message: {message}
 From: {sender}"""
