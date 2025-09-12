@@ -760,6 +760,20 @@ def clear_all_download_requests():
         logger.error(f"❌ SMS Clear Requests Error: {str(e)}")
         return jsonify({'error': f'Failed to clear download requests: {str(e)}'}), 500
 
+@sms_bp.route('/api/sms/downloads/<int:tmdb_id>', methods=['DELETE'])
+def cancel_download_request(tmdb_id):
+    """Cancel a specific download request."""
+    try:
+        success = download_monitor.cancel_download_request(tmdb_id)
+        if success:
+            return jsonify({'message': f'Download request for TMDB ID {tmdb_id} cancelled successfully'}), 200
+        else:
+            return jsonify({'error': 'Download request not found or failed to cancel'}), 404
+            
+    except Exception as e:
+        logger.error(f"❌ SMS Cancel Download Request Error: {str(e)}")
+        return jsonify({'error': f'Failed to cancel download request: {str(e)}'}), 500
+
 @sms_bp.route('/api/sms/download-monitor/status', methods=['GET'])
 def get_download_monitor_status():
     """Get download monitoring service status."""

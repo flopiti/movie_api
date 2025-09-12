@@ -449,6 +449,36 @@ class DownloadMonitor:
             }
         return None
     
+    def cancel_download_request(self, tmdb_id: int) -> bool:
+        """Cancel/remove a specific download request"""
+        try:
+            request = self.download_requests.get(tmdb_id)
+            if not request:
+                logger.warning(f"📱 Download Monitor: No download request found for TMDB ID {tmdb_id}")
+                return False
+            
+            movie_title = request.movie_title
+            movie_year = request.movie_year
+            
+            # Remove from memory
+            del self.download_requests[tmdb_id]
+            
+            # Remove from Redis
+            if self.redis_client:
+                try:
+                    redis_key = f"download_request:{tmdb_id}"
+                    self.redis_client.delete(redis_key)
+                    logger.info(f"✅ Removed download request for {movie_title} ({movie_year}) from Redis")
+                except Exception as e:
+                    logger.error(f"❌ Failed to remove from Redis: {str(e)}")
+            
+            logger.info(f"📱 Download Monitor: Cancelled download request for {movie_title} ({movie_year})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Download Monitor: Failed to cancel download request: {str(e)}")
+            return False
+    
     def is_radarr_configured(self) -> bool:
         """Check if Radarr is properly configured"""
         try:
