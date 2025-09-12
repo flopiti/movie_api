@@ -15,6 +15,11 @@ PRIORITY: The most recent USER message is the most important. If the latest USER
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
 
+IMPORTANT: If you recognize a movie title but don't know the year, you can make a reasonable guess or use a common year for that movie. For example:
+- "the dark knight" → "The Dark Knight (2008)"
+- "inception" → "Inception (2010)"
+- "pulp fiction" → "Pulp Fiction (1994)"
+
 Examples of correct output:
 - "The Dark Knight (2008)"
 - "Inception (2010)"
