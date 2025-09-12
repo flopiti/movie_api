@@ -35,7 +35,6 @@ def sms_webhook():
             'timestamp': datetime.now().isoformat()
         }
         
-        logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
 
         # Store incoming message in Redis
         twilio_client.store_incoming_message(message_data)
@@ -115,7 +114,6 @@ def sms_webhook():
         
         # If no auto-reply is configured, return empty response (no reply)
         if not response_message:
-            logger.info("📱 SMS Webhook: No auto-reply configured, sending empty response")
             return twilio_client.create_webhook_response(), 200, {'Content-Type': 'text/xml'}
 
         # Store the outgoing reply message in Redis
@@ -134,7 +132,6 @@ def sms_webhook():
         # Store the outgoing message
         twilio_client._store_message_in_redis(outgoing_message_data)
         
-        logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
         return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
