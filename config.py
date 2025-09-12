@@ -98,7 +98,7 @@ class Config:
                         "reply_delay_seconds": 0,
                         "max_replies_per_day": 10,
                         "blocked_numbers": [],
-                        "use_chatgpt": False,
+                        "use_chatgpt": True,
                         "chatgpt_prompt": "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}"
                     }
                 }
