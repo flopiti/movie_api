@@ -808,7 +808,8 @@ class RadarrClient:
         
         if not best_match:
             logger.error(f"❌ No suitable match found for title: '{title}' ({year})")
-            logger.info(f"🔍 Available search results: {[f\"{m.get('title', 'Unknown')} ({m.get('year', 'Unknown')})\" for m in search_results[:5]]}")
+            search_results_preview = [f"{m.get('title', 'Unknown')} ({m.get('year', 'Unknown')})" for m in search_results[:5]]
+            logger.info(f"🔍 Available search results: {search_results_preview}")
             return None
         
         logger.info(f"✅ Using movie: {best_match.get('title')} ({best_match.get('year')}) - TMDB ID: {best_match.get('tmdbId')}")
