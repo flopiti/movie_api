@@ -13,9 +13,12 @@ from typing import Dict, List, Set, Optional, Any
 from dataclasses import dataclass
 import redis
 
-from .clients.radarr_client import RadarrClient
-from .clients.twilio_client import TwilioClient
-from .config.config import config
+from ..clients.radarr_client import RadarrClient
+from ..clients.twilio_client import TwilioClient
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+from config.config import config
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,10 @@ Routes for managing movie file paths, media paths, and download paths.
 """
 
 import os
+import sys
 from flask import Blueprint, request, jsonify
-from ..config.config import config
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+from config.config import config
 
 # Create blueprint
 paths_bp = Blueprint('paths', __name__)

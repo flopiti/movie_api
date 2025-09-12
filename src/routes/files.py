@@ -5,10 +5,12 @@ Routes for file operations, discovery, renaming, and management.
 """
 
 import os
+import sys
 import shutil
 from pathlib import Path
 from flask import Blueprint, request, jsonify
-from ..config.config import config
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+from config.config import config
 from ..utils.file_discovery import FileDiscovery
 
 # Create blueprint

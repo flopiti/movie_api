@@ -11,7 +11,10 @@ from flask import Blueprint, request, jsonify
 from ..clients.twilio_client import TwilioClient
 from ..clients.openai_client import OpenAIClient
 from ..clients.tmdb_client import TMDBClient
-from ..config.config import config, OPENAI_API_KEY, TMDB_API_KEY
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+from config.config import config, OPENAI_API_KEY, TMDB_API_KEY
 from PROMPTS import SMS_RESPONSE_PROMPT
 from download_monitor import download_monitor
 

@@ -5,8 +5,10 @@ Routes for health checks, cleanup operations, and system utilities.
 """
 
 import os
+import sys
 from flask import Blueprint, request, jsonify
-from ..config.config import config, TMDB_API_KEY, OPENAI_API_KEY, redis_client
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
+from config.config import config, TMDB_API_KEY, OPENAI_API_KEY, redis_client
 
 # Create blueprint
 system_bp = Blueprint('system', __name__)
