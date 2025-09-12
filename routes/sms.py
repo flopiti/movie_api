@@ -10,9 +10,31 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from twilio_client import TwilioClient
 from openai_client import OpenAIClient
-from config import config, OPENAI_API_KEY
+from tmdb_client import TMDBClient
+from config import config, OPENAI_API_KEY, TMDB_API_KEY
 
 logger = logging.getLogger(__name__)
+
+def get_conversation_history(phone_number: str, limit: int = 10) -> list:
+    """Get conversation history for a phone number from Redis."""
+    try:
+        # Get recent messages from Redis
+        messages = twilio_client.get_recent_messages(limit * 2)  # Get more to filter by phone
+        
+        # Filter messages for this conversation (both directions)
+        conversation_messages = []
+        for message in messages:
+            if (message.get('From') == phone_number or 
+                message.get('To') == phone_number or
+                message.get('from') == phone_number or 
+                message.get('to') == phone_number):
+                conversation_messages.append(message.get('Body', message.get('body', '')))
+        
+        # Return only the message bodies, limited to recent messages
+        return conversation_messages[:limit]
+    except Exception as e:
+        logger.error(f"Error getting conversation history: {str(e)}")
+        return []
 
 # Create blueprint
 sms_bp = Blueprint('sms', __name__)
@@ -20,6 +42,7 @@ sms_bp = Blueprint('sms', __name__)
 # Initialize clients
 twilio_client = TwilioClient()
 openai_client = OpenAIClient(OPENAI_API_KEY)
+tmdb_client = TMDBClient(TMDB_API_KEY)
 
 @sms_bp.route('/api/sms/webhook', methods=['POST'])
 def sms_webhook():
@@ -40,15 +63,37 @@ def sms_webhook():
         # Store incoming message in Redis
         twilio_client.store_incoming_message(message_data)
         
+        # Get conversation history for movie detection
+        conversation_history = get_conversation_history(message_data['From'])
+        
+        # Try to detect movie in conversation
+        movie_result = None
+        if conversation_history:
+            logger.info(f"🎬 SMS Webhook: Analyzing conversation for movie detection...")
+            movie_result = openai_client.getMovieName(conversation_history)
+            if movie_result.get('success') and movie_result.get('movie_name') != "No movie identified":
+                logger.info(f"🎬 SMS Webhook: Movie detected: {movie_result['movie_name']}")
+                
+                # Search TMDB for the movie
+                tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
+                if tmdb_result.get('success') and tmdb_result.get('movies'):
+                    movie_data = tmdb_result['movies'][0]  # Get first result
+                    logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})")
+                    
+                    # Generate movie-specific response
+                    response_message = f"Yes sure I'll get {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})"
+                else:
+                    logger.info(f"🎬 SMS Webhook: Movie not found in TMDB: {movie_result['movie_name']}")
+                    response_message = f"Sorry I didn't find '{movie_result['movie_name']}' in our database"
+            else:
+                logger.info(f"🎬 SMS Webhook: No movie identified in conversation")
+        
         # Get reply settings and templates
         reply_settings = config.get_sms_reply_settings()
         reply_templates = config.get_sms_reply_templates()
         
-        
-        response_message = None
-        
-        # Check if auto-reply is enabled
-        if reply_settings.get('auto_reply_enabled', False):
+        # Check if auto-reply is enabled and no movie-specific response was generated
+        if reply_settings.get('auto_reply_enabled', False) and not response_message:
             # Check if ChatGPT is enabled
             if reply_settings.get('use_chatgpt', False):
                 logger.info(f"🤖 SMS Webhook: ChatGPT enabled, calling OpenAI...")

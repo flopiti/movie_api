@@ -235,3 +235,61 @@ Provide ONLY the clean movie title:"""
                 "error": f"OpenAI API error: {str(e)}",
                 "success": False
             }
+    
+    def getMovieName(self, conversation: list) -> Dict[str, Any]:
+        """Extract movie name with year from a conversation using OpenAI."""
+        if not self.client:
+            return {"error": "OpenAI API key not configured", "success": False}
+        
+        try:
+            # Join conversation into a single string
+            conversation_text = "\n".join(conversation)
+            
+            prompt = f"""
+You are a movie identification expert. I will provide you with a conversation, and you must extract the movie title and year that is being discussed.
+
+IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for clarification or more information.
+
+Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
+"Movie Title (Year)"
+
+Examples of correct output:
+- "The Dark Knight (2008)"
+- "Inception (2010)"
+- "Pulp Fiction (1994)"
+- "The Matrix (1999)"
+
+If no movie is clearly identified in the conversation, return "No movie identified".
+
+Conversation:
+{conversation_text}
+
+Movie Title with Year:"""
+
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=100,
+                temperature=0.3
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            
+            # Clean up the response
+            if response_text.startswith('"') and response_text.endswith('"'):
+                response_text = response_text[1:-1]
+            
+            return {
+                "success": True,
+                "movie_name": response_text,
+                "conversation": conversation
+            }
+            
+        except Exception as e:
+            pass
+            return {
+                "error": f"OpenAI API error: {str(e)}",
+                "success": False
+            }
