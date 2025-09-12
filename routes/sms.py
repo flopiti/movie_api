@@ -12,6 +12,7 @@ from twilio_client import TwilioClient
 from openai_client import OpenAIClient
 from tmdb_client import TMDBClient
 from config import config, OPENAI_API_KEY, TMDB_API_KEY
+from PROMPTS import SMS_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +113,7 @@ def sms_webhook():
             if reply_settings.get('use_chatgpt', False):
                 logger.info(f"🤖 SMS Webhook: ChatGPT enabled, calling OpenAI...")
                 # Use ChatGPT to generate response
-                chatgpt_prompt = reply_settings.get('chatgpt_prompt', 
-                    "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}")
+                chatgpt_prompt = reply_settings.get('chatgpt_prompt', SMS_RESPONSE_PROMPT)
                 
                 logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'")
                 chatgpt_result = openai_client.generate_sms_response(
