@@ -15,8 +15,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 from config.config import config, OPENAI_API_KEY, TMDB_API_KEY
-from PROMPTS import SMS_RESPONSE_PROMPT
-from download_monitor import download_monitor
+from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
+from ..services.download_monitor import download_monitor
 
 logger = logging.getLogger(__name__)
 
