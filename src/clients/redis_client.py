@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""
+Redis Client
+Handles Redis operations for the movie management system.
+"""
+
+import os
+import json
+import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+import redis
+
+logger = logging.getLogger(__name__)
+
+class RedisClient:
+    """Redis client for storing and retrieving application data."""
+    
+    def __init__(self):
+        """Initialize Redis client with configuration from environment variables."""
+        self.client = None
+        self._init_redis()
+    
+    def _init_redis(self):
+        """Initialize Redis connection."""
+        try:
+            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
+            redis_port = int(os.getenv('REDIS_PORT', 6379))
+            redis_db = int(os.getenv('REDIS_DB', 0))
+            
+            self.client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+            self.client.ping()  # Test connection
+            logger.info("✅ Redis Client: Connection established")
+        except Exception as e:
+            self.client = None
+            logger.error(f"❌ Redis Client: Connection failed: {str(e)}")
+    
+    def is_available(self) -> bool:
+        """Check if Redis is available."""
+        return self.client is not None
+    
+    def set(self, key: str, value: str) -> bool:
+        """Set a key-value pair in Redis."""
+        if not self.client:
+            return False
+        
+        try:
+            self.client.set(key, value)
+            return True
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to set key '{key}': {str(e)}")
+            return False
+    
+    def get(self, key: str) -> Optional[str]:
+        """Get a value by key from Redis."""
+        if not self.client:
+            return None
+        
+        try:
+            return self.client.get(key)
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to get key '{key}': {str(e)}")
+            return None
+    
+    def zadd(self, key: str, mapping: Dict[str, float]) -> bool:
+        """Add members to a sorted set."""
+        if not self.client:
+            return False
+        
+        try:
+            self.client.zadd(key, mapping)
+            return True
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to zadd to '{key}': {str(e)}")
+            return False
+    
+    def zrevrange(self, key: str, start: int, end: int) -> List[str]:
+        """Get members from a sorted set in reverse order."""
+        if not self.client:
+            return []
+        
+        try:
+            return self.client.zrevrange(key, start, end)
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to zrevrange '{key}': {str(e)}")
+            return []
+    
+    def store_sms_message(self, message_data: Dict[str, Any]) -> bool:
+        """Store an SMS message in Redis."""
+        if not self.client:
+            return False
+        
+        try:
+            # Create a unique key for the message
+            message_sid = message_data.get('MessageSid', f"message_{datetime.now().timestamp()}")
+            redis_key = f"sms_message:{message_sid}"
+            
+            # Prepare message data for storage
+            stored_message = {
+                'message_sid': message_sid,
+                'status': message_data.get('status', 'received'),
+                'to': message_data.get('To'),
+                'from': message_data.get('From'),
+                'body': message_data.get('Body'),
+                'date_created': message_data.get('timestamp', datetime.now().isoformat()),
+                'direction': message_data.get('direction', 'inbound'),
+                'stored_at': datetime.now().isoformat(),
+                'num_media': message_data.get('NumMedia', '0')
+            }
+            
+            # Store message data as JSON
+            self.client.set(redis_key, json.dumps(stored_message))
+            
+            # Add to sorted set for chronological ordering (timestamp as score)
+            timestamp = datetime.now().timestamp()
+            self.client.zadd("sms_messages", {message_sid: timestamp})
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to store SMS message: {str(e)}")
+            return False
+    
+    def get_recent_sms_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent SMS messages from Redis."""
+        if not self.client:
+            return []
+        
+        try:
+            # Get message SIDs from Redis sorted set (most recent first)
+            message_sids = self.client.zrevrange("sms_messages", 0, limit - 1)
+            
+            message_list = []
+            for message_sid in message_sids:
+                redis_key = f"sms_message:{message_sid}"
+                message_json = self.client.get(redis_key)
+                
+                if message_json:
+                    try:
+                        message_data = json.loads(message_json)
+                        # Convert to expected format for API compatibility
+                        formatted_message = {
+                            'MessageSid': message_data.get('message_sid'),
+                            'From': message_data.get('from'),
+                            'To': message_data.get('to'),
+                            'Body': message_data.get('body'),
+                            'Status': message_data.get('status'),
+                            'DateCreated': message_data.get('date_created'),
+                            'Direction': message_data.get('direction'),
+                            'StoredAt': message_data.get('stored_at')
+                        }
+                        message_list.append(formatted_message)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ Redis Client: Failed to parse message JSON: {str(e)}")
+                        continue
+            
+            return message_list
+            
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to get recent messages: {str(e)}")
+            return []

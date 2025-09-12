@@ -23,14 +23,13 @@ REDIS_HOST = os.getenv('REDIS_HOST', '172.17.0.1')  # Default to Docker bridge I
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
-# Initialize Redis
-redis_client = None
-try:
-    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
-    # Test connection
-    redis_client.ping()
-except Exception as e:
-    redis_client = None
+# Initialize Redis Client
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+from clients.redis_client import RedisClient
+
+redis_client = RedisClient()
 
 class Config:
     """Manages the application configuration including movie file paths using Redis storage."""

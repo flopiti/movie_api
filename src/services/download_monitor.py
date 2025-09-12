@@ -15,6 +15,7 @@ import redis
 
 from ..clients.radarr_client import RadarrClient
 from ..clients.twilio_client import TwilioClient
+from ..clients.redis_client import RedisClient
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
@@ -46,8 +47,8 @@ class DownloadMonitor:
         self.monitor_thread = None
         self.check_interval = 30  # Check every 30 seconds
         
-        # Initialize Redis for storing download requests
-        self._init_redis()
+        # Initialize Redis client
+        self.redis_client = RedisClient()
         
         # Initialize Radarr client
         self._init_radarr_client()
@@ -55,19 +56,6 @@ class DownloadMonitor:
         # Track download requests
         self.download_requests: Dict[int, DownloadRequest] = {}  # tmdb_id -> DownloadRequest
         
-    def _init_redis(self):
-        """Initialize Redis connection for storing download requests"""
-        try:
-            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
-            redis_port = int(os.getenv('REDIS_PORT', 6379))
-            redis_db = int(os.getenv('REDIS_DB', 0))
-            
-            self.redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
-            self.redis_client.ping()  # Test connection
-            logger.info("✅ Download Monitor: Redis connection established")
-        except Exception as e:
-            self.redis_client = None
-            logger.error(f"❌ Download Monitor: Redis connection failed: {str(e)}")
     
     def _init_radarr_client(self):
         """Initialize Radarr client"""

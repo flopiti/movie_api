@@ -5,6 +5,7 @@ Routes for SMS functionality, webhooks, and Twilio integration.
 """
 
 import os
+import json
 import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify
@@ -14,7 +15,7 @@ from ..clients.tmdb_client import TMDBClient
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-from config.config import config, OPENAI_API_KEY, TMDB_API_KEY
+from config.config import config, OPENAI_API_KEY, TMDB_API_KEY, redis_client
 from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
 from ..services.download_monitor import download_monitor
 
@@ -24,7 +25,7 @@ def get_conversation_history(phone_number: str, limit: int = 5) -> list:
     """Get conversation history for a phone number from Redis."""
     try:
         # Get recent messages to focus on latest conversation
-        messages = twilio_client.get_recent_messages(limit * 2)  # Get enough to filter by phone
+        messages = twilio_client.get_recent_messages(limit * 2, redis_client)  # Get enough to filter by phone
         
         # Filter messages for this conversation (both directions)
         conversation_messages = []
@@ -76,7 +77,10 @@ def sms_webhook():
         logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
 
         # Store incoming message in Redis
-        twilio_client.store_incoming_message(message_data)
+        if redis_client.is_available():
+            success = redis_client.store_sms_message(message_data)
+            if not success:
+                logger.error(f"❌ Failed to store incoming message in Redis")
         
         # Get conversation history for movie detection
         conversation_history = get_conversation_history(message_data['From'])
@@ -259,7 +263,10 @@ def sms_webhook():
         }
         
         # Store the outgoing message
-        twilio_client._store_message_in_redis(outgoing_message_data)
+        if redis_client.is_available():
+            success = redis_client.store_sms_message(outgoing_message_data)
+            if not success:
+                logger.error(f"❌ Failed to store outgoing message in Redis")
         
         logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
         
@@ -307,7 +314,7 @@ def get_sms_messages():
     """Get recent SMS messages from Twilio API."""
     try:
         limit = request.args.get('limit', 20, type=int)
-        messages = twilio_client.get_recent_messages(limit)
+        messages = twilio_client.get_recent_messages(limit, redis_client)
         
         return jsonify({
             'messages': messages,
@@ -323,7 +330,7 @@ def get_sms_conversations():
     """Get SMS conversations grouped by phone number."""
     try:
         limit = request.args.get('limit', 100, type=int)
-        messages = twilio_client.get_recent_messages(limit)
+        messages = twilio_client.get_recent_messages(limit, redis_client)
         
         # Group messages by conversation (phone number)
         conversations = {}
@@ -406,7 +413,7 @@ def sms_status():
         return jsonify({
             'configured': twilio_client.is_configured(),
             'phone_number': twilio_client.phone_number if twilio_client.is_configured() else None,
-            'redis_available': twilio_client.redis_client is not None,
+            'redis_available': redis_client.is_available(),
             'account_sid_set': bool(os.getenv('TWILIO_ACCOUNT_SID')),
             'auth_token_set': bool(os.getenv('TWILIO_AUTH_TOKEN')),
             'phone_number_set': bool(os.getenv('TWILIO_PHONE_NUMBER')),
@@ -747,7 +754,7 @@ def get_download_monitor_status():
             'running': download_monitor.running,
             'radarr_available': download_monitor.radarr_client is not None,
             'twilio_available': download_monitor.twilio_client.is_configured(),
-            'redis_available': download_monitor.redis_client is not None,
+            'redis_available': download_monitor.redis_client.is_available(),
             'active_requests': len(download_monitor.download_requests),
             'radarr_config': radarr_status
         }), 200

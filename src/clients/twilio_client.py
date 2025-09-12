@@ -10,7 +10,6 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
-import redis
 
 class TwilioClient:
     def __init__(self):
@@ -23,42 +22,7 @@ class TwilioClient:
             self.client = None
         else:
             self.client = Client(self.account_sid, self.auth_token)
-        
-        # Initialize Redis for message storage
-        self._init_redis()
     
-    def _init_redis(self):
-        """Initialize Redis connection for message storage."""
-        try:
-            # Use same Redis config as main app
-            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
-            redis_port = int(os.getenv('REDIS_PORT', 6379))
-            redis_db = int(os.getenv('REDIS_DB', 0))
-            
-            self.redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
-            self.redis_client.ping()  # Test connection
-        except Exception as e:
-            self.redis_client = None
-    
-    def _store_message_in_redis(self, message_data: Dict[str, Any]) -> None:
-        """Store a message in Redis."""
-        if not self.redis_client:
-            return
-        
-        try:
-            # Create a unique key for the message
-            message_sid = message_data.get('message_sid', f"local_{datetime.now().timestamp()}")
-            redis_key = f"sms_message:{message_sid}"
-            
-            # Store message data as JSON
-            self.redis_client.set(redis_key, json.dumps(message_data))
-            
-            # Add to sorted set for chronological ordering (timestamp as score)
-            timestamp = datetime.now().timestamp()
-            self.redis_client.zadd("sms_messages", {message_sid: timestamp})
-            
-        except Exception as e:
-            pass
     
     def send_sms(self, to: str, message: str) -> Dict[str, Any]:
         """
@@ -115,48 +79,22 @@ class TwilioClient:
                 'error': str(e)
             }
     
-    def get_recent_messages(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_messages(self, limit: int = 20, redis_client=None) -> List[Dict[str, Any]]:
         """
         Get recent SMS messages from Redis database.
         
         Args:
             limit: Maximum number of messages to retrieve
+            redis_client: Redis client instance to use
             
         Returns:
             List of message dictionaries
         """
-        if not self.redis_client:
+        if not redis_client or not redis_client.is_available():
             return self._get_messages_from_twilio_api(limit)
         
         try:
-            # Get message SIDs from Redis sorted set (most recent first)
-            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit - 1)
-            
-            message_list = []
-            for message_sid in message_sids:
-                redis_key = f"sms_message:{message_sid}"
-                message_json = self.redis_client.get(redis_key)
-                
-                if message_json:
-                    try:
-                        message_data = json.loads(message_json)
-                        # Convert to expected format for API compatibility
-                        formatted_message = {
-                            'MessageSid': message_data.get('message_sid'),
-                            'From': message_data.get('from'),
-                            'To': message_data.get('to'),
-                            'Body': message_data.get('body'),
-                            'Status': message_data.get('status'),
-                            'DateCreated': message_data.get('date_created'),
-                            'Direction': message_data.get('direction'),
-                            'StoredAt': message_data.get('stored_at')
-                        }
-                        message_list.append(formatted_message)
-                    except json.JSONDecodeError as e:
-                        continue
-            
-            return message_list
-            
+            return redis_client.get_recent_sms_messages(limit)
         except Exception as e:
             # Fallback to Twilio API
             return self._get_messages_from_twilio_api(limit)
@@ -211,43 +149,6 @@ class TwilioClient:
             response.message(message)
         return str(response)
     
-    def store_incoming_message(self, message_data: Dict[str, Any]) -> None:
-        """
-        Store an incoming message in Redis.
-        
-        Args:
-            message_data: Dictionary containing message information from webhook
-        """
-        if not self.redis_client:
-            return
-        
-        try:
-            # Create a unique key for the message
-            message_sid = message_data.get('MessageSid', f"incoming_{datetime.now().timestamp()}")
-            redis_key = f"sms_message:{message_sid}"
-            
-            # Prepare message data for storage
-            stored_message = {
-                'message_sid': message_sid,
-                'status': 'received',
-                'to': message_data.get('To'),
-                'from': message_data.get('From'),
-                'body': message_data.get('Body'),
-                'date_created': message_data.get('timestamp', datetime.now().isoformat()),
-                'direction': 'inbound',
-                'stored_at': datetime.now().isoformat(),
-                'num_media': message_data.get('NumMedia', '0')
-            }
-            
-            # Store message data as JSON
-            self.redis_client.set(redis_key, json.dumps(stored_message))
-            
-            # Add to sorted set for chronological ordering (timestamp as score)
-            timestamp = datetime.now().timestamp()
-            self.redis_client.zadd("sms_messages", {message_sid: timestamp})
-            
-        except Exception as e:
-            pass
     
     def get_webhook_url(self) -> Dict[str, Any]:
         """
