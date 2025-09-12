@@ -6,7 +6,7 @@ OpenAI API client for cleaning movie filenames and generating SMS responses.
 import logging
 from typing import Dict, Any
 from openai import OpenAI
-from PROMPTS import (
+from .PROMPTS import (
     MOVIE_DETECTION_PROMPT, 
     FILENAME_CLEANING_PROMPT, 
     FILENAME_REFINEMENT_PROMPT, 
