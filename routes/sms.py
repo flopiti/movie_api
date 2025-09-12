@@ -16,11 +16,11 @@ from PROMPTS import SMS_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
 
-def get_conversation_history(phone_number: str, limit: int = 10) -> list:
+def get_conversation_history(phone_number: str, limit: int = 5) -> list:
     """Get conversation history for a phone number from Redis."""
     try:
-        # Get recent messages from Redis
-        messages = twilio_client.get_recent_messages(limit * 2)  # Get more to filter by phone
+        # Get recent messages to focus on latest conversation
+        messages = twilio_client.get_recent_messages(limit * 2)  # Get enough to filter by phone
         
         # Filter messages for this conversation (both directions)
         conversation_messages = []
@@ -71,7 +71,7 @@ def sms_webhook():
         movie_result = None
         if conversation_history:
             logger.info(f"🎬 SMS Webhook: Analyzing conversation for movie detection...")
-            logger.info(f"🎬 SMS Webhook: Conversation history: {conversation_history}")
+            logger.info(f"🎬 SMS Webhook: Conversation history ({len(conversation_history)} messages): {conversation_history}")
             movie_result = openai_client.getMovieName(conversation_history)
             logger.info(f"🎬 SMS Webhook: Movie detection result: {movie_result}")
         else:

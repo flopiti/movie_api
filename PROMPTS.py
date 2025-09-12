@@ -8,7 +8,7 @@ MOVIE_DETECTION_PROMPT = """You are a movie identification expert. I will provid
 
 IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for clarification or more information.
 
-CRITICAL: The FIRST message (like the FIRST message will give you almost all the info you need) in the conversation are the MOST IMPORTANT ones. Focus on the beginning of the conversation for movie identification.
+CRITICAL: Focus on the MOST RECENT messages in the conversation. Look for the latest movie being discussed, not old movies from earlier in the conversation. The conversation might have talked about other movies before, but you need to find the MOST RECENT movie mentioned.
 
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
@@ -21,7 +21,7 @@ Examples of correct output:
 
 If no movie is clearly identified in the conversation, return "No movie identified".
 
-Conversation (FIRST messages are most important):
+Conversation (scan THE LASTEST messages for movie titles because the converastion mights have been talking about other movies, but you need to find the MOST RECENT ONE in the dicussion):
 {conversation_text}
 
 Movie Title with Year:"""
