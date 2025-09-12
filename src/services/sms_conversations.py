@@ -38,6 +38,10 @@ class SmsConversations:
             message_sids = self.redis_client.zrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
             logger.info(f"🔍 SmsConversations: Retrieved {len(message_sids)} message SIDs from Redis sorted set (chronological order): {message_sids}")
             
+            if not message_sids:
+                logger.warning(f"🔍 SmsConversations: No message SIDs found in Redis sorted set 'sms_messages'")
+                return []
+            
             message_list = []
             for message_sid in message_sids:
                 redis_key = f"sms_message:{message_sid}"
@@ -46,6 +50,7 @@ class SmsConversations:
                 if message_json:
                     try:
                         message_data = json.loads(message_json)
+                        logger.info(f"🔍 SmsConversations: Processing message {message_sid}: from='{message_data.get('from')}', to='{message_data.get('to')}'")
                         
                         # If phone_number is provided, filter messages for this conversation
                         if phone_number:

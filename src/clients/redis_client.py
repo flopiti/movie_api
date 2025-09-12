@@ -127,7 +127,6 @@ class RedisClient:
             timestamp = message_data.get('timestamp', datetime.now().timestamp())
             if isinstance(timestamp, str):
                 # Convert ISO format to timestamp if needed
-                from datetime import datetime
                 timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).timestamp()
             self.client.zadd("sms_messages", {message_sid: timestamp})
             logger.info(f"🔍 Redis Client: Added message {message_sid} to sorted set with timestamp {timestamp}")
