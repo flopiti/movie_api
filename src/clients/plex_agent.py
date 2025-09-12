@@ -1,6 +1,10 @@
 import logging
 from datetime import datetime
-from config.config import openai_client, tmdb_client, download_monitor, SMS_RESPONSE_PROMPT
+from config.config import OPENAI_API_KEY, TMDB_API_KEY
+from ..clients.openai_client import OpenAIClient
+from ..clients.tmdb_client import TMDBClient
+from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
+from ..services.download_monitor import download_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +15,8 @@ class PlexAgent:
     """
     
     def __init__(self):
-        self.openai_client = openai_client
-        self.tmdb_client = tmdb_client
+        self.openai_client = OpenAIClient(OPENAI_API_KEY)
+        self.tmdb_client = TMDBClient(TMDB_API_KEY)
         self.download_monitor = download_monitor
         self.sms_response_prompt = SMS_RESPONSE_PROMPT
     
