@@ -117,44 +117,40 @@ def sms_webhook():
         reply_settings = config.get_sms_reply_settings()
         reply_templates = config.get_sms_reply_templates()
         
-        # Check if auto-reply is enabled and no movie-specific response was generated
-        if reply_settings.get('auto_reply_enabled', False) and not response_message:
-            # Check if ChatGPT is enabled
-            if reply_settings.get('use_chatgpt', False):
-                logger.info(f"🤖 SMS Webhook: ChatGPT enabled, calling OpenAI...")
-                # Use ChatGPT to generate response
-                chatgpt_prompt = reply_settings.get('chatgpt_prompt', SMS_RESPONSE_PROMPT)
-                
-                # Add context about movie detection result
-                movie_context = ""
-                if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-                    # Check if movie was found in TMDB
-                    if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                        movie_data = tmdb_result['results'][0]
-                        release_date = movie_data.get('release_date', '')
-                        year = release_date.split('-')[0] if release_date else 'Unknown year'
-                        movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
-                    else:
-                        movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
+        # Always try ChatGPT first if no movie-specific response was generated
+        if not response_message:
+            logger.info(f"🤖 SMS Webhook: No movie response, calling ChatGPT...")
+            # Use ChatGPT to generate response
+            chatgpt_prompt = reply_settings.get('chatgpt_prompt', SMS_RESPONSE_PROMPT)
+            
+            # Add context about movie detection result
+            movie_context = ""
+            if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
+                # Check if movie was found in TMDB
+                if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+                    movie_data = tmdb_result['results'][0]
+                    release_date = movie_data.get('release_date', '')
+                    year = release_date.split('-')[0] if release_date else 'Unknown year'
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
                 else:
-                    movie_context = " (Note: No movie was identified in the conversation)"
-                
-                logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
-                chatgpt_result = openai_client.generate_sms_response(
-                    message_data['Body'], 
-                    message_data['From'], 
-                    chatgpt_prompt,
-                    movie_context=movie_context
-                )
-                
-                if chatgpt_result.get('success'):
-                    response_message = chatgpt_result['response']
-                    logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
-                else:
-                    logger.error(f"❌ OpenAI SMS Failed: {chatgpt_result.get('error', 'Unknown error')}")
-                    # Fallback to template system if ChatGPT fails
-                    response_message = None
+                    movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
             else:
+                movie_context = " (Note: No movie was identified in the conversation)"
+            
+            logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
+            chatgpt_result = openai_client.generate_sms_response(
+                message_data['Body'], 
+                message_data['From'], 
+                chatgpt_prompt,
+                movie_context=movie_context
+            )
+            
+            if chatgpt_result.get('success'):
+                response_message = chatgpt_result['response']
+                logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
+            else:
+                logger.error(f"❌ OpenAI SMS Failed: {chatgpt_result.get('error', 'Unknown error')}")
+                # Fallback to template system if ChatGPT fails
                 response_message = None
             
             # If ChatGPT is not enabled or failed, use template system
