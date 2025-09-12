@@ -132,11 +132,11 @@ def sms_webhook():
                     movie_data = tmdb_result['results'][0]
                     release_date = movie_data.get('release_date', '')
                     year = release_date.split('-')[0] if release_date else 'Unknown year'
-                    movie_context = f" (Note: The user is asking about the movie '{movie_data.get('title')} ({year})' which was found in our database. Respond as if you're confirming you'll get this movie for them.)"
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
                 else:
                     movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
             else:
-                movie_context = ""  # Don't tell ChatGPT about movie detection failure
+                movie_context = " (Note: No movie was identified in the conversation)"
             
             logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
             chatgpt_result = openai_client.generate_sms_response(
@@ -201,26 +201,11 @@ def sms_webhook():
         # If no auto-reply is configured, use ChatGPT to generate a response
         if not response_message:
             logger.info(f"🤖 SMS Webhook: No response generated, calling ChatGPT as fallback...")
-            
-            # Use the same context logic as the main ChatGPT call
-            fallback_movie_context = ""
-            if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-                # Check if movie was found in TMDB
-                if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                    movie_data = tmdb_result['results'][0]
-                    release_date = movie_data.get('release_date', '')
-                    year = release_date.split('-')[0] if release_date else 'Unknown year'
-                    fallback_movie_context = f" (Note: The user is asking about the movie '{movie_data.get('title')} ({year})' which was found in our database. Respond as if you're confirming you'll get this movie for them.)"
-                else:
-                    fallback_movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
-            else:
-                fallback_movie_context = ""  # Don't tell ChatGPT about movie detection failure
-            
             chatgpt_result = openai_client.generate_sms_response(
                 message_data['Body'], 
                 message_data['From'], 
                 SMS_RESPONSE_PROMPT,
-                movie_context=fallback_movie_context
+                movie_context=" (Note: No movie was identified in the conversation)"
             )
             
             logger.info(f"🤖 OpenAI Fallback Result: {chatgpt_result}")
