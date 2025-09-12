@@ -8,9 +8,9 @@ MOVIE_DETECTION_PROMPT = """You are a movie identification expert. I will provid
 
 IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for clarification or more information.
 
-CRITICAL: Focus on the MOST RECENT messages in the conversation. Look for the latest movie being discussed, not old movies from earlier in the conversation. The conversation might have talked about other movies before, but you need to find the MOST RECENT movie mentioned.
+CRITICAL: Focus ONLY on USER messages. Ignore all SYSTEM messages completely. Look for movie titles ONLY in messages that start with "USER:". The SYSTEM messages are just responses and should be completely ignored.
 
-IMPORTANT: Pay attention to who is speaking (USER vs SYSTEM). You need to find the movie that the USER is talking about, not movies mentioned by the SYSTEM.
+PRIORITY: The most recent USER message is the most important. If the latest USER message contains a movie title, that is the movie you should identify.
 
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
