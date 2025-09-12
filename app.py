@@ -17,7 +17,7 @@ load_dotenv('env')
 app = Flask(__name__)
 CORS(app)
 
-# Configure logging
+# Configure logging - Only show our custom logs
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -26,6 +26,12 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+# Disable Flask and Twilio logging noise
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger('twilio').setLevel(logging.WARNING)
+logging.getLogger('twilio.http').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # Import route blueprints
 from routes.paths import paths_bp

@@ -35,7 +35,6 @@ def sms_webhook():
             'timestamp': datetime.now().isoformat()
         }
         
-        logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
         
 
         # Store incoming message in Redis
@@ -45,7 +44,6 @@ def sms_webhook():
         reply_settings = config.get_sms_reply_settings()
         reply_templates = config.get_sms_reply_templates()
         
-        logger.info(f"📱 SMS Settings: auto_reply_enabled={reply_settings.get('auto_reply_enabled', False)}, use_chatgpt={reply_settings.get('use_chatgpt', False)}")
         
         response_message = None
         
