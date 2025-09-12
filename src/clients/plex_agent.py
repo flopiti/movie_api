@@ -20,24 +20,35 @@ class PlexAgent:
         self.download_monitor = download_monitor
         self.sms_response_prompt = SMS_RESPONSE_PROMPT
     
-    def Answer(self, message_data, conversation_history):
-        logger.info(f"🎬 PlexAgent: Processing message from {message_data['From']}")
+    def Answer(self, conversation_history, phone_number):
+        logger.info(f"🎬 PlexAgent: Processing conversation with {len(conversation_history)} messages from {phone_number}")
+        
+        # Validate input
+        if not conversation_history:
+            logger.error(f"❌ PlexAgent: No conversation history provided - this should not happen")
+            return {
+                'response_message': "I received your message but couldn't process it. Please try again.",
+                'movie_result': None,
+                'tmdb_result': None,
+                'success': False
+            }
         
         # Try to detect movie in conversation
         movie_result = None
         response_message = None  # Initialize response message
         
-        if conversation_history:
-            logger.info(f"🎬 PlexAgent: Analyzing conversation for movie detection...")
-            logger.info(f"🎬 PlexAgent: Conversation history ({len(conversation_history)} messages): {conversation_history}")
-            movie_result = self.openai_client.getMovieName(conversation_history)
-            logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
-        else:
-            # Fallback: analyze just the current message
-            logger.info(f"🎬 PlexAgent: No conversation history, analyzing current message...")
-            logger.info(f"🎬 PlexAgent: Current message: {[message_data['Body']]}")
-            movie_result = self.openai_client.getMovieName([message_data['Body']])
-            logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
+        logger.info(f"🎬 PlexAgent: Analyzing conversation for movie detection...")
+        logger.info(f"🎬 PlexAgent: Conversation history ({len(conversation_history)} messages): {conversation_history}")
+        movie_result = self.openai_client.getMovieName(conversation_history)
+        logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
+        
+        # Extract current message from the latest USER message in conversation history
+        current_message = None
+        # Find the latest USER message
+        for message in reversed(conversation_history):
+            if message.startswith("USER: "):
+                current_message = message.replace("USER: ", "")
+                break
         
         if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
             logger.info(f"🎬 PlexAgent: Movie detected: {movie_result['movie_name']}")
@@ -55,8 +66,8 @@ class PlexAgent:
                 
                 # Add download request to the monitor
                 tmdb_id = movie_data.get('id')
-                if tmdb_id:
-                    logger.info(f"📱 PlexAgent: Adding download request for {movie_data.get('title')} ({year}) from {message_data['From']}")
+                if tmdb_id and phone_number:
+                    logger.info(f"📱 PlexAgent: Adding download request for {movie_data.get('title')} ({year}) from {phone_number}")
                     
                     # Check if Radarr is configured first
                     if not self.download_monitor.is_radarr_configured():
@@ -67,7 +78,7 @@ class PlexAgent:
                             tmdb_id=tmdb_id,
                             movie_title=movie_data.get('title'),
                             movie_year=year,
-                            phone_number=message_data['From']
+                            phone_number=phone_number
                         )
                         
                         if success:
@@ -103,22 +114,26 @@ class PlexAgent:
             else:
                 movie_context = " (Note: No movie was identified in the conversation)"
             
-            logger.info(f"🤖 PlexAgent OpenAI Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'{movie_context}")
-            chatgpt_result = self.openai_client.generate_sms_response(
-                message_data['Body'], 
-                message_data['From'], 
-                self.sms_response_prompt,
-                movie_context=movie_context
-            )
-            
-            logger.info(f"🤖 PlexAgent OpenAI Result: {chatgpt_result}")
-            
-            if chatgpt_result.get('success'):
-                response_message = chatgpt_result['response']
-                logger.info(f"✅ PlexAgent OpenAI Response: Generated response '{response_message}'")
+            if current_message and phone_number:
+                logger.info(f"🤖 PlexAgent OpenAI Request: Generating response for message '{current_message}' from '{phone_number}'{movie_context}")
+                chatgpt_result = self.openai_client.generate_sms_response(
+                    current_message, 
+                    phone_number, 
+                    self.sms_response_prompt,
+                    movie_context=movie_context
+                )
+                
+                logger.info(f"🤖 PlexAgent OpenAI Result: {chatgpt_result}")
+                
+                if chatgpt_result.get('success'):
+                    response_message = chatgpt_result['response']
+                    logger.info(f"✅ PlexAgent OpenAI Response: Generated response '{response_message}'")
+                else:
+                    logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
+                    response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
             else:
-                logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
-                response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
+                logger.error(f"❌ PlexAgent: Could not extract current message or phone number from conversation history")
+                response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"
 
         # Return the response data
         return {
