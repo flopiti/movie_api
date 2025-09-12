@@ -85,8 +85,9 @@ def sms_webhook():
             
             # Search TMDB for the movie
             tmdb_result = tmdb_client.search_movie(movie_result['movie_name'])
-            if tmdb_result.get('success') and tmdb_result.get('movies'):
-                movie_data = tmdb_result['movies'][0]  # Get first result
+            logger.info(f"🎬 SMS Webhook: TMDB search result: {tmdb_result}")
+            if tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+                movie_data = tmdb_result['results'][0]  # Get first result
                 logger.info(f"🎬 SMS Webhook: TMDB found movie: {movie_data.get('title')} ({movie_data.get('release_date', 'Unknown year')})")
                 
                 # Generate movie-specific response

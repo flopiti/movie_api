@@ -147,6 +147,7 @@ class TMDBClient:
             movie.pop('_year_match', None)
         
         return {
+            'success': True,
             'results': final_results,
             'total_results': len(final_results),
             'year_matches': len([m for m in all_results if m.get('_year_match')]) if target_year else 0
