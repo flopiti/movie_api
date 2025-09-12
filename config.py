@@ -16,6 +16,7 @@ import redis
 # Configuration constants
 CONFIG_FILE = os.path.expanduser("~/movie-config/config.json")
 TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
 # Redis Configuration
 REDIS_HOST = os.getenv('REDIS_HOST', '172.17.0.1')  # Default to Docker bridge IP
