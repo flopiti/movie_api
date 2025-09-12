@@ -74,7 +74,12 @@ class DownloadMonitor:
                 logger.info("✅ Download Monitor: Radarr connection established")
             else:
                 self.radarr_client = None
-                logger.error("❌ Download Monitor: Radarr connection failed")
+                # Check if it's a configuration issue
+                radarr_api_key = config.data.get('radarr_api_key', '')
+                if not radarr_api_key:
+                    logger.error("❌ Download Monitor: Radarr API key not configured. Please set RADARR_API_KEY environment variable or configure in settings.")
+                else:
+                    logger.error("❌ Download Monitor: Radarr connection failed - check URL and API key")
         except Exception as e:
             self.radarr_client = None
             logger.error(f"❌ Download Monitor: Radarr client initialization failed: {str(e)}")
@@ -188,7 +193,10 @@ class DownloadMonitor:
     def _process_download_request(self, request: DownloadRequest):
         """Process a download request by adding movie to Radarr"""
         if not self.radarr_client:
-            logger.error("❌ Download Monitor: Radarr client not available")
+            logger.error("❌ Download Monitor: Radarr client not available - check configuration")
+            request.status = "failed"
+            request.error_message = "Radarr not configured - please check API key and URL settings"
+            self._store_download_request(request)
             return
         
         try:
