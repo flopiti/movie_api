@@ -54,9 +54,17 @@ class DownloadMonitor:
         
     def _init_redis(self):
         """Initialize Redis connection for storing download requests"""
-        # Redis disabled - just using in-memory storage
-        self.redis_client = None
-        logger.info("ℹ️ Download Monitor: Redis disabled - using in-memory storage only")
+        try:
+            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
+            redis_port = int(os.getenv('REDIS_PORT', 6379))
+            redis_db = int(os.getenv('REDIS_DB', 0))
+            
+            self.redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+            self.redis_client.ping()  # Test connection
+            logger.info("✅ Download Monitor: Redis connection established")
+        except Exception as e:
+            self.redis_client = None
+            logger.error(f"❌ Download Monitor: Redis connection failed: {str(e)}")
     
     def _init_radarr_client(self):
         """Initialize Radarr client"""
@@ -113,8 +121,8 @@ class DownloadMonitor:
             # Store in memory
             self.download_requests[tmdb_id] = request
             
-            # Store in memory only (Redis disabled)
-            # self._store_download_request(request)
+            # Store in Redis for persistence
+            self._store_download_request(request)
             
             logger.info(f"📱 Download Monitor: Added download request for {movie_title} ({movie_year}) from {phone_number}")
             
@@ -193,7 +201,7 @@ class DownloadMonitor:
             logger.error("❌ Download Monitor: Radarr client not available - check configuration")
             request.status = "failed"
             request.error_message = "Radarr not configured - please check API key and URL settings"
-            # self._store_download_request(request)  # Redis disabled
+            self._store_download_request(request)
             return
         
         try:
@@ -237,14 +245,14 @@ class DownloadMonitor:
                     request.error_message = "Failed to add movie to Radarr - title search failed"
                     logger.error(f"❌ Download Monitor: Failed to add {request.movie_title} ({request.movie_year}) to Radarr")
             
-            # Update stored request (Redis disabled)
-            # self._store_download_request(request)
+            # Update stored request
+            self._store_download_request(request)
             
         except Exception as e:
             logger.error(f"❌ Download Monitor: Error processing download request: {str(e)}")
             request.status = "failed"
             request.error_message = str(e)
-            # self._store_download_request(request)  # Redis disabled
+            self._store_download_request(request)
     
     def _check_download_status(self):
         """Check download status for all active requests"""
@@ -252,7 +260,13 @@ class DownloadMonitor:
             return
         
         try:
+            # Get current downloads from Radarr
+            current_downloads = self.radarr_client.get_downloads()
+            logger.debug(f"📥 Radarr queue has {len(current_downloads)} downloads")
+            
             for tmdb_id, request in self.download_requests.items():
+                logger.debug(f"🔍 Checking status for {request.movie_title} (status: {request.status}, radarr_id: {request.radarr_movie_id})")
+                
                 if request.status in ["added_to_radarr", "downloading"] and request.radarr_movie_id:
                     
                     # Check if download has started
@@ -265,6 +279,8 @@ class DownloadMonitor:
                             self._send_download_started_notification(request)
                             
                             logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
+                        else:
+                            logger.debug(f"📱 Download Monitor: {request.movie_title} not yet downloading")
                     
                     # Check if download has completed
                     elif request.status == "downloading":
@@ -288,9 +304,11 @@ class DownloadMonitor:
                             self._send_download_failed_notification(request)
                             
                             logger.error(f"❌ Download Monitor: Download failed for {request.movie_title}")
+                        else:
+                            logger.debug(f"📱 Download Monitor: {request.movie_title} still downloading - status: {download_status.get('status')}")
                     
                     # Update stored request
-                    # self._store_download_request(request)  # Redis disabled
+                    self._store_download_request(request)
                     
         except Exception as e:
             logger.error(f"❌ Download Monitor: Error checking download status: {str(e)}")
@@ -346,8 +364,8 @@ class DownloadMonitor:
             logger.warning("📱 Download Monitor: Already running")
             return
         
-        # Load existing download requests from Redis (disabled)
-        # self._load_download_requests()
+        # Load existing download requests from Redis
+        self._load_download_requests()
         
         self.running = True
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
@@ -391,6 +409,27 @@ class DownloadMonitor:
             })
         
         return requests
+    
+    def clear_all_requests(self):
+        """Clear all download requests from memory and Redis"""
+        logger.info(f"🧹 Clearing {len(self.download_requests)} download requests from memory and Redis")
+        
+        # Clear from memory
+        self.download_requests.clear()
+        
+        # Clear from Redis
+        if self.redis_client:
+            try:
+                keys = self.redis_client.keys("download_request:*")
+                if keys:
+                    self.redis_client.delete(*keys)
+                    logger.info(f"✅ Cleared {len(keys)} download requests from Redis")
+                else:
+                    logger.info("ℹ️ No download requests found in Redis")
+            except Exception as e:
+                logger.error(f"❌ Failed to clear Redis: {str(e)}")
+        
+        logger.info("✅ All download requests cleared")
     
     def get_download_request(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
         """Get a specific download request"""

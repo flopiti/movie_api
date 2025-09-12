@@ -749,6 +749,17 @@ def stop_download_monitor():
         logger.error(f"❌ SMS Stop Monitor Error: {str(e)}")
         return jsonify({'error': f'Failed to stop download monitor: {str(e)}'}), 500
 
+@sms_bp.route('/api/sms/downloads/clear', methods=['POST'])
+def clear_all_download_requests():
+    """Clear all download requests from memory."""
+    try:
+        download_monitor.clear_all_requests()
+        return jsonify({'message': 'All download requests cleared successfully'}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ SMS Clear Requests Error: {str(e)}")
+        return jsonify({'error': f'Failed to clear download requests: {str(e)}'}), 500
+
 @sms_bp.route('/api/sms/download-monitor/status', methods=['GET'])
 def get_download_monitor_status():
     """Get download monitoring service status."""
