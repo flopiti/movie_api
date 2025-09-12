@@ -7,6 +7,7 @@ Test individual OpenAI client methods to verify they return expected results.
 import os
 import sys
 import json
+import argparse
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -166,7 +167,17 @@ def test_filename_cleaning():
     return passed == total
 
 def main():
-    """Run all OpenAI client tests."""
+    """Run OpenAI client tests with command line options."""
+    parser = argparse.ArgumentParser(description='Test OpenAI Client functionality')
+    parser.add_argument('--movie-only', action='store_true', 
+                       help='Run only movie detection tests')
+    parser.add_argument('--sms-only', action='store_true', 
+                       help='Run only SMS response tests')
+    parser.add_argument('--filename-only', action='store_true', 
+                       help='Run only filename cleaning tests')
+    
+    args = parser.parse_args()
+    
     print("🧪 OpenAI Client Test Suite")
     print("=" * 50)
     
@@ -175,22 +186,32 @@ def main():
         print("\n❌ Cannot proceed without OpenAI connection")
         return
     
-    # Run individual tests and collect results
-    movie_result = test_movie_detection()
-    sms_result = test_sms_response_generation()
-    filename_result = test_filename_cleaning()
+    # Determine which tests to run
+    run_movie = args.movie_only or (not args.sms_only and not args.filename_only)
+    run_sms = args.sms_only or (not args.movie_only and not args.filename_only)
+    run_filename = args.filename_only or (not args.movie_only and not args.sms_only)
+    
+    # Run selected tests
+    movie_result = test_movie_detection() if run_movie else None
+    sms_result = test_sms_response_generation() if run_sms else None
+    filename_result = test_filename_cleaning() if run_filename else None
     
     # Final summary
     print("\n" + "=" * 50)
     print("📊 FINAL SUMMARY")
     print("=" * 50)
     
-    total_tests = 3
-    passed_tests = sum([movie_result, sms_result, filename_result])
+    results = [r for r in [movie_result, sms_result, filename_result] if r is not None]
+    total_tests = len(results)
+    passed_tests = sum(results)
     
-    print(f"Movie Detection: {'✅ PASS' if movie_result else '❌ FAIL'}")
-    print(f"SMS Response:   {'✅ PASS' if sms_result else '❌ FAIL'}")
-    print(f"Filename Clean: {'✅ PASS' if filename_result else '❌ FAIL'}")
+    if run_movie:
+        print(f"Movie Detection: {'✅ PASS' if movie_result else '❌ FAIL'}")
+    if run_sms:
+        print(f"SMS Response:   {'✅ PASS' if sms_result else '❌ FAIL'}")
+    if run_filename:
+        print(f"Filename Clean: {'✅ PASS' if filename_result else '❌ FAIL'}")
+    
     print(f"\nOverall: {passed_tests}/{total_tests} test suites passed")
     
     if passed_tests == total_tests:

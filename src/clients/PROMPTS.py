@@ -10,7 +10,11 @@ IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for cl
 
 CRITICAL: Focus ONLY on USER messages. Ignore all SYSTEM messages completely. Look for movie titles ONLY in messages that start with "USER:". The SYSTEM messages are just responses and should be completely ignored.
 
-PRIORITY: The most recent USER message is the most important. If the latest USER message contains a movie title, that is the movie you should identify.
+PRIORITY: The conversation is ordered with the most recent messages FIRST. The FIRST USER message in the conversation array is the most recent and most important. 
+
+CRITICAL RULE: ONLY look at the FIRST USER message in the conversation. Completely ignore all other USER messages. If the first USER message contains a movie title, that is the ONLY movie you should identify. Do NOT look at any other USER messages for movie titles.
+
+EXAMPLE: If the first USER message says "get me Titane" and later messages mention "Planet of the Apes", you MUST return "Titane" and ignore "Planet of the Apes".
 
 MULTILINGUAL SUPPORT: The conversation may be in any language. Look for movie titles regardless of the language used. Common patterns include:
 - Commands like "Add", "Get", "Download" followed by movie titles
@@ -32,7 +36,7 @@ Examples of correct output format:
 
 If no movie is clearly identified in the conversation, return "No movie identified".
 
-Conversation (scan THE LATEST messages for movie titles because the conversation might have been talking about other movies, but you need to find the MOST RECENT ONE in the discussion):
+Conversation (ONLY look at the FIRST USER message - ignore all other USER messages completely):
 {conversation_text}
 
 Movie Title with Year:"""

@@ -185,6 +185,7 @@ class OpenAIClient:
             # Log the full prompt being sent to OpenAI
             logger.info(f"🎬 OpenAI getMovieName: FULL PROMPT SENT TO OPENAI:")
             logger.info(f"🎬 OpenAI getMovieName: {prompt}")
+            
 
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
