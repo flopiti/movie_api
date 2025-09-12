@@ -199,9 +199,22 @@ def sms_webhook():
                     response_message = response_message.replace('{timestamp}', message_data['timestamp'])
                     response_message = response_message.replace('{phone_number}', twilio_client.phone_number or 'Unknown')
         
-        # If no auto-reply is configured, return empty response (no reply)
+        # If no auto-reply is configured, use ChatGPT to generate a response
         if not response_message:
-            return twilio_client.create_webhook_response(), 200, {'Content-Type': 'text/xml'}
+            logger.info(f"🤖 SMS Webhook: No response generated, calling ChatGPT as fallback...")
+            chatgpt_result = openai_client.generate_sms_response(
+                message_data['Body'], 
+                message_data['From'], 
+                SMS_RESPONSE_PROMPT,
+                movie_context=" (Note: No movie was identified in the conversation)"
+            )
+            
+            if chatgpt_result.get('success'):
+                response_message = chatgpt_result['response']
+                logger.info(f"✅ OpenAI Fallback Response: Generated response '{response_message}'")
+            else:
+                logger.error(f"❌ OpenAI Fallback Failed: {chatgpt_result.get('error', 'Unknown error')}")
+                response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
 
         # Store the outgoing reply message in Redis
         outgoing_message_data = {
