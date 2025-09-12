@@ -145,6 +145,8 @@ def sms_webhook():
                 movie_context=movie_context
             )
             
+            logger.info(f"🤖 OpenAI SMS Result: {chatgpt_result}")
+            
             if chatgpt_result.get('success'):
                 response_message = chatgpt_result['response']
                 logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
@@ -205,6 +207,8 @@ def sms_webhook():
                 movie_context=" (Note: No movie was identified in the conversation)"
             )
             
+            logger.info(f"🤖 OpenAI Fallback Result: {chatgpt_result}")
+            
             if chatgpt_result.get('success'):
                 response_message = chatgpt_result['response']
                 logger.info(f"✅ OpenAI Fallback Response: Generated response '{response_message}'")
@@ -229,10 +233,18 @@ def sms_webhook():
         twilio_client._store_message_in_redis(outgoing_message_data)
         
         logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
-        return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
+        
+        # Create TwiML response
+        twiml_response = twilio_client.create_webhook_response(response_message)
+        logger.info(f"📱 SMS Webhook: TwiML Response: {twiml_response}")
+        
+        return twiml_response, 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
-        pass
+        logger.error(f"❌ SMS Webhook Error: {str(e)}")
+        logger.error(f"❌ SMS Webhook Error Details: {type(e).__name__}")
+        import traceback
+        logger.error(f"❌ SMS Webhook Traceback: {traceback.format_exc()}")
         return twilio_client.create_webhook_response("Error processing message"), 500, {'Content-Type': 'text/xml'}
 
 @sms_bp.route('/api/sms/ayo', methods=['POST'])
@@ -270,7 +282,10 @@ def sms_ayo():
         return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:
-        pass
+        logger.error(f"❌ SMS AYO Error: {str(e)}")
+        logger.error(f"❌ SMS AYO Error Details: {type(e).__name__}")
+        import traceback
+        logger.error(f"❌ SMS AYO Traceback: {traceback.format_exc()}")
         return twilio_client.create_webhook_response("AYO"), 200, {'Content-Type': 'text/xml'}
 
 @sms_bp.route('/api/sms/send', methods=['POST'])
