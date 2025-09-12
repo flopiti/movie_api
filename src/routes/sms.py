@@ -75,14 +75,17 @@ def sms_webhook():
             conversation_history.append(formatted_message)
             logger.info(f"🔍 SMS Webhook: Added to conversation: {formatted_message}")
         
-        # Only process with PlexAgent if we have conversation history
+        # Process with PlexAgent - create conversation history if none exists
         if conversation_history:
-            logger.info(f"🎬 SMS Webhook: Processing message with PlexAgent...")
+            logger.info(f"🎬 SMS Webhook: Processing message with PlexAgent using existing conversation history...")
             agent_result = plex_agent.Answer(conversation_history, message_data['From'])
             response_message = agent_result['response_message']
         else:
-            logger.error(f"❌ SMS Webhook: No conversation history found for {message_data['From']}, cannot process message")
-            response_message = "I received your message but couldn't process it. Please try again."
+            logger.info(f"🎬 SMS Webhook: No conversation history found for {message_data['From']}, creating new conversation with current message")
+            # Create a conversation history with just the current message
+            current_message_history = [f"USER: {message_data['Body']}"]
+            agent_result = plex_agent.Answer(current_message_history, message_data['From'])
+            response_message = agent_result['response_message']
 
         # Store the outgoing reply message in Redis
         now_timestamp = datetime.now().timestamp()
