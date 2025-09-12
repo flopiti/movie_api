@@ -755,6 +755,63 @@ class RadarrClient:
         logger.info(f"🧪 TMDB lookup test results: {test_results}")
         return test_results
     
+    def get_movie_status_by_tmdb_id(self, tmdb_id: int) -> Dict[str, Any]:
+        """
+        Get comprehensive status of a movie by TMDB ID
+        
+        Args:
+            tmdb_id: TMDB movie ID
+            
+        Returns:
+            Dictionary with movie status information
+        """
+        logger.debug(f"🔍 Getting movie status for TMDB ID: {tmdb_id}")
+        
+        status = {
+            'exists_in_radarr': False,
+            'radarr_movie_id': None,
+            'is_downloaded': False,
+            'is_downloading': False,
+            'download_status': None,
+            'movie_data': None,
+            'has_file': False,
+            'file_size': 0
+        }
+        
+        try:
+            # Check if movie exists in Radarr
+            movie = self.get_movie_by_tmdb_id(tmdb_id)
+            
+            if movie:
+                status['exists_in_radarr'] = True
+                status['radarr_movie_id'] = movie['id']
+                status['movie_data'] = movie
+                
+                # Check if movie has a file (downloaded)
+                if movie.get('hasFile'):
+                    status['is_downloaded'] = True
+                    status['has_file'] = True
+                    file_info = movie.get('movieFile', {})
+                    status['file_size'] = file_info.get('size', 0)
+                    logger.debug(f"✅ Movie {movie.get('title')} is already downloaded")
+                else:
+                    # Check if it's currently downloading
+                    if self.is_movie_downloading(movie['id']):
+                        status['is_downloading'] = True
+                        download_status = self.get_download_status_for_movie(movie['id'])
+                        status['download_status'] = download_status
+                        logger.debug(f"📥 Movie {movie.get('title')} is currently downloading")
+                    else:
+                        logger.debug(f"⏳ Movie {movie.get('title')} is in Radarr but not downloaded")
+            else:
+                logger.debug(f"❌ Movie with TMDB ID {tmdb_id} not found in Radarr")
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting movie status for TMDB ID {tmdb_id}: {str(e)}")
+            status['error'] = str(e)
+        
+        return status
+
     def add_movie_by_title_and_year(self, title: str, year: int, root_folder_path: str = None, quality_profile_id: int = None, monitored: bool = True, search_for_movie: bool = True) -> Optional[Dict[str, Any]]:
         """
         Add a movie to Radarr using title and year (fallback when TMDB ID fails)

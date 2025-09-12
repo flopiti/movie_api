@@ -152,3 +152,62 @@ class TMDBClient:
             'total_results': len(final_results),
             'year_matches': len([m for m in all_results if m.get('_year_match')]) if target_year else 0
         }
+    
+    def is_movie_released(self, movie_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Check if a movie is released yet based on TMDB data
+        
+        Args:
+            movie_data: Movie data from TMDB search results
+            
+        Returns:
+            Dictionary with release status information
+        """
+        from datetime import datetime, date
+        
+        status = {
+            'is_released': False,
+            'release_date': None,
+            'release_status': None,
+            'days_until_release': None,
+            'release_date_formatted': None
+        }
+        
+        try:
+            # Get release date from movie data
+            release_date_str = movie_data.get('release_date', '')
+            status['release_date'] = release_date_str
+            
+            if not release_date_str:
+                # No release date available
+                status['release_status'] = 'unknown'
+                status['is_released'] = False
+                return status
+            
+            # Parse release date
+            try:
+                release_date = datetime.strptime(release_date_str, '%Y-%m-%d').date()
+                status['release_date_formatted'] = release_date.strftime('%B %d, %Y')
+            except ValueError:
+                # Invalid date format
+                status['release_status'] = 'invalid_date'
+                status['is_released'] = False
+                return status
+            
+            # Compare with today's date
+            today = date.today()
+            
+            if release_date <= today:
+                status['is_released'] = True
+                status['release_status'] = 'released'
+            else:
+                status['is_released'] = False
+                status['release_status'] = 'unreleased'
+                days_diff = (release_date - today).days
+                status['days_until_release'] = days_diff
+                
+        except Exception as e:
+            status['error'] = str(e)
+            status['release_status'] = 'error'
+            
+        return status

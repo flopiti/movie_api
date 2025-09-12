@@ -23,11 +23,11 @@ class PlexAgent:
     def get_movie(self, movie_result):
         """
         Service method to handle TMDB search for a detected movie.
-        Returns TMDB result and movie data if found.
+        Returns TMDB result, movie data, Radarr status, and release status if found.
         """
         if not movie_result or not movie_result.get('success') or not movie_result.get('movie_name') or movie_result.get('movie_name') == "No movie identified":
             logger.info(f"🎬 PlexAgent: No movie identified in conversation")
-            return None, None
+            return None, None, None, None
         
         logger.info(f"🎬 PlexAgent: Movie detected: {movie_result['movie_name']}")
         
@@ -35,9 +35,10 @@ class PlexAgent:
         tmdb_result = self.tmdb_client.search_movie(movie_result['movie_name'])
         if not tmdb_result.get('results') or len(tmdb_result.get('results', [])) == 0:
             logger.info(f"🎬 PlexAgent: Movie not found in TMDB: {movie_result['movie_name']}")
-            return tmdb_result, None
+            return tmdb_result, None, None, None
         
         movie_data = tmdb_result['results'][0]  # Get first result
+        tmdb_id = movie_data.get('id')
         
         # Extract year from release_date (format: YYYY-MM-DD)
         release_date = movie_data.get('release_date', '')
@@ -45,7 +46,18 @@ class PlexAgent:
         
         logger.info(f"🎬 PlexAgent: TMDB found movie: {movie_data.get('title')} ({year})")
         
-        return tmdb_result, movie_data
+        # Check Radarr status if Radarr is configured
+        radarr_status = None
+        if self.download_monitor.is_radarr_configured() and tmdb_id:
+            logger.info(f"🔍 PlexAgent: Checking Radarr status for {movie_data.get('title')}")
+            radarr_status = self.download_monitor.radarr_client.get_movie_status_by_tmdb_id(tmdb_id)
+            logger.info(f"📱 PlexAgent: Radarr status: {radarr_status}")
+        
+        # Check release status
+        release_status = self.tmdb_client.is_movie_released(movie_data)
+        logger.info(f"📅 PlexAgent: Release status: {release_status}")
+        
+        return tmdb_result, movie_data, radarr_status, release_status
     
     def request_movie_download(self, movie_data, phone_number):
         """
@@ -69,12 +81,14 @@ class PlexAgent:
             return False
         
         # Add download request to the monitor
+        logger.info(f"📱 PlexAgent: Calling download_monitor.add_download_request for {movie_data.get('title')}")
         success = self.download_monitor.add_download_request(
             tmdb_id=tmdb_id,
             movie_title=movie_data.get('title'),
             movie_year=year,
             phone_number=phone_number
         )
+        logger.info(f"📱 PlexAgent: download_monitor.add_download_request returned: {success}")
         
         if success:
             logger.info(f"✅ PlexAgent: Download request added successfully for {movie_data.get('title')}")
@@ -115,12 +129,52 @@ class PlexAgent:
         logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
         
         # Step 2: Search TMDB for the movie if detected
-        tmdb_result, movie_data = self.get_movie(movie_result)
+        tmdb_result, movie_data, radarr_status, release_status = self.get_movie(movie_result)
         
-        # Step 3: Request download if movie was found in TMDB
+        # Step 3: Check movie status and handle accordingly
         movie_downloaded = False
+        movie_status_message = ""
+        
         if movie_data and tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-            movie_downloaded = self.request_movie_download(movie_data, phone_number)
+            # Check if movie is released
+            if release_status and not release_status.get('is_released', True):
+                # Movie is not released yet
+                release_date = release_status.get('release_date_formatted', 'Unknown date')
+                days_until = release_status.get('days_until_release', 0)
+                if days_until:
+                    movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is not released yet. It will be available on {release_date} - {days_until} days from now)"
+                else:
+                    movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is not released yet. Release date: {release_date})"
+                logger.info(f"📅 PlexAgent: Movie not released yet: {movie_data.get('title')}")
+            else:
+                # Movie is released, check Radarr status
+                if radarr_status and radarr_status.get('exists_in_radarr'):
+                    if radarr_status.get('is_downloaded'):
+                        # Movie is already downloaded
+                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already downloaded and available in your library)"
+                        logger.info(f"✅ PlexAgent: Movie already downloaded: {movie_data.get('title')}")
+                    elif radarr_status.get('is_downloading'):
+                        # Movie is currently downloading
+                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already being downloaded)"
+                        logger.info(f"📥 PlexAgent: Movie already downloading: {movie_data.get('title')}")
+                    else:
+                        # Movie exists in Radarr but not downloaded - trigger search
+                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already in your download queue - triggering search for available releases)"
+                        logger.info(f"🔍 PlexAgent: Movie in Radarr but not downloaded, triggering search: {movie_data.get('title')}")
+                        # Trigger search for the existing movie
+                        if radarr_status.get('radarr_movie_id'):
+                            self.download_monitor.radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
+                else:
+                    # Movie not in Radarr, request download
+                    logger.info(f"🔍 PlexAgent: Movie not in Radarr, requesting download for {movie_data.get('title')}")
+                    movie_downloaded = self.request_movie_download(movie_data, phone_number)
+                    logger.info(f"📱 PlexAgent: Download request result: {movie_downloaded}")
+                    if movie_downloaded:
+                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' has been added to your download queue)"
+                        logger.info(f"✅ PlexAgent: Successfully added {movie_data.get('title')} to download queue")
+                    else:
+                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - it may already be requested or unavailable)"
+                        logger.info(f"❌ PlexAgent: Failed to add {movie_data.get('title')} to download queue")
         
         # Step 4: Always generate GPT response with full context
         logger.info(f"🤖 PlexAgent: Generating ChatGPT response with full context...")
@@ -128,15 +182,15 @@ class PlexAgent:
         # Build comprehensive context about movie detection and download status
         movie_context = ""
         if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-            # Check if movie was found in TMDB
-            if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+            if movie_status_message:
+                # Use the detailed status message we built
+                movie_context = movie_status_message
+            elif tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+                # Fallback to basic message if no detailed status
                 movie_data = tmdb_result['results'][0]
                 release_date = movie_data.get('release_date', '')
                 year = release_date.split('-')[0] if release_date else 'Unknown year'
-                if movie_downloaded:
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified, found in our database, and successfully added to Radarr for downloading)"
-                else:
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database, but could not be added to Radarr - it may be unreleased or unavailable)"
+                movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
             else:
                 movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
         else:
