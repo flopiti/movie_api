@@ -157,6 +157,8 @@ class PlexAgent:
                         # Trigger search for the existing movie
                         if radarr_status.get('radarr_movie_id'):
                             self.download_monitor.radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
+                            # Send notification that search was triggered
+                            self._send_search_triggered_notification(movie_data, phone_number)
                 else:
                     # Movie not in Radarr, request download
                     logger.info(f"🔍 PlexAgent: Movie not in Radarr, requesting download for {movie_data.get('title')}")
@@ -165,6 +167,9 @@ class PlexAgent:
                     if movie_downloaded:
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' has been added to your download queue)"
                         logger.info(f"✅ PlexAgent: Successfully added {movie_data.get('title')} to download queue")
+                        
+                        # Send immediate SMS notification that movie was added
+                        self._send_movie_added_notification(movie_data, phone_number)
                     else:
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - it may already be requested or unavailable)"
                         logger.info(f"❌ PlexAgent: Failed to add {movie_data.get('title')} to download queue")
@@ -211,3 +216,43 @@ class PlexAgent:
             'tmdb_result': tmdb_result,
             'success': True
         }
+    
+    def _send_movie_added_notification(self, movie_data, phone_number):
+        """Send SMS notification when movie is added to download queue"""
+        try:
+            from ..clients.twilio_client import TwilioClient
+            twilio_client = TwilioClient()
+            
+            release_date = movie_data.get('release_date', '')
+            year = release_date.split('-')[0] if release_date else 'Unknown year'
+            message = f"🎬 Adding '{movie_data.get('title')}' ({year}) to your download queue. I'll let you know when it starts downloading!"
+            
+            result = twilio_client.send_sms(phone_number, message)
+            
+            if result.get('success'):
+                logger.info(f"📱 PlexAgent: Sent movie added notification to {phone_number}")
+            else:
+                logger.error(f"❌ PlexAgent: Failed to send movie added notification: {result.get('error')}")
+                
+        except Exception as e:
+            logger.error(f"❌ PlexAgent: Error sending movie added notification: {str(e)}")
+    
+    def _send_search_triggered_notification(self, movie_data, phone_number):
+        """Send SMS notification when search is triggered for existing movie"""
+        try:
+            from ..clients.twilio_client import TwilioClient
+            twilio_client = TwilioClient()
+            
+            release_date = movie_data.get('release_date', '')
+            year = release_date.split('-')[0] if release_date else 'Unknown year'
+            message = f"🔍 Searching for '{movie_data.get('title')}' ({year}) releases. I'll let you know when download starts!"
+            
+            result = twilio_client.send_sms(phone_number, message)
+            
+            if result.get('success'):
+                logger.info(f"📱 PlexAgent: Sent search triggered notification to {phone_number}")
+            else:
+                logger.error(f"❌ PlexAgent: Failed to send search triggered notification: {result.get('error')}")
+                
+        except Exception as e:
+            logger.error(f"❌ PlexAgent: Error sending search triggered notification: {str(e)}")
