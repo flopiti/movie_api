@@ -4,8 +4,12 @@ Radarr API Client for managing movies and downloads
 """
 
 import requests
+import logging
 from typing import Dict, List, Optional, Any
 from urllib.parse import urljoin
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class RadarrClient:
     """Client for interacting with Radarr API"""
@@ -28,6 +32,8 @@ class RadarrClient:
             'Content-Type': 'application/json'
         })
         
+        logger.info(f"🔧 Radarr Client initialized: URL={self.base_url}, API Key={'*' * (len(api_key) - 4) + api_key[-4:] if len(api_key) > 4 else '****'}")
+        
     
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
@@ -43,6 +49,13 @@ class RadarrClient:
         """
         url = urljoin(self.base_url, endpoint)
         
+        # Log request details
+        logger.debug(f"🌐 Radarr API Request: {method} {url}")
+        if 'json' in kwargs:
+            logger.debug(f"📤 Request payload: {kwargs['json']}")
+        if 'params' in kwargs:
+            logger.debug(f"📤 Request params: {kwargs['params']}")
+        
         try:
             response = self.session.request(
                 method, 
@@ -51,16 +64,25 @@ class RadarrClient:
                 **kwargs
             )
             
+            logger.debug(f"📥 Radarr API Response: {response.status_code}")
+            
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                logger.debug(f"✅ Radarr API Success: {len(str(data))} chars response")
+                return data
             elif response.status_code == 201:
-                return response.json()
+                data = response.json()
+                logger.info(f"✅ Radarr API Created: {len(str(data))} chars response")
+                return data
             elif response.status_code == 204:
+                logger.info("✅ Radarr API Success: No content")
                 return {}
             else:
+                logger.error(f"❌ Radarr API Error: {response.status_code} - {response.text}")
                 return None
                 
         except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Radarr API Request Exception: {str(e)}")
             return None
     
     def test_connection(self) -> bool:
@@ -71,9 +93,18 @@ class RadarrClient:
             True if connection successful, False otherwise
         """
         try:
+            logger.info("🔍 Testing Radarr connection...")
             result = self._make_request('GET', '/api/v3/system/status')
-            return result is not None
+            
+            if result:
+                logger.info(f"✅ Radarr connection successful - Version: {result.get('version', 'Unknown')}")
+                logger.info(f"✅ Radarr App Name: {result.get('appName', 'Unknown')}")
+                return True
+            else:
+                logger.error("❌ Radarr connection failed - no response")
+                return False
         except Exception as e:
+            logger.error(f"❌ Radarr connection test failed: {str(e)}")
             return False
     
     def get_system_status(self) -> Optional[Dict[str, Any]]:
@@ -176,8 +207,20 @@ class RadarrClient:
         Returns:
             List of download dictionaries or empty list if error
         """
+        logger.debug("📥 Getting current downloads from Radarr...")
         result = self._make_request('GET', '/api/v3/queue')
-        return result.get('records', []) if result else []
+        
+        if result:
+            downloads = result.get('records', [])
+            logger.debug(f"📥 Found {len(downloads)} downloads in queue")
+            for download in downloads:
+                movie_title = download.get('movie', {}).get('title', 'Unknown')
+                status = download.get('status', 'Unknown')
+                logger.debug(f"📥 Download: {movie_title} - Status: {status}")
+            return downloads
+        else:
+            logger.error("❌ Failed to get downloads from Radarr")
+            return []
     
     def get_download_history(self) -> List[Dict[str, Any]]:
         """
@@ -375,24 +418,36 @@ class RadarrClient:
         Returns:
             Added movie data or None if error
         """
+        logger.info(f"🎬 Adding movie to Radarr: TMDB ID={tmdb_id}, monitored={monitored}, search_for_movie={search_for_movie}")
+        
         # Get movie details from TMDB lookup
+        logger.info(f"🔍 Looking up movie details for TMDB ID: {tmdb_id}")
         movie_lookup = self._make_request('GET', f'/api/v3/movie/lookup/tmdb/{tmdb_id}')
         if not movie_lookup:
+            logger.error(f"❌ Failed to lookup movie with TMDB ID: {tmdb_id}")
             return None
+        
+        logger.info(f"✅ Movie lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
         
         # Get default root folder if not provided
         if not root_folder_path:
+            logger.info("📁 Getting default root folder...")
             root_folders = self.get_root_folders()
             if not root_folders:
+                logger.error("❌ No root folders found in Radarr")
                 return None
             root_folder_path = root_folders[0]['path']
+            logger.info(f"📁 Using root folder: {root_folder_path}")
         
         # Get default quality profile if not provided
         if not quality_profile_id:
+            logger.info("⚙️ Getting default quality profile...")
             quality_profiles = self.get_quality_profiles()
             if not quality_profiles:
+                logger.error("❌ No quality profiles found in Radarr")
                 return None
             quality_profile_id = quality_profiles[0]['id']
+            logger.info(f"⚙️ Using quality profile ID: {quality_profile_id}")
         
         # Prepare movie data for adding
         movie_data = {
@@ -409,7 +464,15 @@ class RadarrClient:
             }
         }
         
-        return self._make_request('POST', '/api/v3/movie', json=movie_data)
+        logger.info(f"📤 Sending movie data to Radarr: {movie_data}")
+        result = self._make_request('POST', '/api/v3/movie', json=movie_data)
+        
+        if result:
+            logger.info(f"✅ Movie added successfully to Radarr: {result.get('title', 'Unknown')} (ID: {result.get('id', 'Unknown')})")
+        else:
+            logger.error(f"❌ Failed to add movie to Radarr: TMDB ID {tmdb_id}")
+        
+        return result
     
     def search_for_movie(self, movie_id: int) -> bool:
         """
@@ -421,10 +484,17 @@ class RadarrClient:
         Returns:
             True if search command was sent successfully, False otherwise
         """
+        logger.info(f"🔍 Triggering search for movie ID: {movie_id}")
         result = self._make_request('POST', '/api/v3/command', json={
             'name': 'MoviesSearch',
             'movieIds': [movie_id]
         })
+        
+        if result:
+            logger.info(f"✅ Search command sent successfully for movie ID: {movie_id}")
+        else:
+            logger.error(f"❌ Failed to send search command for movie ID: {movie_id}")
+        
         return result is not None
     
     def get_movie_by_tmdb_id(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
@@ -437,10 +507,15 @@ class RadarrClient:
         Returns:
             Movie dictionary or None if not found
         """
+        logger.debug(f"🔍 Looking for movie with TMDB ID: {tmdb_id}")
         movies = self.get_movies()
+        
         for movie in movies:
             if movie.get('tmdbId') == tmdb_id:
+                logger.debug(f"✅ Found movie: {movie.get('title', 'Unknown')} (Radarr ID: {movie.get('id', 'Unknown')})")
                 return movie
+        
+        logger.debug(f"❌ Movie with TMDB ID {tmdb_id} not found in Radarr")
         return None
     
     def is_movie_downloading(self, movie_id: int) -> bool:
@@ -483,3 +558,55 @@ class RadarrClient:
                     'errorMessage': download.get('errorMessage')
                 }
         return None
+    
+    def get_radarr_config_info(self) -> Dict[str, Any]:
+        """
+        Get comprehensive Radarr configuration information for debugging
+        
+        Returns:
+            Dictionary with configuration details
+        """
+        logger.info("🔧 Gathering Radarr configuration information...")
+        
+        config_info = {
+            'base_url': self.base_url,
+            'api_key_masked': '*' * (len(self.api_key) - 4) + self.api_key[-4:] if len(self.api_key) > 4 else '****',
+            'timeout': self.timeout
+        }
+        
+        try:
+            # Test connection
+            config_info['connection_test'] = self.test_connection()
+            
+            # Get system status
+            system_status = self.get_system_status()
+            if system_status:
+                config_info['system_status'] = {
+                    'version': system_status.get('version'),
+                    'app_name': system_status.get('appName'),
+                    'build_time': system_status.get('buildTime')
+                }
+            
+            # Get root folders
+            root_folders = self.get_root_folders()
+            config_info['root_folders'] = [{'path': rf.get('path'), 'free_space': rf.get('freeSpace')} for rf in root_folders]
+            
+            # Get quality profiles
+            quality_profiles = self.get_quality_profiles()
+            config_info['quality_profiles'] = [{'id': qp.get('id'), 'name': qp.get('name')} for qp in quality_profiles]
+            
+            # Get current downloads count
+            downloads = self.get_downloads()
+            config_info['current_downloads'] = len(downloads)
+            
+            # Get total movies count
+            movies = self.get_movies()
+            config_info['total_movies'] = len(movies)
+            
+            logger.info(f"🔧 Radarr Config Info: {config_info}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to gather Radarr config info: {str(e)}")
+            config_info['error'] = str(e)
+        
+        return config_info

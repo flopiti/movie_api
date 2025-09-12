@@ -72,6 +72,11 @@ class DownloadMonitor:
             self.radarr_client = config.get_radarr_client()
             if self.radarr_client and self.radarr_client.test_connection():
                 logger.info("✅ Download Monitor: Radarr connection established")
+                
+                # Log detailed Radarr configuration for debugging
+                config_info = self.radarr_client.get_radarr_config_info()
+                logger.info(f"🔧 Download Monitor: Radarr Config - {config_info}")
+                
             else:
                 self.radarr_client = None
                 # Check if it's a configuration issue
