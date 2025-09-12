@@ -35,6 +35,8 @@ def sms_webhook():
             'timestamp': datetime.now().isoformat()
         }
         
+        logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
+        
 
         # Store incoming message in Redis
         twilio_client.store_incoming_message(message_data)
@@ -42,6 +44,8 @@ def sms_webhook():
         # Get reply settings and templates
         reply_settings = config.get_sms_reply_settings()
         reply_templates = config.get_sms_reply_templates()
+        
+        logger.info(f"📱 SMS Settings: auto_reply_enabled={reply_settings.get('auto_reply_enabled', False)}, use_chatgpt={reply_settings.get('use_chatgpt', False)}")
         
         response_message = None
         
