@@ -88,6 +88,15 @@ MOVIE_DETECTION_TEST_CASES = [
             "USER: yoo do you know about devil wears prada 2?"
         ],
         "expected_movie": "The Devil Wears Prada 2"  # Should detect sequel reference
+    },
+    {
+        "name": "Breakfast at Tiffany's priority over Devil Wears Prada 2",
+        "conversation": [
+            "USER: can you add breakfast at tiffany?",
+            "USER: add devils wears prada 2",
+            "USER: yoo do you know about devil wears prada 2?"
+        ],
+        "expected_movie": "Breakfast at Tiffany's (1961)"  # Should prioritize first USER message
     }
 ]
 

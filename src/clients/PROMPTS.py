@@ -4,54 +4,38 @@ All prompts used in the application
 """
 
 # Movie Detection Prompt
-MOVIE_DETECTION_PROMPT = """You are a movie identification expert. I will provide you with a conversation, and you must extract the movie title and year that is being discussed.
+MOVIE_DETECTION_PROMPT = """You must extract the movie title from this conversation. Return ONLY the movie title with year.
 
-IMPORTANT: You must ALWAYS process the conversation I give you. Never ask for clarification or more information.
+ABSOLUTE RULE: The conversation shows messages with the NEWEST message FIRST. You MUST look at the FIRST line only.
 
-CRITICAL: Focus ONLY on USER messages. Ignore all SYSTEM messages completely. Look for movie titles ONLY in messages that start with "USER:". The SYSTEM messages are just responses and should be completely ignored.
+EXAMPLES:
+If conversation is:
+Line 1: "USER: can you add Movie A?"
+Line 2: "USER: add Movie B"
+Line 3: "USER: what about Movie C?"
 
-PRIORITY: The conversation is ordered with the most recent messages FIRST. The FIRST USER message in the conversation array is the most recent and most important. 
+You MUST return: "Movie A" because Line 1 is newest.
 
-CRITICAL RULE: ONLY look at the FIRST USER message in the conversation. Completely ignore all other USER messages, even if they mention different movies. If the first USER message contains multiple movie titles, pick the FIRST one mentioned in that message.
+If conversation is:
+Line 1: "USER: Actually, can you get me Movie X? I heard it's really good"
+Line 2: "SYSTEM: That sounds interesting! Tell me more."
+Line 3: "USER: Hey! I was thinking about Movie Y movies today"
 
-ABSOLUTE PRIORITY: The FIRST USER message is the ONLY message that matters. Do not look at any other USER messages in the conversation, regardless of what movies they mention.
+You MUST return: "Movie X" because Line 1 is newest.
 
-EXAMPLE: If the first USER message says "get me Titane" and later messages mention "Planet of the Apes", you MUST return "Titane" and ignore "Planet of the Apes".
+RULES:
+1. ALWAYS look at Line 1 (first line) - this is the NEWEST message
+2. If Line 1 has a movie request, use that movie
+3. If Line 1 has multiple movies, pick the FIRST movie mentioned
+4. Ignore SYSTEM messages completely
+5. Return format: "Movie Title (Year)" or just "Movie Title" if no year
+6. PRESERVE the exact movie title format - keep ALL apostrophes, punctuation, and spelling exactly as mentioned
+7. If no movie found, return "No movie identified"
 
-MULTILINGUAL SUPPORT: The conversation may be in any language. Look for movie titles regardless of the language used. Common patterns include:
-- Commands like "Add", "Get", "Download" followed by movie titles
-- Requests for movies, TV shows, or seasons
-- Movie titles may be mentioned in any language
-
-TYPO TOLERANCE: Be tolerant of typos and misspellings. Use context clues to identify the intended movie title even if it's misspelled.
-
-UNKNOWN MOVIES: There are many movies you may not know about. Extract any movie title mentioned, even if you've never heard of it or it doesn't exist.
-
-PRESERVE IMPORTANT WORDS: Keep all important words like numbers (2, 3, Part 2), sequel indicators, and specific terms. Don't change or remove these.
-
-MINOR ADJUSTMENTS ALLOWED: You may make small adjustments to help with TMDB search (like adding "The" or fixing capitalization), but preserve the core title structure.
-
-Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
-"Movie Title (Year)"
-
-IMPORTANT: 
-- If you know the year, include it: "Movie Title (Year)"
-- If you don't know the year, return ONLY the movie title: "Movie Title"
-- NEVER add text like "(No year specified)" or "(Unknown year)" - just return the clean title
-- You may adjust the title slightly if you think it better represents what the user is referring to
-
-Examples of correct output format:
-- "The Dark Knight (2008)"
-- "Inception (2010)"
-- "Pulp Fiction (1994)"
-- "The Matrix (1999)"
-
-If no movie title is mentioned in the conversation, return "No movie identified".
-
-Conversation (ONLY look at the FIRST USER message - ignore all other USER messages completely):
+Conversation:
 {conversation_text}
 
-Movie Title with Year:"""
+Movie:"""
 
 # SMS Response Prompt (Default)
 SMS_RESPONSE_PROMPT = """You are a helpful movie assistant. Keep your response under 160 characters and appropriate for SMS communication.

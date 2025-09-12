@@ -106,7 +106,12 @@ class PlexAgent:
         # Step 1: Detect movie in conversation
         logger.info(f"🎬 PlexAgent: Analyzing conversation for movie detection...")
         logger.info(f"🎬 PlexAgent: Conversation history ({len(conversation_history)} messages): {conversation_history}")
-        movie_result = self.openai_client.getMovieName(conversation_history)
+        
+        # Send last 10 messages (both USER and SYSTEM) instead of filtering to only USER messages
+        last_10_messages = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+        logger.info(f"🎬 PlexAgent: Sending last {len(last_10_messages)} messages to OpenAI: {last_10_messages}")
+        
+        movie_result = self.openai_client.getMovieName(last_10_messages)
         logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
         
         # Step 2: Search TMDB for the movie if detected
