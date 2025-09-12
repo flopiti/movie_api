@@ -50,11 +50,11 @@ class PlexAgent:
     def request_movie_download(self, movie_data, phone_number):
         """
         Service method to handle Radarr download requests.
-        Returns response message based on download request success/failure.
+        Returns binary success/failure status.
         """
         if not movie_data or not phone_number:
             logger.warning(f"⚠️ PlexAgent: Missing movie data or phone number for download request")
-            return None
+            return False
         
         # Extract year from release_date (format: YYYY-MM-DD)
         release_date = movie_data.get('release_date', '')
@@ -65,9 +65,8 @@ class PlexAgent:
         
         # Check if Radarr is configured first
         if not self.download_monitor.is_radarr_configured():
-            response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but Radarr is not configured yet. Please set up your Radarr API key to enable downloads!"
             logger.warning(f"⚠️ PlexAgent: Radarr not configured - cannot process download request for {movie_data.get('title')}")
-            return response_message
+            return False
         
         # Add download request to the monitor
         success = self.download_monitor.add_download_request(
@@ -78,13 +77,11 @@ class PlexAgent:
         )
         
         if success:
-            response_message = f"🎬 Great! I found '{movie_data.get('title')} ({year})' and added it to your download queue. I'll send you updates as the download progresses!"
             logger.info(f"✅ PlexAgent: Download request added successfully for {movie_data.get('title')}")
         else:
-            response_message = f"🎬 I found '{movie_data.get('title')} ({year})' but it's already in your download queue. I'll keep you updated on the progress!"
             logger.info(f"ℹ️ PlexAgent: Download request already exists for {movie_data.get('title')}")
         
-        return response_message
+        return success
     
     def Answer(self, conversation_history, phone_number):
         logger.info(f"🎬 PlexAgent: Processing conversation with {len(conversation_history)} messages from {phone_number}")
@@ -116,48 +113,50 @@ class PlexAgent:
         tmdb_result, movie_data = self.get_movie(movie_result)
         
         # Step 3: Request download if movie was found in TMDB
-        response_message = None
+        movie_downloaded = False
         if movie_data and tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-            response_message = self.request_movie_download(movie_data, phone_number)
+            movie_downloaded = self.request_movie_download(movie_data, phone_number)
         
-        # Step 4: Generate GPT response if no movie-specific response was generated
-        if not response_message:
-            logger.info(f"🤖 PlexAgent: No movie response, calling ChatGPT...")
-            
-            # Add context about movie detection result
-            movie_context = ""
-            if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-                # Check if movie was found in TMDB
-                if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                    movie_data = tmdb_result['results'][0]
-                    release_date = movie_data.get('release_date', '')
-                    year = release_date.split('-')[0] if release_date else 'Unknown year'
-                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
+        # Step 4: Always generate GPT response with full context
+        logger.info(f"🤖 PlexAgent: Generating ChatGPT response with full context...")
+        
+        # Build comprehensive context about movie detection and download status
+        movie_context = ""
+        if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
+            # Check if movie was found in TMDB
+            if tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
+                movie_data = tmdb_result['results'][0]
+                release_date = movie_data.get('release_date', '')
+                year = release_date.split('-')[0] if release_date else 'Unknown year'
+                if movie_downloaded:
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified, found in our database, and successfully added to download queue)"
                 else:
-                    movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
+                    movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database, but download request failed)"
             else:
-                movie_context = " (Note: No movie was identified in the conversation)"
+                movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
+        else:
+            movie_context = " (Note: No movie was identified in the conversation)"
+        
+        if current_message and phone_number:
+            logger.info(f"🤖 PlexAgent OpenAI Request: Generating response for message '{current_message}' from '{phone_number}'{movie_context}")
+            chatgpt_result = self.openai_client.generate_sms_response(
+                current_message, 
+                phone_number, 
+                self.sms_response_prompt,
+                movie_context=movie_context
+            )
             
-            if current_message and phone_number:
-                logger.info(f"🤖 PlexAgent OpenAI Request: Generating response for message '{current_message}' from '{phone_number}'{movie_context}")
-                chatgpt_result = self.openai_client.generate_sms_response(
-                    current_message, 
-                    phone_number, 
-                    self.sms_response_prompt,
-                    movie_context=movie_context
-                )
-                
-                logger.info(f"🤖 PlexAgent OpenAI Result: {chatgpt_result}")
-                
-                if chatgpt_result.get('success'):
-                    response_message = chatgpt_result['response']
-                    logger.info(f"✅ PlexAgent OpenAI Response: Generated response '{response_message}'")
-                else:
-                    logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
-                    response_message = "I received your message but couldn't identify a movie. Could you please specify which movie you'd like me to get?"
+            logger.info(f"🤖 PlexAgent OpenAI Result: {chatgpt_result}")
+            
+            if chatgpt_result.get('success'):
+                response_message = chatgpt_result['response']
+                logger.info(f"✅ PlexAgent OpenAI Response: Generated response '{response_message}'")
             else:
-                logger.error(f"❌ PlexAgent: Could not extract current message or phone number from conversation history")
+                logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
                 response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"
+        else:
+            logger.error(f"❌ PlexAgent: Could not extract current message or phone number from conversation history")
+            response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"
 
         # Return the response data
         return {
