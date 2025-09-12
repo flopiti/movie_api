@@ -5,6 +5,7 @@ Routes for Plex API integration and movie comparison.
 """
 
 import time
+import os
 from flask import Blueprint, request, jsonify
 from plex_client import PlexClient
 from config import config
