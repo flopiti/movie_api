@@ -5,7 +5,6 @@ Routes for movie search, assignment, and management operations.
 """
 
 import os
-import logging
 from pathlib import Path
 from flask import Blueprint, request, jsonify
 from config import config
@@ -20,8 +19,6 @@ movies_bp = Blueprint('movies', __name__)
 tmdb_client = TMDBClient(TMDB_API_KEY)
 openai_client = OpenAIClient(OPENAI_API_KEY)
 
-logger = logging.getLogger(__name__)
-
 @movies_bp.route('/search-movie', methods=['GET'])
 def search_movie():
     """Search for movie metadata using OpenAI to clean filename first, then TMDB API."""
@@ -31,7 +28,6 @@ def search_movie():
         return jsonify({'error': 'Query parameter "q" is required'}), 400
 
     # Step 1: Clean the filename using OpenAI
-    logger.info(f"🔍 Movie search request: '{query}'")
     openai_result = openai_client.clean_filename(query)
     
     # Prepare the search query - use cleaned title if available, otherwise fallback to original

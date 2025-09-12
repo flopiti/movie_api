@@ -33,15 +33,10 @@ class PlexClient:
         Returns:
             List of library information dictionaries
         """
-        import logging
-        logger = logging.getLogger(__name__)
-        
         try:
-            logger.info(f"Fetching libraries from {self.server_url}/library/sections")
             url = f"{self.server_url}/library/sections"
             response = self.session.get(url)
             response.raise_for_status()
-            logger.info(f"Libraries response status: {response.status_code}")
             
             root = ET.fromstring(response.content)
             libraries = []
@@ -54,13 +49,10 @@ class PlexClient:
                     'count': directory.get('count')
                 }
                 libraries.append(library)
-                logger.info(f"Found library: {library['title']} (ID: {library['id']}, Type: {library['type']}, Count: {library['count']})")
             
-            logger.info(f"Total libraries found: {len(libraries)}")
             return libraries
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to get libraries: {e}")
             return []
     
     def get_movies_from_library(self, library_id: str, limit: int = 1000) -> List[Dict]:
@@ -161,24 +153,17 @@ class PlexClient:
             Dictionary with library names as keys and movie counts as values
         """
         import logging
-        logger = logging.getLogger(__name__)
-        
-        logger.info("Getting movie count from Plex...")
         libraries = self.get_libraries()
-        logger.info(f"Found {len(libraries)} libraries")
         
         counts = {}
         
         for library in libraries:
             if library['type'] == 'movie':
-                logger.info(f"Processing movie library: {library['title']}")
                 count_value = library.get('count')
                 if count_value is not None:
                     counts[library['title']] = int(count_value)
-                    logger.info(f"Using library count: {count_value}")
                 else:
                     # Direct approach - just get the count from /all endpoint
-                    logger.info(f"Library count is None, getting from /all endpoint...")
                     try:
                         # Try a more efficient approach - just get the count without full movie data
                         url = f"{self.server_url}/library/sections/{library['id']}/all"
@@ -192,7 +177,6 @@ class PlexClient:
                             total_size = root.get('totalSize')
                             if total_size is not None:
                                 counts[library['title']] = int(total_size)
-                                logger.info(f"Got count from /all endpoint: {total_size}")
                             else:
                                 # If still no totalSize, try without pagination
                                 response = self.session.get(url, timeout=60)  # Even longer timeout for full response
@@ -200,18 +184,13 @@ class PlexClient:
                                     root = ET.fromstring(response.content)
                                     movies_in_response = len(root.findall('.//Video'))
                                     counts[library['title']] = movies_in_response
-                                    logger.info(f"No totalSize in response, counted {movies_in_response} movies from response")
                                 else:
-                                    logger.error(f"/all request failed: {response.status_code}")
                                     counts[library['title']] = 0
                         else:
-                            logger.error(f"/all request failed: {response.status_code}")
                             counts[library['title']] = 0
                     except Exception as e:
-                        logger.error(f"Error getting count for {library['title']}: {e}")
                         counts[library['title']] = 0
         
-        logger.info(f"Final counts: {counts}")
         return counts
     
     def search_movies(self, query: str, library_id: Optional[str] = None) -> List[Dict]:
@@ -259,35 +238,3 @@ class PlexClient:
         except requests.exceptions.RequestException:
             return []
 
-def main():
-    """Example usage of the PlexClient"""
-    plex = PlexClient()
-    
-    # Get library information
-    print("=== Plex Libraries ===")
-    libraries = plex.get_libraries()
-    for lib in libraries:
-        if lib['type'] == 'movie':
-            print(f"Movie Library: {lib['title']} (ID: {lib['id']}) - Count: {lib.get('count', 'Unknown')}")
-    
-    # Get movie counts
-    print("\n=== Movie Counts ===")
-    counts = plex.get_movie_count()
-    for library, count in counts.items():
-        print(f"{library}: {count} movies")
-    
-    # Get all movies
-    print("\n=== Fetching All Movies ===")
-    all_movies = plex.get_all_movies()
-    print(f"Total movies retrieved: {len(all_movies)}")
-    
-    # Display first few movies as example
-    print("\n=== Sample Movies ===")
-    for i, movie in enumerate(all_movies[:5]):
-        print(f"{i+1}. {movie['title']} ({movie.get('year', 'N/A')})")
-        if movie.get('summary'):
-            print(f"   Summary: {movie['summary'][:100]}...")
-        print()
-
-if __name__ == "__main__":
-    main()

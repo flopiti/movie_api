@@ -3,11 +3,8 @@
 TMDB API client for movie metadata.
 """
 
-import logging
 import requests
 from typing import Dict, Any
-
-logger = logging.getLogger(__name__)
 
 class TMDBClient:
     """TMDB API client for movie metadata."""

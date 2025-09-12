@@ -4,11 +4,8 @@ Radarr API Client for managing movies and downloads
 """
 
 import requests
-import logging
 from typing import Dict, List, Optional, Any
 from urllib.parse import urljoin
-
-logger = logging.getLogger(__name__)
 
 class RadarrClient:
     """Client for interacting with Radarr API"""
@@ -31,7 +28,6 @@ class RadarrClient:
             'Content-Type': 'application/json'
         })
         
-        logger.info(f"Radarr client initialized for {self.base_url}")
     
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
@@ -48,7 +44,6 @@ class RadarrClient:
         url = urljoin(self.base_url, endpoint)
         
         try:
-            logger.debug(f"Making {method} request to {url}")
             response = self.session.request(
                 method, 
                 url, 
@@ -63,11 +58,9 @@ class RadarrClient:
             elif response.status_code == 204:
                 return {}
             else:
-                logger.error(f"Radarr API error: {response.status_code} - {response.text}")
                 return None
                 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {str(e)}")
             return None
     
     def test_connection(self) -> bool:
@@ -81,7 +74,6 @@ class RadarrClient:
             result = self._make_request('GET', '/api/v3/system/status')
             return result is not None
         except Exception as e:
-            logger.error(f"Connection test failed: {str(e)}")
             return False
     
     def get_system_status(self) -> Optional[Dict[str, Any]]:

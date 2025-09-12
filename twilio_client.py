@@ -6,14 +6,11 @@ Handles SMS messaging functionality for the movie management system.
 
 import os
 import json
-import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import redis
-
-logger = logging.getLogger(__name__)
 
 class TwilioClient:
     def __init__(self):
@@ -23,11 +20,9 @@ class TwilioClient:
         self.phone_number = os.getenv('TWILIO_PHONE_NUMBER')
         
         if not all([self.account_sid, self.auth_token, self.phone_number]):
-            logger.warning("Twilio credentials not fully configured. SMS functionality will be limited.")
             self.client = None
         else:
             self.client = Client(self.account_sid, self.auth_token)
-            logger.info("Twilio client initialized successfully")
         
         # Initialize Redis for message storage
         self._init_redis()
@@ -42,15 +37,12 @@ class TwilioClient:
             
             self.redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
             self.redis_client.ping()  # Test connection
-            logger.info(f"TwilioClient Redis connected: {redis_host}:{redis_port}")
         except Exception as e:
-            logger.error(f"Failed to connect TwilioClient to Redis: {str(e)}")
             self.redis_client = None
     
     def _store_message_in_redis(self, message_data: Dict[str, Any]) -> None:
         """Store a message in Redis."""
         if not self.redis_client:
-            logger.warning("Redis not available, cannot store message")
             return
         
         try:
@@ -65,9 +57,8 @@ class TwilioClient:
             timestamp = datetime.now().timestamp()
             self.redis_client.zadd("sms_messages", {message_sid: timestamp})
             
-            logger.info(f"Stored SMS message in Redis: {message_sid}")
         except Exception as e:
-            logger.error(f"Failed to store message in Redis: {str(e)}")
+            pass
     
     def send_sms(self, to: str, message: str) -> Dict[str, Any]:
         """
@@ -93,7 +84,6 @@ class TwilioClient:
                 to=to
             )
             
-            logger.info(f"SMS sent successfully to {to}: {message_obj.sid}")
             
             # Prepare message data for storage
             message_data = {
@@ -120,7 +110,6 @@ class TwilioClient:
                 'date_created': message_obj.date_created.isoformat()
             }
         except Exception as e:
-            logger.error(f"Failed to send SMS to {to}: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
@@ -137,7 +126,6 @@ class TwilioClient:
             List of message dictionaries
         """
         if not self.redis_client:
-            logger.warning("Redis client not configured, falling back to Twilio API")
             return self._get_messages_from_twilio_api(limit)
         
         try:
@@ -165,14 +153,11 @@ class TwilioClient:
                         }
                         message_list.append(formatted_message)
                     except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse message {message_sid}: {str(e)}")
                         continue
             
-            logger.info(f"Retrieved {len(message_list)} messages from Redis")
             return message_list
             
         except Exception as e:
-            logger.error(f"Failed to retrieve messages from Redis: {str(e)}")
             # Fallback to Twilio API
             return self._get_messages_from_twilio_api(limit)
     
@@ -187,7 +172,6 @@ class TwilioClient:
             List of message dictionaries
         """
         if not self.client:
-            logger.warning("Twilio client not configured")
             return []
         
         try:
@@ -207,11 +191,9 @@ class TwilioClient:
                 }
                 message_list.append(message_data)
             
-            logger.info(f"Retrieved {len(message_list)} messages from Twilio API (fallback)")
             return message_list
             
         except Exception as e:
-            logger.error(f"Failed to retrieve messages from Twilio API: {str(e)}")
             return []
     
     def create_webhook_response(self, message: str = None) -> str:
@@ -237,7 +219,6 @@ class TwilioClient:
             message_data: Dictionary containing message information from webhook
         """
         if not self.redis_client:
-            logger.warning("Redis not available, cannot store incoming message")
             return
         
         try:
@@ -265,9 +246,8 @@ class TwilioClient:
             timestamp = datetime.now().timestamp()
             self.redis_client.zadd("sms_messages", {message_sid: timestamp})
             
-            logger.info(f"Stored incoming SMS message in Redis: {message_sid}")
         except Exception as e:
-            logger.error(f"Failed to store incoming message in Redis: {str(e)}")
+            pass
     
     def get_webhook_url(self) -> Dict[str, Any]:
         """
@@ -301,7 +281,6 @@ class TwilioClient:
             }
             
         except Exception as e:
-            logger.error(f"Failed to get webhook URL: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
@@ -332,7 +311,6 @@ class TwilioClient:
                     # Update the webhook URL
                     number.update(sms_url=webhook_url, sms_method='POST')
                     
-                    logger.info(f"Updated webhook URL for {self.phone_number} to {webhook_url}")
                     return {
                         'success': True,
                         'phone_number': self.phone_number,
@@ -345,7 +323,6 @@ class TwilioClient:
             }
             
         except Exception as e:
-            logger.error(f"Failed to update webhook URL: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
@@ -387,7 +364,6 @@ class TwilioClient:
             }
             
         except Exception as e:
-            logger.error(f"Failed to get phone number settings: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
@@ -418,7 +394,6 @@ class TwilioClient:
                     # Update the settings
                     number.update(**settings)
                     
-                    logger.info(f"Updated phone number settings for {self.phone_number}")
                     return {
                         'success': True,
                         'phone_number': self.phone_number,
@@ -431,7 +406,6 @@ class TwilioClient:
             }
             
         except Exception as e:
-            logger.error(f"Failed to update phone number settings: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

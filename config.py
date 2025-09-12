@@ -7,15 +7,11 @@ using Redis storage with local JSON fallback.
 
 import os
 import json
-import logging
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
 import redis
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 # Configuration constants
 CONFIG_FILE = os.path.expanduser("~/movie-config/config.json")

@@ -3,11 +3,8 @@
 OpenAI API client for cleaning movie filenames and generating SMS responses.
 """
 
-import logging
 from typing import Dict, Any
 from openai import OpenAI
-
-logger = logging.getLogger(__name__)
 
 class OpenAIClient:
     """OpenAI API client for cleaning movie filenames."""
@@ -24,12 +21,9 @@ class OpenAIClient:
                     max_retries=2,
                     http_client=httpx.Client()
                 )
-                logger.info("✅ OpenAI API client initialized successfully")
             except Exception as e:
-                logger.error(f"❌ Failed to initialize OpenAI API client: {str(e)}")
                 self.client = None
         else:
-            logger.warning("⚠️ OpenAI API key not configured")
             self.client = None
     
     def clean_filename(self, filename: str) -> Dict[str, Any]:
@@ -94,7 +88,6 @@ Extract the clean movie title from this filename:"""
 
         try:
             # Step 1: Initial cleaning
-            logger.info(f"🤖 GPT Request: Cleaning filename '{filename}'")
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -104,7 +97,6 @@ Extract the clean movie title from this filename:"""
                 max_tokens=100,
                 temperature=0.1
             )
-            logger.info(f"✅ GPT Response: Initial cleaning result: '{response.choices[0].message.content.strip()}'")
             
             initial_cleaned_title = response.choices[0].message.content.strip()
             
@@ -168,7 +160,6 @@ Examples of what to remove:
 
 Provide ONLY the clean movie title:"""
 
-                logger.info(f"🤖 GPT Request: Alternative cleaning for '{filename}' (previous result: '{initial_cleaned_title}')")
                 alternative_response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
@@ -178,7 +169,6 @@ Provide ONLY the clean movie title:"""
                     max_tokens=50,
                     temperature=0.1
                 )
-                logger.info(f"✅ GPT Response: Alternative cleaning result: '{alternative_response.choices[0].message.content.strip()}'")
                 
                 final_cleaned_title = alternative_response.choices[0].message.content.strip()
 
@@ -214,7 +204,6 @@ Provide ONLY the clean movie title:"""
             formatted_prompt = prompt_template.replace('{message}', message)
             formatted_prompt = formatted_prompt.replace('{sender}', sender)
 
-            logger.info(f"🤖 GPT Request: Generating SMS response for message '{message}' from '{sender}'")
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -223,7 +212,6 @@ Provide ONLY the clean movie title:"""
                 max_tokens=200,
                 temperature=0.7
             )
-            logger.info(f"✅ GPT Response: SMS response generated: '{response.choices[0].message.content.strip()}'")
             
             response_text = response.choices[0].message.content.strip()
             
