@@ -176,15 +176,8 @@ class OpenAIClient:
             # Join conversation into a single string
             conversation_text = "\n".join(limited_conversation)
             
-            # Log what we're sending to OpenAI
-            logger.info(f"🎬 OpenAI getMovieName: Analyzing {len(limited_conversation)} messages for movie detection")
-            
             # Use prompt from PROMPTS file
             prompt = MOVIE_DETECTION_PROMPT.format(conversation_text=conversation_text)
-            
-            # Log the full prompt being sent to OpenAI
-            logger.info(f"🎬 OpenAI getMovieName: FULL PROMPT SENT TO OPENAI:")
-            logger.info(f"🎬 OpenAI getMovieName: {prompt}")
             
 
             response = self.client.chat.completions.create(
@@ -202,7 +195,7 @@ class OpenAIClient:
             if response_text.startswith('"') and response_text.endswith('"'):
                 response_text = response_text[1:-1]
             
-            logger.info(f"🎬 OpenAI getMovieName: Detected movie: '{response_text}'")
+            pass  # Movie detected
             
             return {
                 "success": True,

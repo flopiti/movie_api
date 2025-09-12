@@ -98,8 +98,6 @@ class PlexAgent:
         return success
     
     def Answer(self, conversation_history, phone_number):
-        logger.info(f"🎬 PlexAgent: Processing conversation with {len(conversation_history)} messages from {phone_number}")
-        
         # Validate input
         if not conversation_history:
             logger.error(f"❌ PlexAgent: No conversation history provided - this should not happen")
@@ -118,15 +116,10 @@ class PlexAgent:
                 break
         
         # Step 1: Detect movie in conversation
-        logger.info(f"🎬 PlexAgent: Analyzing conversation for movie detection...")
-        logger.info(f"🎬 PlexAgent: Conversation history ({len(conversation_history)} messages): {conversation_history}")
-        
         # Send last 10 messages (both USER and SYSTEM) instead of filtering to only USER messages
         last_10_messages = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
-        logger.info(f"🎬 PlexAgent: Sending last {len(last_10_messages)} messages to OpenAI: {last_10_messages}")
         
         movie_result = self.openai_client.getMovieName(last_10_messages)
-        logger.info(f"🎬 PlexAgent: Movie detection result: {movie_result}")
         
         # Step 2: Search TMDB for the movie if detected
         tmdb_result, movie_data, radarr_status, release_status = self.get_movie(movie_result)
@@ -177,8 +170,6 @@ class PlexAgent:
                         logger.info(f"❌ PlexAgent: Failed to add {movie_data.get('title')} to download queue")
         
         # Step 4: Always generate GPT response with full context
-        logger.info(f"🤖 PlexAgent: Generating ChatGPT response with full context...")
-        
         # Build comprehensive context about movie detection and download status
         movie_context = ""
         if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
@@ -197,7 +188,6 @@ class PlexAgent:
             movie_context = " (Note: No movie was identified in the conversation)"
         
         if current_message and phone_number:
-            logger.info(f"🤖 PlexAgent OpenAI Request: Generating response for message '{current_message}' from '{phone_number}'{movie_context}")
             chatgpt_result = self.openai_client.generate_sms_response(
                 current_message, 
                 phone_number, 
@@ -205,11 +195,8 @@ class PlexAgent:
                 movie_context=movie_context
             )
             
-            logger.info(f"🤖 PlexAgent OpenAI Result: {chatgpt_result}")
-            
             if chatgpt_result.get('success'):
                 response_message = chatgpt_result['response']
-                logger.info(f"✅ PlexAgent OpenAI Response: Generated response '{response_message}'")
             else:
                 logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
                 response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"

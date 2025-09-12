@@ -36,10 +36,8 @@ class SmsConversations:
         try:
             # Get message SIDs from Redis sorted set (oldest first for proper conversation order)
             message_sids = self.redis_client.zrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
-            logger.info(f"🔍 SmsConversations: Retrieved {len(message_sids)} message SIDs from Redis sorted set (chronological order): {message_sids}")
             
             if not message_sids:
-                logger.warning(f"🔍 SmsConversations: No message SIDs found in Redis sorted set 'sms_messages'")
                 return []
             
             message_list = []
@@ -55,7 +53,6 @@ class SmsConversations:
                             if (message_data.get('from') == phone_number or 
                                 message_data.get('to') == phone_number):
                                 
-                                logger.info(f"🔍 SmsConversations: Message matches conversation for {phone_number}: from='{message_data.get('from')}', to='{message_data.get('to')}'")
                                 # Convert to expected format for API compatibility
                                 formatted_message = {
                                     'MessageSid': message_data.get('message_sid'),
@@ -68,7 +65,6 @@ class SmsConversations:
                                     'StoredAt': message_data.get('stored_at')
                                 }
                                 message_list.append(formatted_message)
-                                logger.info(f"🔍 SmsConversations: Added message to list: From={formatted_message['From']}, To={formatted_message['To']}, Body='{formatted_message['Body']}'")
                                 
                                 # Stop when we have enough messages for this conversation
                                 if len(message_list) >= limit:
@@ -95,7 +91,6 @@ class SmsConversations:
                         logger.error(f"❌ SmsConversations: Failed to parse message JSON: {str(e)}")
                         continue
             
-            logger.info(f"🔍 SmsConversations: Returning {len(message_list)} messages for conversation with {phone_number}")
             return message_list
             
         except Exception as e:
