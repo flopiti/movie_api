@@ -58,6 +58,12 @@ def sms_webhook():
         # Get conversation history for movie detection
         messages = sms_conversations.get_conversation(message_data['From'], 10)
         conversation_history = []
+        
+        # Log the raw messages from Redis to see the order
+        logger.info(f"📱 SMS Webhook: Raw messages from Redis (count: {len(messages)}):")
+        for i, msg in enumerate(messages):
+            logger.info(f"📱 SMS Webhook: Message {i}: {msg}")
+        
         for message in messages:
             # Determine who sent the message
             sender = message.get('From', message.get('from', ''))
@@ -69,6 +75,11 @@ def sms_webhook():
             # Format: "SPEAKER: message content"
             formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
             conversation_history.append(formatted_message)
+        
+        # Log the formatted conversation history
+        logger.info(f"📱 SMS Webhook: Formatted conversation history:")
+        for i, msg in enumerate(conversation_history):
+            logger.info(f"📱 SMS Webhook: Conv {i}: {msg}")
         
         # Only process with PlexAgent if we have conversation history
         if conversation_history:
