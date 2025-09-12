@@ -93,12 +93,9 @@ class RadarrClient:
             True if connection successful, False otherwise
         """
         try:
-            logger.info("🔍 Testing Radarr connection...")
             result = self._make_request('GET', '/api/v3/system/status')
             
             if result:
-                logger.info(f"✅ Radarr connection successful - Version: {result.get('version', 'Unknown')}")
-                logger.info(f"✅ Radarr App Name: {result.get('appName', 'Unknown')}")
                 return True
             else:
                 logger.error("❌ Radarr connection failed - no response")
