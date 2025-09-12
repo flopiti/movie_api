@@ -47,6 +47,8 @@ def sms_webhook():
             'timestamp': datetime.now().isoformat()
         }
         
+        logger.info(f"📱 SMS Webhook: Received Twilio form data: {dict(request.form)}")
+        logger.info(f"📱 SMS Webhook: Extracted message data: {message_data}")
         logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
 
         # Store incoming message in Redis

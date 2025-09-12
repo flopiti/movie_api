@@ -50,15 +50,12 @@ class SmsConversations:
                 if message_json:
                     try:
                         message_data = json.loads(message_json)
-                        logger.info(f"🔍 SmsConversations: Processing message {message_sid}: from='{message_data.get('from')}', to='{message_data.get('to')}'")
-                        
                         # If phone_number is provided, filter messages for this conversation
                         if phone_number:
-                            logger.info(f"🔍 SmsConversations: Checking message - from='{message_data.get('from')}', to='{message_data.get('to')}', phone_number='{phone_number}'")
                             if (message_data.get('from') == phone_number or 
                                 message_data.get('to') == phone_number):
                                 
-                                logger.info(f"🔍 SmsConversations: Message matches conversation for {phone_number}")
+                                logger.info(f"🔍 SmsConversations: Message matches conversation for {phone_number}: from='{message_data.get('from')}', to='{message_data.get('to')}'")
                                 # Convert to expected format for API compatibility
                                 formatted_message = {
                                     'MessageSid': message_data.get('message_sid'),
@@ -173,7 +170,7 @@ class SmsConversations:
                 
                 # Update last message info
                 message_time = conversation_message['timestamp']
-                if not conversations[conversation_key]['last_message_time'] or message_time > conversations[conversation_key]['last_message_time']:
+                if not conversations[conversation_key]['last_message_time'] or (message_time and message_time > conversations[conversation_key]['last_message_time']):
                     conversations[conversation_key]['last_message'] = conversation_message
                     conversations[conversation_key]['last_message_time'] = message_time
             
