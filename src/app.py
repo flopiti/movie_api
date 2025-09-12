@@ -12,17 +12,23 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 
 # Load environment variables (fallback for local development)
-load_dotenv('../config/env')
+env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'env')
+load_dotenv(env_file)
 
 app = Flask(__name__)
 CORS(app)
 
 # Configure logging - Only show our custom logs
+# Create logs directory if it doesn't exist
+log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'movie_api.log')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('../logs/movie_api.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
