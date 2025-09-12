@@ -5,11 +5,14 @@ Routes for SMS functionality, webhooks, and Twilio integration.
 """
 
 import os
+import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from twilio_client import TwilioClient
 from openai_client import OpenAIClient
 from config import config, OPENAI_API_KEY
+
+logger = logging.getLogger(__name__)
 
 # Create blueprint
 sms_bp = Blueprint('sms', __name__)
@@ -22,8 +25,6 @@ openai_client = OpenAIClient(OPENAI_API_KEY)
 def sms_webhook():
     """Webhook endpoint to receive SMS messages from Twilio."""
     try:
-        # Log all incoming webhook data for debugging
-
         # Get message data from Twilio webhook
         message_data = {
             'MessageSid': request.form.get('MessageSid'),
@@ -33,6 +34,8 @@ def sms_webhook():
             'NumMedia': request.form.get('NumMedia', '0'),
             'timestamp': datetime.now().isoformat()
         }
+        
+        logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
 
         # Store incoming message in Redis
         twilio_client.store_incoming_message(message_data)
@@ -51,6 +54,7 @@ def sms_webhook():
                 chatgpt_prompt = reply_settings.get('chatgpt_prompt', 
                     "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}")
                 
+                logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message_data['Body']}' from '{message_data['From']}'")
                 chatgpt_result = openai_client.generate_sms_response(
                     message_data['Body'], 
                     message_data['From'], 
@@ -59,7 +63,9 @@ def sms_webhook():
                 
                 if chatgpt_result.get('success'):
                     response_message = chatgpt_result['response']
+                    logger.info(f"✅ OpenAI SMS Response: Generated response '{response_message}'")
                 else:
+                    logger.error(f"❌ OpenAI SMS Failed: {chatgpt_result.get('error', 'Unknown error')}")
                     # Fallback to template system if ChatGPT fails
                     response_message = None
             else:
@@ -109,6 +115,7 @@ def sms_webhook():
         
         # If no auto-reply is configured, return empty response (no reply)
         if not response_message:
+            logger.info("📱 SMS Webhook: No auto-reply configured, sending empty response")
             return twilio_client.create_webhook_response(), 200, {'Content-Type': 'text/xml'}
 
         # Store the outgoing reply message in Redis
@@ -127,6 +134,7 @@ def sms_webhook():
         # Store the outgoing message
         twilio_client._store_message_in_redis(outgoing_message_data)
         
+        logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
         return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:

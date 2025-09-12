@@ -6,6 +6,7 @@ with TMDB API integration for movie metadata.
 """
 
 import os
+import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -15,6 +16,16 @@ load_dotenv('env')
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('movie_api.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Import route blueprints
 from routes.paths import paths_bp
