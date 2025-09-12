@@ -439,7 +439,9 @@ class RadarrClient:
                 movie_lookup = alternative_lookup
                 logger.info(f"✅ Alternative lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
             else:
-                logger.error(f"❌ All lookup methods failed for TMDB ID: {tmdb_id}")
+                logger.error(f"❌ All TMDB lookup methods failed for TMDB ID: {tmdb_id}")
+                logger.info(f"🔄 This suggests the TMDB ID may be invalid or Radarr's TMDB database is not synced")
+                logger.info(f"💡 Consider using title-based search instead of TMDB ID lookup")
                 return None
         else:
             logger.info(f"✅ Movie lookup successful: {movie_lookup.get('title', 'Unknown')} ({movie_lookup.get('year', 'Unknown')})")
@@ -752,3 +754,106 @@ class RadarrClient:
         
         logger.info(f"🧪 TMDB lookup test results: {test_results}")
         return test_results
+    
+    def add_movie_by_title_and_year(self, title: str, year: int, root_folder_path: str = None, quality_profile_id: int = None, monitored: bool = True, search_for_movie: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        Add a movie to Radarr using title and year (fallback when TMDB ID fails)
+        
+        Args:
+            title: Movie title
+            year: Movie year
+            root_folder_path: Root folder path for the movie
+            quality_profile_id: Quality profile ID
+            monitored: Whether to monitor the movie
+            search_for_movie: Whether to search for the movie immediately
+            
+        Returns:
+            Added movie data or None if error
+        """
+        logger.info(f"🎬 Adding movie to Radarr by title: '{title}' ({year}), monitored={monitored}, search_for_movie={search_for_movie}")
+        
+        # Search for the movie by title
+        logger.info(f"🔍 Searching for movie by title: '{title}'")
+        search_results = self.search_movies(title)
+        
+        if not search_results:
+            logger.error(f"❌ No search results found for title: '{title}'")
+            return None
+        
+        # Find the best match by title and year
+        best_match = None
+        for movie in search_results:
+            movie_title = movie.get('title', '').lower()
+            movie_year = movie.get('year', 0)
+            
+            # Check for exact title match
+            if movie_title == title.lower():
+                if movie_year == year:
+                    best_match = movie
+                    logger.info(f"✅ Found exact match: {movie.get('title')} ({movie.get('year')})")
+                    break
+                elif not best_match:  # Store first title match as fallback
+                    best_match = movie
+                    logger.info(f"✅ Found title match (year differs): {movie.get('title')} ({movie.get('year')})")
+        
+        if not best_match:
+            # If no exact match, try partial title match
+            logger.info(f"🔍 No exact title match found, trying partial matches...")
+            for movie in search_results:
+                movie_title = movie.get('title', '').lower()
+                if title.lower() in movie_title or movie_title in title.lower():
+                    best_match = movie
+                    logger.info(f"✅ Found partial match: {movie.get('title')} ({movie.get('year')})")
+                    break
+        
+        if not best_match:
+            logger.error(f"❌ No suitable match found for title: '{title}' ({year})")
+            logger.info(f"🔍 Available search results: {[f\"{m.get('title', 'Unknown')} ({m.get('year', 'Unknown')})\" for m in search_results[:5]]}")
+            return None
+        
+        logger.info(f"✅ Using movie: {best_match.get('title')} ({best_match.get('year')}) - TMDB ID: {best_match.get('tmdbId')}")
+        
+        # Get default root folder if not provided
+        if not root_folder_path:
+            logger.info("📁 Getting default root folder...")
+            root_folders = self.get_root_folders()
+            if not root_folders:
+                logger.error("❌ No root folders found in Radarr")
+                return None
+            root_folder_path = root_folders[0]['path']
+            logger.info(f"📁 Using root folder: {root_folder_path}")
+        
+        # Get default quality profile if not provided
+        if not quality_profile_id:
+            logger.info("⚙️ Getting default quality profile...")
+            quality_profiles = self.get_quality_profiles()
+            if not quality_profiles:
+                logger.error("❌ No quality profiles found in Radarr")
+                return None
+            quality_profile_id = quality_profiles[0]['id']
+            logger.info(f"⚙️ Using quality profile ID: {quality_profile_id}")
+        
+        # Prepare movie data for adding
+        movie_data = {
+            'title': best_match['title'],
+            'titleSlug': best_match['titleSlug'],
+            'year': best_match['year'],
+            'tmdbId': best_match['tmdbId'],
+            'rootFolderPath': root_folder_path,
+            'qualityProfileId': quality_profile_id,
+            'monitored': monitored,
+            'addOptions': {
+                'searchForMovie': search_for_movie,
+                'monitor': 'movieOnly' if monitored else 'none'
+            }
+        }
+        
+        logger.info(f"📤 Sending movie data to Radarr: {movie_data}")
+        result = self._make_request('POST', '/api/v3/movie', json=movie_data)
+        
+        if result:
+            logger.info(f"✅ Movie added successfully to Radarr: {result.get('title', 'Unknown')} (ID: {result.get('id', 'Unknown')})")
+        else:
+            logger.error(f"❌ Failed to add movie to Radarr: {title} ({year})")
+        
+        return result

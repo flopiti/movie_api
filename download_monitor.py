@@ -226,10 +226,12 @@ class DownloadMonitor:
                         logger.error(f"❌ Download Monitor: Failed to trigger search for {request.movie_title}")
                 
             else:
-                # Add movie to Radarr
-                logger.info(f"📱 Download Monitor: Adding {request.movie_title} to Radarr")
-                added_movie = self.radarr_client.add_movie_from_tmdb(
-                    tmdb_id=request.tmdb_id,
+                # Add movie to Radarr using title and year search (skip TMDB ID)
+                logger.info(f"📱 Download Monitor: Adding {request.movie_title} ({request.movie_year}) to Radarr using title search")
+                
+                added_movie = self.radarr_client.add_movie_by_title_and_year(
+                    title=request.movie_title,
+                    year=int(request.movie_year) if request.movie_year else 0,
                     monitored=True,
                     search_for_movie=True
                 )
@@ -237,11 +239,11 @@ class DownloadMonitor:
                 if added_movie:
                     request.radarr_movie_id = added_movie['id']
                     request.status = "added_to_radarr"
-                    logger.info(f"✅ Download Monitor: Successfully added {request.movie_title} to Radarr")
+                    logger.info(f"✅ Download Monitor: Successfully added {request.movie_title} ({request.movie_year}) to Radarr")
                 else:
                     request.status = "failed"
-                    request.error_message = "Failed to add movie to Radarr"
-                    logger.error(f"❌ Download Monitor: Failed to add {request.movie_title} to Radarr")
+                    request.error_message = "Failed to add movie to Radarr - title search failed"
+                    logger.error(f"❌ Download Monitor: Failed to add {request.movie_title} ({request.movie_year}) to Radarr")
             
             # Update stored request
             self._store_download_request(request)
