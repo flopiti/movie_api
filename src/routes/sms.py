@@ -18,39 +18,10 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 from config.config import config, OPENAI_API_KEY, TMDB_API_KEY, redis_client
 from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
 from ..services.download_monitor import download_monitor
+from ..services.sms_conversations import sms_conversations
 
 logger = logging.getLogger(__name__)
 
-def get_conversation_history(phone_number: str, limit: int = 5) -> list:
-    """Get conversation history for a phone number from Redis."""
-    try:
-        # Get recent messages to focus on latest conversation
-        messages = twilio_client.get_recent_messages(limit * 2, redis_client)  # Get enough to filter by phone
-        
-        # Filter messages for this conversation (both directions)
-        conversation_messages = []
-        for message in messages:
-            if (message.get('From') == phone_number or 
-                message.get('To') == phone_number or
-                message.get('from') == phone_number or 
-                message.get('to') == phone_number):
-                
-                # Determine who sent the message
-                sender = message.get('From', message.get('from', ''))
-                if sender == phone_number:
-                    speaker = "USER"
-                else:
-                    speaker = "SYSTEM"
-                
-                # Format: "SPEAKER: message content"
-                formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
-                conversation_messages.append(formatted_message)
-        
-        # Return only the formatted messages, limited to recent messages
-        return conversation_messages[:limit]
-    except Exception as e:
-        logger.error(f"Error getting conversation history: {str(e)}")
-        return []
 
 # Create blueprint
 sms_bp = Blueprint('sms', __name__)
@@ -83,7 +54,19 @@ def sms_webhook():
                 logger.error(f"❌ Failed to store incoming message in Redis")
         
         # Get conversation history for movie detection
-        conversation_history = get_conversation_history(message_data['From'])
+        messages = sms_conversations.get_recent_messages(message_data['From'], 5)
+        conversation_history = []
+        for message in messages:
+            # Determine who sent the message
+            sender = message.get('From', message.get('from', ''))
+            if sender == message_data['From']:
+                speaker = "USER"
+            else:
+                speaker = "SYSTEM"
+            
+            # Format: "SPEAKER: message content"
+            formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
+            conversation_history.append(formatted_message)
         
         # Try to detect movie in conversation
         movie_result = None
@@ -314,7 +297,7 @@ def get_sms_messages():
     """Get recent SMS messages from Twilio API."""
     try:
         limit = request.args.get('limit', 20, type=int)
-        messages = twilio_client.get_recent_messages(limit, redis_client)
+        messages = sms_conversations.get_all_recent_messages(limit)
         
         return jsonify({
             'messages': messages,
@@ -330,78 +313,16 @@ def get_sms_conversations():
     """Get SMS conversations grouped by phone number."""
     try:
         limit = request.args.get('limit', 100, type=int)
-        messages = twilio_client.get_recent_messages(limit, redis_client)
-        
-        # Group messages by conversation (phone number)
-        conversations = {}
-        
-        for message in messages:
-            # Determine the other participant in the conversation
-            # If message is from our number, the other participant is the 'To' field
-            # If message is to our number, the other participant is the 'From' field
-            if message.get('From') == twilio_client.phone_number:
-                # Outgoing message - other participant is the recipient
-                other_participant = message.get('To')
-                is_from_us = True
-            else:
-                # Incoming message - other participant is the sender
-                other_participant = message.get('From')
-                is_from_us = False
-            
-            if not other_participant:
-                continue
-                
-            # Create conversation key
-            conversation_key = other_participant
-            
-            if conversation_key not in conversations:
-                conversations[conversation_key] = {
-                    'phone_number': other_participant,
-                    'participant': other_participant,
-                    'messages': [],
-                    'last_message': None,
-                    'last_message_time': None,
-                    'unread_count': 0,
-                    'message_count': 0
-                }
-            
-            # Add message to conversation
-            conversation_message = {
-                'id': message.get('MessageSid'),
-                'body': message.get('Body'),
-                'timestamp': message.get('DateCreated') or message.get('StoredAt'),
-                'direction': message.get('Direction'),
-                'status': message.get('Status'),
-                'is_from_us': is_from_us,
-                'from': message.get('From'),
-                'to': message.get('To')
-            }
-            
-            conversations[conversation_key]['messages'].append(conversation_message)
-            conversations[conversation_key]['message_count'] += 1
-            
-            # Update last message info
-            message_time = conversation_message['timestamp']
-            if not conversations[conversation_key]['last_message_time'] or message_time > conversations[conversation_key]['last_message_time']:
-                conversations[conversation_key]['last_message'] = conversation_message
-                conversations[conversation_key]['last_message_time'] = message_time
-        
-        # Sort messages within each conversation by timestamp
-        for conversation in conversations.values():
-            conversation['messages'].sort(key=lambda x: x['timestamp'] or '')
-        
-        # Convert to list and sort by last message time
-        conversation_list = list(conversations.values())
-        conversation_list.sort(key=lambda x: x['last_message_time'] or '', reverse=True)
+        conversations = sms_conversations.get_conversations(limit)
         
         return jsonify({
-            'conversations': conversation_list,
-            'count': len(conversation_list),
-            'total_messages': sum(len(conv['messages']) for conv in conversation_list)
+            'conversations': conversations,
+            'count': len(conversations),
+            'total_messages': sum(len(conv['messages']) for conv in conversations)
         }), 200
         
     except Exception as e:
-        pass
+        logger.error(f"Failed to retrieve conversations: {str(e)}")
         return jsonify({'error': f'Failed to retrieve conversations: {str(e)}'}), 500
 
 @sms_bp.route('/api/sms/status', methods=['GET'])

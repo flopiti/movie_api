@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""
+SMS Conversations Service
+Handles SMS conversation history and message retrieval operations.
+"""
+
+import json
+import logging
+from typing import List, Dict, Any
+from ..clients.redis_client import RedisClient
+
+logger = logging.getLogger(__name__)
+
+class SmsConversations:
+    """Service for managing SMS conversations and message history."""
+    
+    def __init__(self):
+        """Initialize SMS conversations service."""
+        self.redis_client = RedisClient()
+    
+    def get_recent_messages(self, phone_number: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get recent SMS messages for a specific conversation from Redis.
+        
+        Args:
+            phone_number: The phone number to get messages for
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of message dictionaries for the conversation
+        """
+        if not self.redis_client.is_available():
+            logger.warning("Redis not available for getting recent messages")
+            return []
+        
+        try:
+            # Get message SIDs from Redis sorted set (most recent first)
+            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
+            
+            message_list = []
+            for message_sid in message_sids:
+                redis_key = f"sms_message:{message_sid}"
+                message_json = self.redis_client.get(redis_key)
+                
+                if message_json:
+                    try:
+                        message_data = json.loads(message_json)
+                        
+                        # Filter messages for this conversation (both directions)
+                        if (message_data.get('from') == phone_number or 
+                            message_data.get('to') == phone_number):
+                            
+                            # Convert to expected format for API compatibility
+                            formatted_message = {
+                                'MessageSid': message_data.get('message_sid'),
+                                'From': message_data.get('from'),
+                                'To': message_data.get('to'),
+                                'Body': message_data.get('body'),
+                                'Status': message_data.get('status'),
+                                'DateCreated': message_data.get('date_created'),
+                                'Direction': message_data.get('direction'),
+                                'StoredAt': message_data.get('stored_at')
+                            }
+                            message_list.append(formatted_message)
+                            
+                            # Stop when we have enough messages for this conversation
+                            if len(message_list) >= limit:
+                                break
+                                
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ SmsConversations: Failed to parse message JSON: {str(e)}")
+                        continue
+            
+            return message_list
+            
+        except Exception as e:
+            logger.error(f"❌ SmsConversations: Failed to get recent messages: {str(e)}")
+            return []
+    
+    def get_all_recent_messages(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get all recent SMS messages from Redis (for conversation grouping).
+        
+        Args:
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of all message dictionaries
+        """
+        if not self.redis_client.is_available():
+            logger.warning("Redis not available for getting all recent messages")
+            return []
+        
+        try:
+            # Get message SIDs from Redis sorted set (most recent first)
+            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit - 1)
+            
+            message_list = []
+            for message_sid in message_sids:
+                redis_key = f"sms_message:{message_sid}"
+                message_json = self.redis_client.get(redis_key)
+                
+                if message_json:
+                    try:
+                        message_data = json.loads(message_json)
+                        # Convert to expected format for API compatibility
+                        formatted_message = {
+                            'MessageSid': message_data.get('message_sid'),
+                            'From': message_data.get('from'),
+                            'To': message_data.get('to'),
+                            'Body': message_data.get('body'),
+                            'Status': message_data.get('status'),
+                            'DateCreated': message_data.get('date_created'),
+                            'Direction': message_data.get('direction'),
+                            'StoredAt': message_data.get('stored_at')
+                        }
+                        message_list.append(formatted_message)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ SmsConversations: Failed to parse message JSON: {str(e)}")
+                        continue
+            
+            return message_list
+            
+        except Exception as e:
+            logger.error(f"❌ SmsConversations: Failed to get all recent messages: {str(e)}")
+            return []
+    
+    
+    def get_conversations(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get SMS conversations grouped by phone number.
+        
+        Args:
+            limit: Maximum number of messages to retrieve for grouping
+            
+        Returns:
+            List of conversation dictionaries
+        """
+        try:
+            if not self.redis_client.is_available():
+                logger.warning("Redis not available for getting conversations")
+                return []
+            
+            messages = self.get_all_recent_messages(limit)
+            
+            # Group messages by conversation (phone number)
+            conversations = {}
+            
+            for message in messages:
+                # Determine the other participant in the conversation
+                # If message is from our number, the other participant is the 'To' field
+                # If message is to our number, the other participant is the 'From' field
+                if message.get('From') == self._get_our_phone_number():
+                    # Outgoing message - other participant is the recipient
+                    other_participant = message.get('To')
+                    is_from_us = True
+                else:
+                    # Incoming message - other participant is the sender
+                    other_participant = message.get('From')
+                    is_from_us = False
+                
+                if not other_participant:
+                    continue
+                    
+                # Create conversation key
+                conversation_key = other_participant
+                
+                if conversation_key not in conversations:
+                    conversations[conversation_key] = {
+                        'phone_number': other_participant,
+                        'participant': other_participant,
+                        'messages': [],
+                        'last_message': None,
+                        'last_message_time': None,
+                        'unread_count': 0,
+                        'message_count': 0
+                    }
+                
+                # Add message to conversation
+                conversation_message = {
+                    'id': message.get('MessageSid'),
+                    'body': message.get('Body'),
+                    'timestamp': message.get('DateCreated') or message.get('StoredAt'),
+                    'direction': message.get('Direction'),
+                    'status': message.get('Status'),
+                    'is_from_us': is_from_us,
+                    'from': message.get('From'),
+                    'to': message.get('To')
+                }
+                
+                conversations[conversation_key]['messages'].append(conversation_message)
+                conversations[conversation_key]['message_count'] += 1
+                
+                # Update last message info
+                message_time = conversation_message['timestamp']
+                if not conversations[conversation_key]['last_message_time'] or message_time > conversations[conversation_key]['last_message_time']:
+                    conversations[conversation_key]['last_message'] = conversation_message
+                    conversations[conversation_key]['last_message_time'] = message_time
+            
+            # Sort messages within each conversation by timestamp
+            for conversation in conversations.values():
+                conversation['messages'].sort(key=lambda x: x['timestamp'] or '')
+            
+            # Convert to list and sort by last message time
+            conversation_list = list(conversations.values())
+            conversation_list.sort(key=lambda x: x['last_message_time'] or '', reverse=True)
+            
+            return conversation_list
+            
+        except Exception as e:
+            logger.error(f"Error getting conversations: {str(e)}")
+            return []
+    
+    def _get_our_phone_number(self) -> str:
+        """Get our Twilio phone number from environment."""
+        import os
+        return os.getenv('TWILIO_PHONE_NUMBER', '')
+
+# Global instance
+sms_conversations = SmsConversations()
