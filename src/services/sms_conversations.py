@@ -18,19 +18,19 @@ class SmsConversations:
         """Initialize SMS conversations service."""
         self.redis_client = RedisClient()
     
-    def get_recent_messages(self, phone_number: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_conversation(self, phone_number: str = None, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Get recent SMS messages for a specific conversation from Redis.
+        Get SMS conversation for a specific phone number, or all messages if no phone number provided.
         
         Args:
-            phone_number: The phone number to get messages for
-            limit: Maximum number of messages to retrieve
+            phone_number: The phone number to get conversation for (optional - if None, gets all messages)
+            limit: Maximum number of messages to retrieve (optional)
             
         Returns:
-            List of message dictionaries for the conversation
+            List of message dictionaries
         """
         if not self.redis_client.is_available():
-            logger.warning("Redis not available for getting recent messages")
+            logger.warning("Redis not available for getting conversation")
             return []
         
         try:
@@ -46,11 +46,29 @@ class SmsConversations:
                     try:
                         message_data = json.loads(message_json)
                         
-                        # Filter messages for this conversation (both directions)
-                        if (message_data.get('from') == phone_number or 
-                            message_data.get('to') == phone_number):
-                            
-                            # Convert to expected format for API compatibility
+                        # If phone_number is provided, filter messages for this conversation
+                        if phone_number:
+                            if (message_data.get('from') == phone_number or 
+                                message_data.get('to') == phone_number):
+                                
+                                # Convert to expected format for API compatibility
+                                formatted_message = {
+                                    'MessageSid': message_data.get('message_sid'),
+                                    'From': message_data.get('from'),
+                                    'To': message_data.get('to'),
+                                    'Body': message_data.get('body'),
+                                    'Status': message_data.get('status'),
+                                    'DateCreated': message_data.get('date_created'),
+                                    'Direction': message_data.get('direction'),
+                                    'StoredAt': message_data.get('stored_at')
+                                }
+                                message_list.append(formatted_message)
+                                
+                                # Stop when we have enough messages for this conversation
+                                if len(message_list) >= limit:
+                                    break
+                        else:
+                            # No phone number provided, get all messages
                             formatted_message = {
                                 'MessageSid': message_data.get('message_sid'),
                                 'From': message_data.get('from'),
@@ -63,7 +81,7 @@ class SmsConversations:
                             }
                             message_list.append(formatted_message)
                             
-                            # Stop when we have enough messages for this conversation
+                            # Stop when we have enough messages
                             if len(message_list) >= limit:
                                 break
                                 
@@ -74,57 +92,8 @@ class SmsConversations:
             return message_list
             
         except Exception as e:
-            logger.error(f"❌ SmsConversations: Failed to get recent messages: {str(e)}")
+            logger.error(f"❌ SmsConversations: Failed to get conversation: {str(e)}")
             return []
-    
-    def get_all_recent_messages(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Get all recent SMS messages from Redis (for conversation grouping).
-        
-        Args:
-            limit: Maximum number of messages to retrieve
-            
-        Returns:
-            List of all message dictionaries
-        """
-        if not self.redis_client.is_available():
-            logger.warning("Redis not available for getting all recent messages")
-            return []
-        
-        try:
-            # Get message SIDs from Redis sorted set (most recent first)
-            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit - 1)
-            
-            message_list = []
-            for message_sid in message_sids:
-                redis_key = f"sms_message:{message_sid}"
-                message_json = self.redis_client.get(redis_key)
-                
-                if message_json:
-                    try:
-                        message_data = json.loads(message_json)
-                        # Convert to expected format for API compatibility
-                        formatted_message = {
-                            'MessageSid': message_data.get('message_sid'),
-                            'From': message_data.get('from'),
-                            'To': message_data.get('to'),
-                            'Body': message_data.get('body'),
-                            'Status': message_data.get('status'),
-                            'DateCreated': message_data.get('date_created'),
-                            'Direction': message_data.get('direction'),
-                            'StoredAt': message_data.get('stored_at')
-                        }
-                        message_list.append(formatted_message)
-                    except json.JSONDecodeError as e:
-                        logger.error(f"❌ SmsConversations: Failed to parse message JSON: {str(e)}")
-                        continue
-            
-            return message_list
-            
-        except Exception as e:
-            logger.error(f"❌ SmsConversations: Failed to get all recent messages: {str(e)}")
-            return []
-    
     
     def get_conversations(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
@@ -141,7 +110,8 @@ class SmsConversations:
                 logger.warning("Redis not available for getting conversations")
                 return []
             
-            messages = self.get_all_recent_messages(limit)
+            # Get all messages for grouping
+            messages = self.get_conversation(limit=limit)
             
             # Group messages by conversation (phone number)
             conversations = {}

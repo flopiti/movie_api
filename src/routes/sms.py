@@ -54,7 +54,7 @@ def sms_webhook():
                 logger.error(f"❌ Failed to store incoming message in Redis")
         
         # Get conversation history for movie detection
-        messages = sms_conversations.get_recent_messages(message_data['From'], 5)
+        messages = sms_conversations.get_conversation(message_data['From'], 5)
         conversation_history = []
         for message in messages:
             # Determine who sent the message
@@ -297,7 +297,7 @@ def get_sms_messages():
     """Get recent SMS messages from Twilio API."""
     try:
         limit = request.args.get('limit', 20, type=int)
-        messages = sms_conversations.get_all_recent_messages(limit)
+        messages = sms_conversations.get_conversation(limit=limit)
         
         return jsonify({
             'messages': messages,
