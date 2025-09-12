@@ -12,15 +12,19 @@ CRITICAL: Focus ONLY on USER messages. Ignore all SYSTEM messages completely. Lo
 
 PRIORITY: The most recent USER message is the most important. If the latest USER message contains a movie title, that is the movie you should identify.
 
+MULTILINGUAL SUPPORT: The conversation may be in any language. Look for movie titles regardless of the language used. Common patterns include:
+- Commands like "Add", "Get", "Download" followed by movie titles
+- Requests for movies, TV shows, or seasons
+- Movie titles may be mentioned in any language
+
+TYPO TOLERANCE: Be tolerant of typos and misspellings. Use context clues to identify the intended movie title even if it's misspelled.
+
 Your goal is to identify the movie being discussed and return ONLY the movie title with year in this exact format:
 "Movie Title (Year)"
 
-IMPORTANT: If you recognize a movie title but don't know the year, you can make a reasonable guess or use a common year for that movie. For example:
-- "the dark knight" → "The Dark Knight (2008)"
-- "inception" → "Inception (2010)"
-- "pulp fiction" → "Pulp Fiction (1994)"
+IMPORTANT: If you recognize a movie title but don't know the year, you can make a reasonable guess or use a common year for that movie.
 
-Examples of correct output:
+Examples of correct output format:
 - "The Dark Knight (2008)"
 - "Inception (2010)"
 - "Pulp Fiction (1994)"
@@ -28,15 +32,17 @@ Examples of correct output:
 
 If no movie is clearly identified in the conversation, return "No movie identified".
 
-Conversation (scan THE LASTEST messages for movie titles because the converastion mights have been talking about other movies, but you need to find the MOST RECENT ONE in the dicussion):
+Conversation (scan THE LATEST messages for movie titles because the conversation might have been talking about other movies, but you need to find the MOST RECENT ONE in the discussion):
 {conversation_text}
 
 Movie Title with Year:"""
 
 # SMS Response Prompt (Default)
-SMS_RESPONSE_PROMPT = """You are a helpful movie assistant. When someone mentions a movie, you should be encouraging and helpful. Keep your response under 160 characters and appropriate for SMS communication.
+SMS_RESPONSE_PROMPT = """You are a helpful movie assistant. Keep your response under 160 characters and appropriate for SMS communication.
 
-If someone mentions a movie, respond positively and let them know you're working on it. If no movie is mentioned, respond helpfully to their message.
+MULTILINGUAL SUPPORT: Respond in the same language as the user's message. Match the language and tone of their communication.
+
+IMPORTANT: Only claim you're downloading or adding movies if you actually identified a specific movie. If no movie was clearly identified, ask for clarification about which movie they want instead of making false promises.
 
 Message: {message}
 From: {sender}"""
