@@ -35,7 +35,7 @@ def sms_webhook():
             'timestamp': datetime.now().isoformat()
         }
         
-        
+        logger.info(f"📱 SMS Webhook: Received message from {message_data['From']}: '{message_data['Body']}'")
 
         # Store incoming message in Redis
         twilio_client.store_incoming_message(message_data)
@@ -51,6 +51,7 @@ def sms_webhook():
         if reply_settings.get('auto_reply_enabled', False):
             # Check if ChatGPT is enabled
             if reply_settings.get('use_chatgpt', False):
+                logger.info(f"🤖 SMS Webhook: ChatGPT enabled, calling OpenAI...")
                 # Use ChatGPT to generate response
                 chatgpt_prompt = reply_settings.get('chatgpt_prompt', 
                     "You are a helpful assistant. Please respond to this SMS message in a friendly and concise way. Keep your response under 160 characters and appropriate for SMS communication.\n\nMessage: {message}\nFrom: {sender}")
@@ -134,6 +135,7 @@ def sms_webhook():
         # Store the outgoing message
         twilio_client._store_message_in_redis(outgoing_message_data)
         
+        logger.info(f"📱 SMS Webhook: Sending response to {message_data['From']}: '{response_message}'")
         return twilio_client.create_webhook_response(response_message), 200, {'Content-Type': 'text/xml'}
         
     except Exception as e:

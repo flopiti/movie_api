@@ -207,7 +207,6 @@ Provide ONLY the clean movie title:"""
             formatted_prompt = prompt_template.replace('{message}', message)
             formatted_prompt = formatted_prompt.replace('{sender}', sender)
 
-            logger.info(f"🤖 OpenAI SMS Request: Generating response for message '{message}' from '{sender}'")
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -218,7 +217,6 @@ Provide ONLY the clean movie title:"""
             )
             
             response_text = response.choices[0].message.content.strip()
-            logger.info(f"✅ OpenAI SMS Response: Generated response '{response_text}'")
             
             # Ensure response is SMS-friendly (under 160 characters)
             if len(response_text) > 160:
