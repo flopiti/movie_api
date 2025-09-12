@@ -259,10 +259,10 @@ class DownloadMonitor:
         try:
             # Get current downloads from Radarr
             current_downloads = self.radarr_client.get_downloads()
-            logger.debug(f"📥 Radarr queue has {len(current_downloads)} downloads")
+            logger.info(f"📥 Download Monitor: Radarr queue has {len(current_downloads)} downloads, monitoring {len(self.download_requests)} requests")
             
             for tmdb_id, request in self.download_requests.items():
-                logger.debug(f"🔍 Checking status for {request.movie_title} (status: {request.status}, radarr_id: {request.radarr_movie_id})")
+                logger.info(f"🔍 Download Monitor: Checking status for {request.movie_title} (status: {request.status}, radarr_id: {request.radarr_movie_id})")
                 
                 if request.status in ["added_to_radarr", "downloading"] and request.radarr_movie_id:
                     
@@ -277,7 +277,7 @@ class DownloadMonitor:
                             
                             logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
                         else:
-                            logger.debug(f"📱 Download Monitor: {request.movie_title} not yet downloading")
+                            logger.info(f"📱 Download Monitor: {request.movie_title} not yet downloading")
                     
                     # Check if download has completed
                     elif request.status == "downloading":
@@ -302,7 +302,7 @@ class DownloadMonitor:
                             
                             logger.error(f"❌ Download Monitor: Download failed for {request.movie_title}")
                         else:
-                            logger.debug(f"📱 Download Monitor: {request.movie_title} still downloading - status: {download_status.get('status')}")
+                            logger.info(f"📱 Download Monitor: {request.movie_title} still downloading - status: {download_status.get('status')}")
                     
                     # Update stored request
                     self._store_download_request(request)
@@ -380,9 +380,12 @@ class DownloadMonitor:
     
     def _monitor_loop(self):
         """Main monitoring loop"""
+        logger.info(f"📱 Download Monitor: Monitoring loop started, checking every {self.check_interval} seconds")
         while self.running:
             try:
+                logger.info(f"📱 Download Monitor: Checking download status...")
                 self._check_download_status()
+                logger.info(f"📱 Download Monitor: Sleep for {self.check_interval} seconds")
                 time.sleep(self.check_interval)
             except Exception as e:
                 logger.error(f"❌ Download Monitor: Error in monitoring loop: {str(e)}")

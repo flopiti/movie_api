@@ -96,6 +96,28 @@ class RedisClient:
             logger.error(f"❌ Redis Client: Failed to zrevrange '{key}': {str(e)}")
             return []
     
+    def keys(self, pattern: str) -> List[str]:
+        """Get keys matching a pattern."""
+        if not self.client:
+            return []
+        
+        try:
+            return self.client.keys(pattern)
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to get keys with pattern '{pattern}': {str(e)}")
+            return []
+    
+    def delete(self, *keys: str) -> int:
+        """Delete one or more keys."""
+        if not self.client:
+            return 0
+        
+        try:
+            return self.client.delete(*keys)
+        except Exception as e:
+            logger.error(f"❌ Redis Client: Failed to delete keys {keys}: {str(e)}")
+            return 0
+    
     def store_sms_message(self, message_data: Dict[str, Any]) -> bool:
         """Store an SMS message in Redis."""
         if not self.client:
