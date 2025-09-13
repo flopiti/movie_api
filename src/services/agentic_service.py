@@ -64,32 +64,60 @@ Always provide ONLY a clean, user-friendly SMS response."""
     
     def _extract_clean_response(self, ai_response: str) -> str:
         """Extract clean SMS response from AI output, removing internal instructions"""
-        # Look for quoted text after "SMS RESPONSE:" or similar patterns
         import re
         
-        # Pattern to find text in quotes after "SMS RESPONSE:"
+        # Clean up the response first
+        cleaned_response = ai_response.strip()
+        
+        # Remove common prefixes that indicate internal instructions
+        prefixes_to_remove = [
+            r'^SMS RESPONSE:\s*',
+            r'^Response:\s*',
+            r'^Message:\s*',
+            r'^Here\'s the response:\s*',
+            r'^The response is:\s*'
+        ]
+        
+        for prefix in prefixes_to_remove:
+            cleaned_response = re.sub(prefix, '', cleaned_response, flags=re.IGNORECASE)
+        
+        # Look for quoted text after "SMS RESPONSE:" or similar patterns
         sms_pattern = r'(?:SMS RESPONSE:|Response:|Message:)\s*["\']([^"\']+)["\']'
-        match = re.search(sms_pattern, ai_response, re.IGNORECASE)
+        match = re.search(sms_pattern, cleaned_response, re.IGNORECASE)
         if match:
             return match.group(1).strip()
         
         # Pattern to find text in quotes at the end
         quote_pattern = r'["\']([^"\']+)["\']\s*$'
-        match = re.search(quote_pattern, ai_response)
+        match = re.search(quote_pattern, cleaned_response)
         if match:
             return match.group(1).strip()
         
-        # If no quotes found, return the original response
-        return ai_response.strip()
+        # If response is too short or looks like a fragment, try to find the main content
+        if len(cleaned_response) < 10 or cleaned_response in ['?', '!', '.']:
+            # Look for the main sentence or paragraph
+            sentences = re.split(r'[.!?]+', cleaned_response)
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if len(sentence) > 10 and not any(word in sentence.lower() for word in ['sms response', 'internal', 'instruction']):
+                    return sentence + '.'
+        
+        # If no quotes found, return the cleaned response
+        return cleaned_response.strip()
     
-    def _execute_function_call(self, function_name: str, parameters: dict, services: dict):
+    def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
         """Execute a function call based on the function name and parameters"""
         try:
             logger.info(f"🔧 AgenticService: Executing function {function_name} with parameters: {parameters}")
             
             if function_name == "identify_movie_request":
                 conversation_history = parameters.get('conversation_history', [])
-                return services['movie_identification'].identify_movie_request(conversation_history)
+                # Ensure current message is included in conversation history for movie detection
+                if current_message:
+                    full_conversation = conversation_history + [f"USER: {current_message}"]
+                else:
+                    full_conversation = conversation_history
+                return services['movie_identification'].identify_movie_request(full_conversation)
                 
             elif function_name == "check_movie_library_status":
                 movie_name = parameters.get('movie_name', '')
@@ -142,10 +170,11 @@ Always provide ONLY a clean, user-friendly SMS response."""
                     'success': False
                 }
             
-            # Build conversation context
+            # Build conversation context - include current message in conversation history
+            full_conversation = conversation_history + [f"USER: {current_message}"]
             conversation_context = f"""
 CONVERSATION HISTORY:
-{chr(10).join(conversation_history[-5:])}
+{chr(10).join(full_conversation[-5:])}
 
 CURRENT USER MESSAGE: {current_message}
 USER PHONE NUMBER: {phone_number}
@@ -196,7 +225,7 @@ USER PHONE NUMBER: {phone_number}
                             logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {parameters}")
                             
                             # Execute the function
-                            result = self._execute_function_call(function_name, parameters, services)
+                            result = self._execute_function_call(function_name, parameters, services, current_message)
                             
                             logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result}")
                             
