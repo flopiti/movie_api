@@ -3,15 +3,15 @@ import time
 import threading
 from datetime import datetime
 from config.config import OPENAI_API_KEY, TMDB_API_KEY
-from ..clients.openai_client import OpenAIClient
-from ..clients.tmdb_client import TMDBClient
-from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
-from ..services.download_monitor import get_download_monitor
-from ..services.movie_identification_service import MovieIdentificationService
-from ..services.movie_library_service import MovieLibraryService
-from ..services.radarr_service import RadarrService
-from ..services.notification_service import NotificationService
-from ..services.agentic_service import AgenticService
+from src.clients.openai_client import OpenAIClient
+from src.clients.tmdb_client import TMDBClient
+from src.clients.PROMPTS import SMS_RESPONSE_PROMPT
+from src.services.download_monitor import get_download_monitor
+from src.services.movie_identification_service import MovieIdentificationService
+from src.services.movie_library_service import MovieLibraryService
+from src.services.radarr_service import RadarrService
+from src.services.notification_service import NotificationService
+from src.services.agentic_service import AgenticService
 
 logger = logging.getLogger(__name__)
 

@@ -97,7 +97,7 @@ with patch('config.config.config') as mock_config:
     mock_config.data = mock_config_data
     
     # Now import everything with the patched config
-    from src.clients.plex_agent import PlexAgent
+    from src.plex_agent import PlexAgent
     from config.config import Config
     from src.services.download_monitor import download_monitor
 

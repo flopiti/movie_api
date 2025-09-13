@@ -12,14 +12,14 @@ from flask import Blueprint, request, jsonify
 from ..clients.twilio_client import TwilioClient
 from ..clients.openai_client import OpenAIClient
 from ..clients.tmdb_client import TMDBClient
-from ..clients.plex_agent import PlexAgent
+from ..plex_agent import PlexAgent
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 from config.config import config, OPENAI_API_KEY, TMDB_API_KEY, redis_client
 from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
 from ..services.download_monitor import get_download_monitor
-from ..clients.plex_agent import plex_agent
+from ..plex_agent import plex_agent
 from ..services.sms_conversations import sms_conversations
 
 logger = logging.getLogger(__name__)

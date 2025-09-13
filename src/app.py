@@ -48,7 +48,7 @@ from .routes.sms import sms_bp
 from .routes.system import system_bp
 
 # Import plex agent for monitoring
-from .clients.plex_agent import plex_agent
+from .plex_agent import plex_agent
 
 # Register blueprints
 app.register_blueprint(paths_bp)
