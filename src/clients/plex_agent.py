@@ -226,6 +226,40 @@ class PlexAgent:
             'success': True
         }
     
+    def _store_outgoing_sms(self, phone_number: str, message: str, message_type: str = "notification") -> bool:
+        """Store outgoing SMS message in Redis conversation"""
+        try:
+            from ..clients.redis_client import RedisClient
+            redis_client = RedisClient()
+            
+            if not redis_client.is_available():
+                logger.warning("📱 PlexAgent: Redis not available - cannot store outgoing SMS")
+                return False
+            
+            # Prepare message data for Redis storage
+            message_data = {
+                'MessageSid': f"outgoing_{datetime.now().timestamp()}",
+                'status': 'sent',
+                'To': phone_number,
+                'From': 'system',  # System-generated message
+                'Body': message,
+                'timestamp': datetime.now().isoformat(),
+                'direction': 'outbound',
+                'message_type': message_type
+            }
+            
+            success = redis_client.store_sms_message(message_data)
+            if success:
+                logger.info(f"📱 PlexAgent: Stored outgoing SMS in Redis conversation")
+            else:
+                logger.error(f"❌ PlexAgent: Failed to store outgoing SMS in Redis")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ PlexAgent: Error storing outgoing SMS in Redis: {str(e)}")
+            return False
+
     def _send_movie_added_notification(self, movie_data, phone_number):
         """Send SMS notification when movie is added to download queue"""
         try:
@@ -240,6 +274,8 @@ class PlexAgent:
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent movie added notification to {phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(phone_number, message, "movie_added")
             else:
                 logger.error(f"❌ PlexAgent: Failed to send movie added notification: {result.get('error')}")
                 
@@ -260,6 +296,8 @@ class PlexAgent:
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent search triggered notification to {phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(phone_number, message, "search_triggered")
             else:
                 logger.error(f"❌ PlexAgent: Failed to send search triggered notification: {result.get('error')}")
                 
@@ -352,6 +390,8 @@ class PlexAgent:
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent download started notification to {request.phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(request.phone_number, message, "download_started")
             else:
                 logger.error(f"❌ PlexAgent: Failed to send download started notification: {result.get('error')}")
                 
@@ -367,6 +407,8 @@ class PlexAgent:
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent download completed notification to {request.phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(request.phone_number, message, "download_completed")
             else:
                 logger.error(f"❌ PlexAgent: Failed to send download completed notification: {result.get('error')}")
                 
