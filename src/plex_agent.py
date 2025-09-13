@@ -52,7 +52,13 @@ class PlexAgent:
 CURRENT CONTEXT:
 {conversation_context}
 
-Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. Use the available functions to gather information and take actions as needed."""
+Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. 
+
+IMPORTANT: You must either:
+1. Call the appropriate functions to gather information and take actions, OR
+2. Provide a direct SMS response to the user
+
+DO NOT return internal instructions or prompts to the user. Always provide a user-friendly SMS response."""
     
     def _execute_function_call(self, function_name: str, parameters: dict):
         """Execute a function call based on the function name and parameters"""
@@ -198,12 +204,42 @@ ORIGINAL USER MESSAGE: {current_message}
                         'success': True
                     }
             else:
-                # No function calls, return direct response
-                return {
-                    'response_message': response.get('response', 'I received your message.'),
-                    'function_results': [],
-                    'success': True
-                }
+                # No function calls - check if response contains internal instructions
+                ai_response = response.get('response', '')
+                
+                # Check if the response contains internal prompt text that shouldn't be sent to user
+                if any(phrase in ai_response.lower() for phrase in [
+                    "let's use the", "we need to prompt", "internal instructions", 
+                    "function calling", "available functions", "procedures for"
+                ]):
+                    logger.warning(f"⚠️ Agent: AI returned internal instructions instead of user response")
+                    # Fall back to simple SMS response
+                    fallback_response = self.openai_client.generate_sms_response(
+                        message=current_message,
+                        sender=phone_number,
+                        prompt_template=self.sms_response_prompt,
+                        movie_context=""
+                    )
+                    
+                    if fallback_response.get('success'):
+                        return {
+                            'response_message': fallback_response['response'],
+                            'function_results': [],
+                            'success': True
+                        }
+                    else:
+                        return {
+                            'response_message': "I received your message. How can I help you with a movie?",
+                            'function_results': [],
+                            'success': True
+                        }
+                else:
+                    # Response looks like a proper user message
+                    return {
+                        'response_message': ai_response,
+                        'function_results': [],
+                        'success': True
+                    }
                 
         except Exception as e:
             logger.error(f"❌ Agent: Error in agentic response processing: {str(e)}")
@@ -741,6 +777,100 @@ ACTIONS TAKEN: {', '.join(actions_taken) if actions_taken else 'none'}
         result = self._process_agentic_response(conversation_history, phone_number)
         
         return result
+    
+    def AnswerAgenticSimple(self, conversation_history, phone_number):
+        """
+        Simplified agentic approach - uses discrete functions but with simpler logic
+        """
+        # Validate input
+        if not conversation_history:
+            logger.error(f"❌ Agent: No conversation history provided")
+            return {
+                'response_message': "I received your message but couldn't process it. Please try again.",
+                'success': False
+            }
+        
+        # Extract current message
+        current_message = None
+        for message in reversed(conversation_history):
+            if message.startswith("USER: "):
+                current_message = message.replace("USER: ", "")
+                break
+        
+        if not current_message:
+            return {
+                'response_message': "I received your message but couldn't process it properly.",
+                'success': False
+            }
+        
+        logger.info(f"🎬 Agent: Processing simple agentic request from {phone_number}: {current_message}")
+        
+        # Step 1: Try to identify movie using discrete function
+        movie_identification = self.identify_movie_request(conversation_history)
+        
+        if movie_identification.get('success') and movie_identification.get('movie_name') != "No movie identified":
+            movie_name = movie_identification['movie_name']
+            logger.info(f"🎬 Agent: Movie identified: {movie_name}")
+            
+            # Step 2: Check library status
+            library_status = self.check_movie_library_status(movie_name)
+            
+            if library_status.get('success'):
+                movie_data = library_status['movie_data']
+                release_status = library_status['release_status']
+                
+                # Step 3: Check if movie is released
+                if release_status and not release_status.get('is_released', True):
+                    # Movie not released
+                    release_date = release_status.get('release_date_formatted', 'Unknown date')
+                    days_until = release_status.get('days_until_release', 0)
+                    if days_until:
+                        response_message = f"The movie '{movie_data.get('title')}' isn't released yet. It comes out on {release_date} ({days_until} days from now)!"
+                    else:
+                        response_message = f"The movie '{movie_data.get('title')}' isn't released yet. Release date: {release_date}"
+                else:
+                    # Movie is released, check Radarr status
+                    radarr_status = self.check_radarr_status(library_status['tmdb_id'], movie_data)
+                    
+                    if radarr_status.get('success'):
+                        if radarr_status.get('exists_in_radarr'):
+                            if radarr_status.get('is_downloaded'):
+                                response_message = f"Great news! '{movie_data.get('title')}' is already downloaded and ready to watch!"
+                            elif radarr_status.get('is_downloading'):
+                                response_message = f"'{movie_data.get('title')}' is already downloading! I'll let you know when it's ready."
+                                # Set up monitoring
+                                self.request_download(movie_data, phone_number)
+                            else:
+                                response_message = f"'{movie_data.get('title')}' is in your queue but not downloading yet. I'll trigger a search for it!"
+                                # Trigger search and set up monitoring
+                                if radarr_status.get('radarr_movie_id'):
+                                    self._get_download_monitor().radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
+                                self.request_download(movie_data, phone_number)
+                        else:
+                            # Movie not in Radarr - request download
+                            download_request = self.request_download(movie_data, phone_number)
+                            if download_request.get('success'):
+                                response_message = f"Perfect! I'm adding '{movie_data.get('title')}' to your download queue. I'll text you when it starts downloading!"
+                            else:
+                                response_message = f"I couldn't add '{movie_data.get('title')}' to your queue right now. It might already be requested or unavailable."
+                    else:
+                        response_message = f"I found '{movie_data.get('title')}' but couldn't check your library status. Please try again later."
+            else:
+                # Movie not found in TMDB
+                response_message = f"I couldn't find '{movie_name}' in our movie database. Could you check the spelling or try a different title?"
+        else:
+            # No movie identified - generate friendly response
+            response_message = "Hi! I'd be happy to help you get a movie. Just tell me the name of the movie you'd like to watch!"
+        
+        # Ensure response is SMS-friendly
+        if len(response_message) > 160:
+            response_message = response_message[:157] + "..."
+        
+        return {
+            'response_message': response_message,
+            'movie_result': movie_identification,
+            'success': True
+        }
     
     def _store_outgoing_sms(self, phone_number: str, message: str, message_type: str = "notification") -> bool:
         """Store outgoing SMS message in Redis conversation"""
