@@ -437,7 +437,7 @@ def get_download_monitor_status():
             'plex_agent_running': plex_agent.monitoring,
             'download_monitor_running': get_download_monitor().running,
             'radarr_available': get_download_monitor().radarr_client is not None,
-            'twilio_available': plex_agent.twilio_client.is_configured(),
+            'twilio_available': plex_agent.notification_service.twilio_client.is_configured(),
             'redis_available': get_download_monitor().redis_client.is_available(),
             'active_requests': len(get_download_monitor().download_requests),
             'radarr_config': radarr_status
