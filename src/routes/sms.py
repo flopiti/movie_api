@@ -74,12 +74,12 @@ def sms_webhook():
         
         # Process with PlexAgent - create conversation history if none exists
         if conversation_history:
-            agent_result = plex_agent.Answer(conversation_history, message_data['From'])
+            agent_result = plex_agent.AnswerAgentic(conversation_history, message_data['From'])
             response_message = agent_result['response_message']
         else:
             # Create a conversation history with just the current message
             current_message_history = [f"USER: {message_data['Body']}"]
-            agent_result = plex_agent.Answer(current_message_history, message_data['From'])
+            agent_result = plex_agent.AnswerAgentic(current_message_history, message_data['From'])
             response_message = agent_result['response_message']
 
         # Store the outgoing reply message in Redis
