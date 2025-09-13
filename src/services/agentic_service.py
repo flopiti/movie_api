@@ -42,6 +42,8 @@ CRITICAL FUNCTION CALLING REQUIREMENTS:
   4. request_download (REQUIRED unless movie is already downloaded)
 - Do NOT stop after just identifying a movie - you must complete the full workflow
 - Do NOT promise to notify users unless you actually call request_download
+- After each function call, you will receive the results and should continue with the next required function
+- Continue calling functions until the complete workflow is finished
 
 IMPORTANT: You must either:
 1. Call the appropriate functions to gather information and take actions, OR
@@ -147,56 +149,83 @@ USER PHONE NUMBER: {phone_number}
             # Build agentic prompt
             agentic_prompt = self._build_agentic_prompt(conversation_context)
             
-            # Generate agentic response with function calling
-            response = self.openai_client.generate_agentic_response(
-                prompt=agentic_prompt,
-                functions=[self.function_schema]
-            )
+            # Start conversation with AI
+            messages = [{"role": "user", "content": agentic_prompt}]
+            function_results = []
+            max_iterations = 5  # Prevent infinite loops
+            iteration = 0
             
-            if not response.get('success'):
-                logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
-                return {
-                    'response_message': "I received your message but couldn't process it properly.",
-                    'success': False
-                }
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"🔄 AgenticService: Starting iteration {iteration}")
+                
+                # Generate agentic response with function calling
+                response = self.openai_client.generate_agentic_response(
+                    prompt=messages[-1]["content"],
+                    functions=[self.function_schema]
+                )
+                
+                if not response.get('success'):
+                    logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
+                    break
+                
+                # Add AI response to conversation
+                messages.append({"role": "assistant", "content": response.get('response', '')})
+                
+                # Process function calls if any
+                if response.get('has_function_calls') and response.get('tool_calls'):
+                    logger.info(f"🔧 AgenticService: Processing {len(response['tool_calls'])} function calls in iteration {iteration}")
+                    
+                    # Execute all function calls in this iteration
+                    iteration_results = []
+                    for i, tool_call in enumerate(response['tool_calls'], 1):
+                        try:
+                            # Parse function call arguments
+                            function_args = tool_call.function.arguments
+                            parsed_args = json.loads(function_args)
+                            
+                            function_name = parsed_args.get('function_name')
+                            parameters = parsed_args.get('parameters', {})
+                            
+                            logger.info(f"🔧 AgenticService: Function Call #{i}: {function_name}")
+                            logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {parameters}")
+                            
+                            # Execute the function
+                            result = self._execute_function_call(function_name, parameters, services)
+                            
+                            logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result}")
+                            
+                            iteration_results.append({
+                                'function_name': function_name,
+                                'result': result
+                            })
+                            
+                            logger.info(f"✅ AgenticService: Function Call #{i} ({function_name}) completed successfully")
+                            
+                        except Exception as e:
+                            logger.error(f"❌ AgenticService: Function Call #{i} Error: {str(e)}")
+                            iteration_results.append({
+                                'function_name': 'unknown',
+                                'result': {'success': False, 'error': str(e)}
+                            })
+                    
+                    # Add function results to conversation for next iteration
+                    function_summary = f"Function execution results:\n"
+                    for fr in iteration_results:
+                        function_summary += f"- {fr['function_name']}: {fr['result']}\n"
+                    
+                    messages.append({"role": "user", "content": function_summary})
+                    function_results.extend(iteration_results)
+                    
+                    # Continue to next iteration to let AI decide what to do next
+                    continue
+                else:
+                    # No more function calls - AI is done
+                    logger.info(f"🔍 AgenticService: No more function calls in iteration {iteration}")
+                    break
             
-            # Process function calls if any
-            if response.get('has_function_calls') and response.get('tool_calls'):
-                logger.info(f"🔧 AgenticService: Processing {len(response['tool_calls'])} function calls")
-                
-                function_results = []
-                for i, tool_call in enumerate(response['tool_calls'], 1):
-                    try:
-                        # Parse function call arguments
-                        function_args = tool_call.function.arguments
-                        parsed_args = json.loads(function_args)
-                        
-                        function_name = parsed_args.get('function_name')
-                        parameters = parsed_args.get('parameters', {})
-                        
-                        logger.info(f"🔧 AgenticService: Function Call #{i}: {function_name}")
-                        logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {parameters}")
-                        
-                        # Execute the function
-                        result = self._execute_function_call(function_name, parameters, services)
-                        
-                        logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result}")
-                        
-                        function_results.append({
-                            'function_name': function_name,
-                            'result': result
-                        })
-                        
-                        logger.info(f"✅ AgenticService: Function Call #{i} ({function_name}) completed successfully")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ AgenticService: Function Call #{i} Error: {str(e)}")
-                        function_results.append({
-                            'function_name': 'unknown',
-                            'result': {'success': False, 'error': str(e)}
-                        })
-                
-                # Generate final response based on function results
+            # Generate final response based on all function results
+            if function_results:
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
                 {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
@@ -226,8 +255,8 @@ USER PHONE NUMBER: {phone_number}
                         'success': True
                     }
             else:
-                # No function calls - extract clean response from AI output
-                ai_response = response.get('response', '')
+                # No function calls were made - extract clean response from AI output
+                ai_response = messages[-1]["content"] if len(messages) > 1 else ""
                 logger.info(f"🔍 AgenticService: NO FUNCTION CALLS MADE - AI response: {ai_response}")
                 clean_response = self._extract_clean_response(ai_response)
                 logger.info(f"🔍 AgenticService: Extracted clean response: {clean_response}")
