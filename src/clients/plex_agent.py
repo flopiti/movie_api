@@ -345,11 +345,13 @@ class PlexAgent:
             
             for tmdb_id, request in self.download_monitor.download_requests.items():
                 
-                if request.status in ["added_to_radarr", "downloading"] and request.radarr_movie_id:
+                if request.status in ["added_to_radarr", "queued", "downloading"] and request.radarr_movie_id:
                     
                     # Check if download has started
                     if request.status == "added_to_radarr":
-                        if self.download_monitor.radarr_client.is_movie_downloading(request.radarr_movie_id):
+                        # Check if movie is actually downloading (not just queued)
+                        download_status = self.download_monitor.radarr_client.get_download_status_for_movie(request.radarr_movie_id)
+                        if download_status and download_status.get('status', '').lower() == 'downloading':
                             request.status = "downloading"
                             request.download_started_at = datetime.now()
                             
@@ -360,6 +362,30 @@ class PlexAgent:
                             self._send_download_started_notification(request)
                             
                             logger.info(f"📱 PlexAgent: Download started for {request.movie_title}")
+                        elif download_status and download_status.get('status', '').lower() == 'queued':
+                            # Movie is queued but not yet downloading - update status but don't notify yet
+                            request.status = "queued"
+                            logger.info(f"📱 PlexAgent: Movie {request.movie_title} is queued for download")
+                        else:
+                            pass  # Not yet downloading
+                    
+                    # Check if queued movie has started downloading
+                    elif request.status == "queued":
+                        download_status = self.download_monitor.radarr_client.get_download_status_for_movie(request.radarr_movie_id)
+                        if download_status and download_status.get('status', '').lower() == 'downloading':
+                            request.status = "downloading"
+                            request.download_started_at = datetime.now()
+                            
+                            # Update Redis with new status
+                            self.download_monitor._store_download_request(request)
+                            
+                            # Send SMS notification
+                            self._send_download_started_notification(request)
+                            
+                            logger.info(f"📱 PlexAgent: Download started for {request.movie_title}")
+                        elif not download_status:
+                            # No longer in queue - might have completed or failed
+                            logger.info(f"📱 PlexAgent: Movie {request.movie_title} no longer in download queue")
                     
                     # Check if download has completed
                     elif request.status == "downloading":

@@ -262,11 +262,13 @@ class DownloadMonitor:
             
             for tmdb_id, request in self.download_requests.items():
                 
-                if request.status in ["added_to_radarr", "downloading"] and request.radarr_movie_id:
+                if request.status in ["added_to_radarr", "queued", "downloading"] and request.radarr_movie_id:
                     
                     # Check if download has started
                     if request.status == "added_to_radarr":
-                        if self.radarr_client.is_movie_downloading(request.radarr_movie_id):
+                        # Check if movie is actually downloading (not just queued)
+                        download_status = self.radarr_client.get_download_status_for_movie(request.radarr_movie_id)
+                        if download_status and download_status.get('status', '').lower() == 'downloading':
                             request.status = "downloading"
                             request.download_started_at = datetime.now()
                             
@@ -274,8 +276,27 @@ class DownloadMonitor:
                             self._send_download_started_notification(request)
                             
                             logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
+                        elif download_status and download_status.get('status', '').lower() == 'queued':
+                            # Movie is queued but not yet downloading - update status but don't notify yet
+                            request.status = "queued"
+                            logger.info(f"📱 Download Monitor: Movie {request.movie_title} is queued for download")
                         else:
                             pass  # Not yet downloading
+                    
+                    # Check if queued movie has started downloading
+                    elif request.status == "queued":
+                        download_status = self.radarr_client.get_download_status_for_movie(request.radarr_movie_id)
+                        if download_status and download_status.get('status', '').lower() == 'downloading':
+                            request.status = "downloading"
+                            request.download_started_at = datetime.now()
+                            
+                            # Send SMS notification
+                            self._send_download_started_notification(request)
+                            
+                            logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
+                        elif not download_status:
+                            # No longer in queue - might have completed or failed
+                            logger.info(f"📱 Download Monitor: Movie {request.movie_title} no longer in download queue")
                     
                     # Check if download has completed
                     elif request.status == "downloading":
@@ -308,6 +329,37 @@ class DownloadMonitor:
         except Exception as e:
             logger.error(f"❌ Download Monitor: Error checking download status: {str(e)}")
     
+    def _store_outgoing_sms(self, phone_number: str, message: str, message_type: str = "notification") -> bool:
+        """Store outgoing SMS message in Redis conversation"""
+        try:
+            if not self.redis_client.is_available():
+                logger.warning("📱 Download Monitor: Redis not available - cannot store outgoing SMS")
+                return False
+            
+            # Prepare message data for Redis storage
+            message_data = {
+                'MessageSid': f"outgoing_{datetime.now().timestamp()}",
+                'status': 'sent',
+                'To': phone_number,
+                'From': 'system',  # System-generated message
+                'Body': message,
+                'timestamp': datetime.now().isoformat(),
+                'direction': 'outbound',
+                'message_type': message_type
+            }
+            
+            success = self.redis_client.store_sms_message(message_data)
+            if success:
+                logger.info(f"📱 Download Monitor: Stored outgoing SMS in Redis conversation")
+            else:
+                logger.error(f"❌ Download Monitor: Failed to store outgoing SMS in Redis")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Download Monitor: Error storing outgoing SMS in Redis: {str(e)}")
+            return False
+
     def _send_download_started_notification(self, request: DownloadRequest):
         """Send SMS notification when download starts"""
         try:
@@ -317,6 +369,8 @@ class DownloadMonitor:
             
             if result.get('success'):
                 logger.info(f"📱 Download Monitor: Sent download started notification to {request.phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(request.phone_number, message, "download_started")
             else:
                 logger.error(f"❌ Download Monitor: Failed to send download started notification: {result.get('error')}")
                 
@@ -332,6 +386,8 @@ class DownloadMonitor:
             
             if result.get('success'):
                 logger.info(f"📱 Download Monitor: Sent download completed notification to {request.phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(request.phone_number, message, "download_completed")
             else:
                 logger.error(f"❌ Download Monitor: Failed to send download completed notification: {result.get('error')}")
                 
@@ -347,6 +403,8 @@ class DownloadMonitor:
             
             if result.get('success'):
                 logger.info(f"📱 Download Monitor: Sent download failed notification to {request.phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(request.phone_number, message, "download_failed")
             else:
                 logger.error(f"❌ Download Monitor: Failed to send download failed notification: {result.get('error')}")
                 
