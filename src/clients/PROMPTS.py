@@ -199,6 +199,8 @@ Your goal is to seamlessly integrate these systems to provide users with a smoot
 # Agent Procedures Prompt  
 MOVIE_AGENT_PROCEDURES = """PROCEDURES FOR MOVIE REQUEST HANDLING:
 
+CRITICAL: Always provide ONLY the final SMS response to the user. Do NOT include explanations, instructions, or internal reasoning.
+
 When a user sends an SMS message, follow these procedures:
 
 STEP 1: ANALYZE REQUEST
@@ -227,10 +229,10 @@ Based on the status, decide appropriate action:
 - If movie not released: Inform user of release date
 
 STEP 5: RESPONSE GENERATION
-- Generate appropriate SMS response based on actions taken
-- Include relevant movie context in response
-- Ensure response is under 160 characters
-- Use friendly, non-technical language
+- Generate a concise, friendly SMS response
+- Include only essential information
+- Keep response under 160 characters when possible
+- DO NOT explain your internal process or reasoning
 
 STEP 6: MONITORING SETUP
 - If download was initiated, set up monitoring for progress updates

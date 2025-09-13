@@ -38,7 +38,33 @@ IMPORTANT: You must either:
 1. Call the appropriate functions to gather information and take actions, OR
 2. Provide a direct SMS response to the user
 
-DO NOT return internal instructions or prompts to the user. Always provide a user-friendly SMS response."""
+CRITICAL: DO NOT return internal instructions, explanations, or prompts to the user. 
+- DO NOT say "SMS RESPONSE:" or "Instead, send a..."
+- DO NOT explain what you're going to do
+- DO NOT include phrases like "there's no need to call functions"
+- Just provide the actual SMS message the user should receive
+
+Always provide ONLY a clean, user-friendly SMS response."""
+    
+    def _extract_clean_response(self, ai_response: str) -> str:
+        """Extract clean SMS response from AI output, removing internal instructions"""
+        # Look for quoted text after "SMS RESPONSE:" or similar patterns
+        import re
+        
+        # Pattern to find text in quotes after "SMS RESPONSE:"
+        sms_pattern = r'(?:SMS RESPONSE:|Response:|Message:)\s*["\']([^"\']+)["\']'
+        match = re.search(sms_pattern, ai_response, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        
+        # Pattern to find text in quotes at the end
+        quote_pattern = r'["\']([^"\']+)["\']\s*$'
+        match = re.search(quote_pattern, ai_response)
+        if match:
+            return match.group(1).strip()
+        
+        # If no quotes found, return the original response
+        return ai_response.strip()
     
     def _execute_function_call(self, function_name: str, parameters: dict, services: dict):
         """Execute a function call based on the function name and parameters"""
@@ -157,11 +183,11 @@ USER PHONE NUMBER: {phone_number}
                 
                 # Generate final response based on function results
                 final_context = f"""
-FUNCTION EXECUTION RESULTS:
-{chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
+                FUNCTION EXECUTION RESULTS:
+                {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
 
-ORIGINAL USER MESSAGE: {current_message}
-"""
+                ORIGINAL USER MESSAGE: {current_message}
+                """
                 
                 final_response = self.openai_client.generate_sms_response(
                     message=current_message,
@@ -171,8 +197,10 @@ ORIGINAL USER MESSAGE: {current_message}
                 )
                 
                 if final_response.get('success'):
+                    # Extract clean response even from function call results
+                    clean_response = self._extract_clean_response(final_response['response'])
                     return {
-                        'response_message': final_response['response'],
+                        'response_message': clean_response,
                         'function_results': function_results,
                         'success': True
                     }
@@ -183,15 +211,23 @@ ORIGINAL USER MESSAGE: {current_message}
                         'success': True
                     }
             else:
-                # No function calls - check if response contains internal instructions
+                # No function calls - extract clean response from AI output
                 ai_response = response.get('response', '')
+                logger.info(f"🔍 AgenticService: No function calls, AI response: {ai_response}")
+                clean_response = self._extract_clean_response(ai_response)
+                logger.info(f"🔍 AgenticService: Extracted clean response: {clean_response}")
                 
-                # Check if the response contains internal prompt text that shouldn't be sent to user
-                if any(phrase in ai_response.lower() for phrase in [
+                # Check if the extracted response still contains internal instructions
+                if any(phrase in clean_response.lower() for phrase in [
                     "let's use the", "we need to prompt", "internal instructions", 
-                    "function calling", "available functions", "procedures for"
+                    "function calling", "available functions", "procedures for",
+                    "sms response:", "there's no need to call", "instead, send a",
+                    "since the user's message", "doesn't contain any specific",
+                    "no need to call any functions", "send a friendly sms",
+                    "doesn't contain any specific request", "at this point",
+                    "initiate the conversation", "ask what movie"
                 ]):
-                    logger.warning(f"⚠️ AgenticService: AI returned internal instructions instead of user response")
+                    logger.warning(f"⚠️ AgenticService: Extracted response still contains internal instructions")
                     # Fall back to simple SMS response
                     fallback_response = self.openai_client.generate_sms_response(
                         message=current_message,
@@ -201,8 +237,10 @@ ORIGINAL USER MESSAGE: {current_message}
                     )
                     
                     if fallback_response.get('success'):
+                        # Extract clean response from fallback too
+                        clean_fallback = self._extract_clean_response(fallback_response['response'])
                         return {
-                            'response_message': fallback_response['response'],
+                            'response_message': clean_fallback,
                             'function_results': [],
                             'success': True
                         }
@@ -213,9 +251,9 @@ ORIGINAL USER MESSAGE: {current_message}
                             'success': True
                         }
                 else:
-                    # Response looks like a proper user message
+                    # Response looks clean
                     return {
-                        'response_message': ai_response,
+                        'response_message': clean_response,
                         'function_results': [],
                         'success': True
                     }
