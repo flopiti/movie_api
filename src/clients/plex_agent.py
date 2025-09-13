@@ -315,6 +315,9 @@ class PlexAgent:
                             request.status = "downloading"
                             request.download_started_at = datetime.now()
                             
+                            # Update Redis with new status
+                            self.download_monitor._store_download_request(request)
+                            
                             # Send SMS notification
                             self._send_download_started_notification(request)
                             
@@ -326,13 +329,16 @@ class PlexAgent:
                             request.status = "completed"
                             request.download_completed_at = datetime.now()
                             
+                            # Update Redis with completed status
+                            self.download_monitor._store_download_request(request)
+                            
                             # Send SMS notification
                             self._send_download_completed_notification(request)
                             
                             logger.info(f"📱 PlexAgent: Download completed for {request.movie_title}")
                             
-                            # Remove from active monitoring
-                            del self.download_monitor.download_requests[tmdb_id]
+                            # Remove from active monitoring and Redis
+                            self.download_monitor.cancel_download_request(tmdb_id)
                             
         except Exception as e:
             logger.error(f"❌ PlexAgent: Error checking download status: {str(e)}")
