@@ -68,14 +68,14 @@ Always provide ONLY a clean, user-friendly SMS response."""
         
         # Clean up the response first
         cleaned_response = ai_response.strip()
+        logger.info(f"🔍 AgenticService: Original AI response: '{ai_response}'")
+        logger.info(f"🔍 AgenticService: Cleaned response: '{cleaned_response}'")
         
-        # Remove common prefixes that indicate internal instructions
+        # Only remove very specific internal instruction prefixes
         prefixes_to_remove = [
             r'^SMS RESPONSE:\s*',
             r'^Response:\s*',
-            r'^Message:\s*',
-            r'^Here\'s the response:\s*',
-            r'^The response is:\s*'
+            r'^Message:\s*'
         ]
         
         for prefix in prefixes_to_remove:
@@ -85,13 +85,40 @@ Always provide ONLY a clean, user-friendly SMS response."""
         sms_pattern = r'(?:SMS RESPONSE:|Response:|Message:)\s*["\']([^"\']+)["\']'
         match = re.search(sms_pattern, cleaned_response, re.IGNORECASE)
         if match:
-            return match.group(1).strip()
+            result = match.group(1).strip()
+            logger.info(f"🔍 AgenticService: Found SMS pattern match: '{result}'")
+            return result
         
         # Pattern to find text in quotes at the end
         quote_pattern = r'["\']([^"\']+)["\']\s*$'
         match = re.search(quote_pattern, cleaned_response)
         if match:
-            return match.group(1).strip()
+            result = match.group(1).strip()
+            logger.info(f"🔍 AgenticService: Found quote pattern match: '{result}'")
+            return result
+        
+        # Check if the response contains specific internal instructions that should be removed
+        internal_phrases = [
+            'there\'s no need to call functions',
+            'instead, send a',
+            'send a friendly sms',
+            'no need to call any functions',
+            'doesn\'t contain any specific request',
+            'at this point',
+            'initiate the conversation',
+            'ask what movie'
+        ]
+        
+        # If response contains internal instructions, try to extract the actual message
+        if any(phrase in cleaned_response.lower() for phrase in internal_phrases):
+            # Look for the main sentence or paragraph after the instruction
+            sentences = re.split(r'[.!?]+', cleaned_response)
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if len(sentence) > 10 and not any(word in sentence.lower() for word in internal_phrases):
+                    result = sentence + '.'
+                    logger.info(f"🔍 AgenticService: Found sentence after internal instruction: '{result}'")
+                    return result
         
         # If response is too short or looks like a fragment, try to find the main content
         if len(cleaned_response) < 10 or cleaned_response in ['?', '!', '.']:
@@ -100,10 +127,14 @@ Always provide ONLY a clean, user-friendly SMS response."""
             for sentence in sentences:
                 sentence = sentence.strip()
                 if len(sentence) > 10 and not any(word in sentence.lower() for word in ['sms response', 'internal', 'instruction']):
-                    return sentence + '.'
+                    result = sentence + '.'
+                    logger.info(f"🔍 AgenticService: Found sentence from fragment: '{result}'")
+                    return result
         
-        # If no quotes found, return the cleaned response
-        return cleaned_response.strip()
+        # Return the response as-is (don't modify it further)
+        result = cleaned_response.strip()
+        logger.info(f"🔍 AgenticService: Returning response as-is: '{result}'")
+        return result
     
     def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
         """Execute a function call based on the function name and parameters"""
