@@ -6,6 +6,7 @@ Handles SMS conversation history and message retrieval operations.
 
 import json
 import logging
+from datetime import datetime
 from typing import List, Dict, Any
 from ..clients.redis_client import RedisClient
 
@@ -34,8 +35,8 @@ class SmsConversations:
             return []
         
         try:
-            # Get message SIDs from Redis sorted set (oldest first for proper conversation order)
-            message_sids = self.redis_client.zrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
+            # Get message SIDs from Redis sorted set (newest first, then we'll sort properly)
+            message_sids = self.redis_client.zrevrange("sms_messages", 0, limit * 2 - 1)  # Get more to filter
             
             if not message_sids:
                 return []
@@ -175,9 +176,21 @@ class SmsConversations:
                     conversations[conversation_key]['last_message'] = conversation_message
                     conversations[conversation_key]['last_message_time'] = message_time
             
-            # Sort messages within each conversation by timestamp
+            # Sort messages within each conversation by timestamp (chronological order)
             for conversation in conversations.values():
-                conversation['messages'].sort(key=lambda x: str(x['timestamp']) if x['timestamp'] else '')
+                def sort_key(message):
+                    timestamp = message.get('timestamp')
+                    if not timestamp:
+                        return ''
+                    # Convert to comparable format
+                    if isinstance(timestamp, str):
+                        try:
+                            return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        except:
+                            return timestamp
+                    return timestamp
+                
+                conversation['messages'].sort(key=sort_key, reverse=False)
             
             # Convert to list and sort by last message time
             conversation_list = list(conversations.values())

@@ -34,6 +34,15 @@ CURRENT CONTEXT:
 
 Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. 
 
+CRITICAL FUNCTION CALLING REQUIREMENTS:
+- If a movie is identified, you MUST call functions in this exact sequence:
+  1. identify_movie_request (if movie not already identified)
+  2. check_movie_library_status (REQUIRED after movie identification)
+  3. check_radarr_status (REQUIRED after getting movie data)
+  4. request_download (REQUIRED unless movie is already downloaded)
+- Do NOT stop after just identifying a movie - you must complete the full workflow
+- Do NOT promise to notify users unless you actually call request_download
+
 IMPORTANT: You must either:
 1. Call the appropriate functions to gather information and take actions, OR
 2. Provide a direct SMS response to the user
@@ -156,7 +165,7 @@ USER PHONE NUMBER: {phone_number}
                 logger.info(f"🔧 AgenticService: Processing {len(response['tool_calls'])} function calls")
                 
                 function_results = []
-                for tool_call in response['tool_calls']:
+                for i, tool_call in enumerate(response['tool_calls'], 1):
                     try:
                         # Parse function call arguments
                         function_args = tool_call.function.arguments
@@ -165,17 +174,23 @@ USER PHONE NUMBER: {phone_number}
                         function_name = parsed_args.get('function_name')
                         parameters = parsed_args.get('parameters', {})
                         
+                        logger.info(f"🔧 AgenticService: Function Call #{i}: {function_name}")
+                        logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {parameters}")
+                        
                         # Execute the function
                         result = self._execute_function_call(function_name, parameters, services)
+                        
+                        logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result}")
+                        
                         function_results.append({
                             'function_name': function_name,
                             'result': result
                         })
                         
-                        logger.info(f"✅ AgenticService: Function {function_name} executed successfully")
+                        logger.info(f"✅ AgenticService: Function Call #{i} ({function_name}) completed successfully")
                         
                     except Exception as e:
-                        logger.error(f"❌ AgenticService: Error processing function call: {str(e)}")
+                        logger.error(f"❌ AgenticService: Function Call #{i} Error: {str(e)}")
                         function_results.append({
                             'function_name': 'unknown',
                             'result': {'success': False, 'error': str(e)}
@@ -213,7 +228,7 @@ USER PHONE NUMBER: {phone_number}
             else:
                 # No function calls - extract clean response from AI output
                 ai_response = response.get('response', '')
-                logger.info(f"🔍 AgenticService: No function calls, AI response: {ai_response}")
+                logger.info(f"🔍 AgenticService: NO FUNCTION CALLS MADE - AI response: {ai_response}")
                 clean_response = self._extract_clean_response(ai_response)
                 logger.info(f"🔍 AgenticService: Extracted clean response: {clean_response}")
                 

@@ -86,7 +86,7 @@ class RedisClient:
             return []
     
     def zrevrange(self, key: str, start: int, end: int) -> List[str]:
-        """Get members from a sorted set in reverse order."""
+        """Get members from a sorted set in reverse order (newest first)."""
         if not self.client:
             return []
         
