@@ -181,14 +181,22 @@ class SmsConversations:
                 def sort_key(message):
                     timestamp = message.get('timestamp')
                     if not timestamp:
-                        return ''
+                        return datetime.min.replace(tzinfo=None)  # Use naive datetime for comparison
+                    
                     # Convert to comparable format
                     if isinstance(timestamp, str):
                         try:
-                            return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                            # Parse ISO format and normalize to UTC
+                            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                            # Convert to naive datetime for consistent comparison
+                            return dt.replace(tzinfo=None)
                         except:
-                            return timestamp
-                    return timestamp
+                            return datetime.min.replace(tzinfo=None)
+                    elif isinstance(timestamp, datetime):
+                        # If it's already a datetime, make it naive for consistent comparison
+                        return timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+                    
+                    return datetime.min.replace(tzinfo=None)
                 
                 conversation['messages'].sort(key=sort_key, reverse=False)
             
