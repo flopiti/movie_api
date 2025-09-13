@@ -5,7 +5,7 @@ from datetime import datetime
 from config.config import OPENAI_API_KEY, TMDB_API_KEY
 from ..clients.openai_client import OpenAIClient
 from ..clients.tmdb_client import TMDBClient
-from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
+from ..clients.PROMPTS import SMS_RESPONSE_PROMPT, MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS
 from ..services.download_monitor import get_download_monitor
 from ..clients.twilio_client import TwilioClient
 
@@ -24,6 +24,11 @@ class PlexAgent:
         self.sms_response_prompt = SMS_RESPONSE_PROMPT
         self.twilio_client = TwilioClient()
         
+        # Agentic prompts
+        self.primary_purpose = MOVIE_AGENT_PRIMARY_PURPOSE
+        self.procedures = MOVIE_AGENT_PROCEDURES
+        self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
+        
         # Download monitoring
         self.monitoring = False
         self.monitor_thread = None
@@ -34,6 +39,19 @@ class PlexAgent:
         if self.download_monitor is None:
             self.download_monitor = get_download_monitor()
         return self.download_monitor
+    
+    def _build_agentic_prompt(self, conversation_context=""):
+        """Build the complete agentic prompt by combining all prompt components"""
+        return f"""{self.primary_purpose}
+
+{self.procedures}
+
+{self.available_functions}
+
+CURRENT CONTEXT:
+{conversation_context}
+
+Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. Use the available functions to gather information and take actions as needed."""
     
     def get_movie(self, movie_result):
         """
@@ -243,10 +261,23 @@ class PlexAgent:
             movie_context = " (Note: No movie was identified in the conversation)"
         
         if current_message and phone_number:
+            # Build conversation context for agentic prompt
+            conversation_context = f"""
+CONVERSATION HISTORY:
+{chr(10).join(conversation_history[-5:])}  # Last 5 messages for context
+
+CURRENT USER MESSAGE: {current_message}
+USER PHONE NUMBER: {phone_number}
+MOVIE CONTEXT: {movie_context}
+"""
+            
+            # Use agentic prompt instead of simple SMS response prompt
+            agentic_prompt = self._build_agentic_prompt(conversation_context)
+            
             chatgpt_result = self.openai_client.generate_sms_response(
                 current_message, 
                 phone_number, 
-                self.sms_response_prompt,
+                agentic_prompt,
                 movie_context=movie_context
             )
             
