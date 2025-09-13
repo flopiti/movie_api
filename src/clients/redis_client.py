@@ -16,10 +16,21 @@ logger = logging.getLogger(__name__)
 class RedisClient:
     """Redis client for storing and retrieving application data."""
     
+    _instance = None
+    _client = None
+    
+    def __new__(cls):
+        """Singleton pattern to ensure only one Redis connection."""
+        if cls._instance is None:
+            cls._instance = super(RedisClient, cls).__new__(cls)
+            cls._instance._init_redis()
+        return cls._instance
+    
     def __init__(self):
         """Initialize Redis client with configuration from environment variables."""
-        self.client = None
-        self._init_redis()
+        # Only initialize if not already done
+        if self._client is None:
+            self._init_redis()
     
     def _init_redis(self):
         """Initialize Redis connection."""
@@ -28,16 +39,21 @@ class RedisClient:
             redis_port = int(os.getenv('REDIS_PORT', 6379))
             redis_db = int(os.getenv('REDIS_DB', 0))
             
-            self.client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
-            self.client.ping()  # Test connection
+            self._client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+            self._client.ping()  # Test connection
             logger.info("✅ Redis Client: Connection established")
         except Exception as e:
-            self.client = None
+            self._client = None
             logger.error(f"❌ Redis Client: Connection failed: {str(e)}")
     
     def is_available(self) -> bool:
         """Check if Redis is available."""
-        return self.client is not None
+        return self._client is not None
+    
+    @property
+    def client(self):
+        """Get the Redis client instance."""
+        return self._client
     
     def set(self, key: str, value: str) -> bool:
         """Set a key-value pair in Redis."""

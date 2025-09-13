@@ -58,6 +58,7 @@ def sms_webhook():
         
         # Get conversation history for movie detection
         messages = sms_conversations.get_conversation(message_data['From'], 10)
+        logger.info(f"📱 SMS Webhook: Retrieved {len(messages)} messages for conversation")
         
         conversation_history = []
         for message in messages:
@@ -71,6 +72,8 @@ def sms_webhook():
             # Format: "SPEAKER: message content"
             formatted_message = f"{speaker}: {message.get('Body', message.get('body', ''))}"
             conversation_history.append(formatted_message)
+        
+        logger.info(f"📱 SMS Webhook: Formatted conversation history: {conversation_history}")
         
         # Process with PlexAgent - create conversation history if none exists
         if conversation_history:
