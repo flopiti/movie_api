@@ -32,7 +32,9 @@ class AgenticService:
 CURRENT CONTEXT:
 {conversation_context}
 
-Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. 
+Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take.
+
+IMPORTANT: You are REQUIRED to complete the full movie workflow. Do not stop until you have called request_download. 
 
 CRITICAL FUNCTION CALLING REQUIREMENTS:
 - If a movie is identified, you MUST call functions in this exact sequence:
@@ -44,6 +46,9 @@ CRITICAL FUNCTION CALLING REQUIREMENTS:
 - Do NOT promise to notify users unless you actually call request_download
 - After each function call, you will receive the results and should continue with the next required function
 - Continue calling functions until the complete workflow is finished
+- NEVER stop after check_movie_library_status - you MUST always call check_radarr_status next
+- NEVER stop after check_radarr_status - you MUST always call request_download next (unless movie is already downloaded)
+- The workflow is NOT complete until you have called request_download
 
 IMPORTANT: You must either:
 1. Call the appropriate functions to gather information and take actions, OR
@@ -213,6 +218,17 @@ USER PHONE NUMBER: {phone_number}
                     function_summary = f"Function execution results:\n"
                     for fr in iteration_results:
                         function_summary += f"- {fr['function_name']}: {fr['result']}\n"
+                    
+                    # Add explicit instructions for next steps
+                    function_summary += f"\nNEXT STEPS REQUIRED:\n"
+                    if any(fr['function_name'] == 'identify_movie_request' for fr in iteration_results):
+                        function_summary += "- You MUST call check_movie_library_status next\n"
+                    elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
+                        function_summary += "- You MUST call check_radarr_status next\n"
+                    elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
+                        function_summary += "- You MUST call request_download next\n"
+                    elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
+                        function_summary += "- Workflow complete - generate final SMS response\n"
                     
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)
