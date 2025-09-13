@@ -53,6 +53,277 @@ CURRENT CONTEXT:
 
 Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. Use the available functions to gather information and take actions as needed."""
     
+    # =============================================================================
+    # AGENTIC FUNCTION CALLS - Discrete capabilities for agentic decision making
+    # =============================================================================
+    
+    def identify_movie_request(self, conversation_history):
+        """
+        Agentic function: Extract movie title and year from SMS conversation
+        Returns movie name with year or "No movie identified"
+        """
+        try:
+            # Send last 10 messages (both USER and SYSTEM) for context
+            last_10_messages = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+            
+            movie_result = self.openai_client.getMovieName(last_10_messages)
+            
+            if movie_result and movie_result.get('success') and movie_result.get('movie_name'):
+                logger.info(f"🎬 Agent: Movie identified: {movie_result['movie_name']}")
+                return {
+                    'success': True,
+                    'movie_name': movie_result['movie_name'],
+                    'confidence': movie_result.get('confidence', 'medium')
+                }
+            else:
+                logger.info(f"🎬 Agent: No movie identified in conversation")
+                return {
+                    'success': False,
+                    'movie_name': "No movie identified",
+                    'confidence': 'none'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Agent: Error identifying movie request: {str(e)}")
+            return {
+                'success': False,
+                'movie_name': "No movie identified",
+                'confidence': 'none',
+                'error': str(e)
+            }
+    
+    def check_movie_library_status(self, movie_name):
+        """
+        Agentic function: Search TMDB and check release status for a movie
+        Returns comprehensive movie information and availability status
+        """
+        try:
+            logger.info(f"🔍 Agent: Checking library status for: {movie_name}")
+            
+            # Search TMDB for the movie
+            tmdb_result = self.tmdb_client.search_movie(movie_name)
+            if not tmdb_result.get('results') or len(tmdb_result.get('results', [])) == 0:
+                logger.info(f"🔍 Agent: Movie not found in TMDB: {movie_name}")
+                return {
+                    'success': False,
+                    'movie_name': movie_name,
+                    'tmdb_result': tmdb_result,
+                    'movie_data': None,
+                    'release_status': None,
+                    'error': 'Movie not found in TMDB'
+                }
+            
+            movie_data = tmdb_result['results'][0]  # Get first result
+            tmdb_id = movie_data.get('id')
+            
+            # Extract year from release_date (format: YYYY-MM-DD)
+            release_date = movie_data.get('release_date', '')
+            year = release_date.split('-')[0] if release_date else 'Unknown year'
+            
+            logger.info(f"🔍 Agent: TMDB found movie: {movie_data.get('title')} ({year})")
+            
+            # Check release status
+            release_status = self.tmdb_client.is_movie_released(movie_data)
+            logger.info(f"📅 Agent: Release status: {release_status}")
+            
+            return {
+                'success': True,
+                'movie_name': movie_name,
+                'tmdb_result': tmdb_result,
+                'movie_data': movie_data,
+                'tmdb_id': tmdb_id,
+                'year': year,
+                'release_status': release_status
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Agent: Error checking movie library status: {str(e)}")
+            return {
+                'success': False,
+                'movie_name': movie_name,
+                'error': str(e)
+            }
+    
+    def check_radarr_status(self, tmdb_id, movie_data):
+        """
+        Agentic function: Check if movie exists in user's Radarr library
+        Returns detailed Radarr status including download state
+        """
+        try:
+            if not tmdb_id or not movie_data:
+                logger.warning(f"⚠️ Agent: Missing tmdb_id or movie_data for Radarr check")
+                return {
+                    'success': False,
+                    'tmdb_id': tmdb_id,
+                    'movie_title': movie_data.get('title') if movie_data else 'Unknown',
+                    'error': 'Missing required parameters'
+                }
+            
+            logger.info(f"🔍 Agent: Checking Radarr status for {movie_data.get('title')}")
+            
+            # Check if Radarr is configured first
+            if not self._get_download_monitor().is_radarr_configured():
+                logger.warning(f"⚠️ Agent: Radarr not configured")
+                return {
+                    'success': False,
+                    'tmdb_id': tmdb_id,
+                    'movie_title': movie_data.get('title'),
+                    'radarr_status': None,
+                    'error': 'Radarr not configured'
+                }
+            
+            # Check Radarr status
+            radarr_status = self._get_download_monitor().radarr_client.get_movie_status_by_tmdb_id(tmdb_id)
+            logger.info(f"📱 Agent: Radarr status: {radarr_status}")
+            
+            return {
+                'success': True,
+                'tmdb_id': tmdb_id,
+                'movie_title': movie_data.get('title'),
+                'radarr_status': radarr_status,
+                'exists_in_radarr': radarr_status.get('exists_in_radarr', False) if radarr_status else False,
+                'is_downloaded': radarr_status.get('is_downloaded', False) if radarr_status else False,
+                'is_downloading': radarr_status.get('is_downloading', False) if radarr_status else False,
+                'radarr_movie_id': radarr_status.get('radarr_movie_id') if radarr_status else None
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Agent: Error checking Radarr status: {str(e)}")
+            return {
+                'success': False,
+                'tmdb_id': tmdb_id,
+                'movie_title': movie_data.get('title') if movie_data else 'Unknown',
+                'error': str(e)
+            }
+    
+    def request_download(self, movie_data, phone_number):
+        """
+        Agentic function: Add movie to download queue in Radarr
+        Returns success/failure status and action taken
+        """
+        try:
+            if not movie_data or not phone_number:
+                logger.warning(f"⚠️ Agent: Missing movie data or phone number for download request")
+                return {
+                    'success': False,
+                    'action': 'none',
+                    'error': 'Missing movie data or phone number'
+                }
+            
+            # Extract movie details
+            release_date = movie_data.get('release_date', '')
+            year = release_date.split('-')[0] if release_date else 'Unknown year'
+            tmdb_id = movie_data.get('id')
+            movie_title = movie_data.get('title')
+            
+            logger.info(f"📱 Agent: Processing download request for {movie_title} ({year}) from {phone_number}")
+            
+            # Check if Radarr is configured first
+            if not self._get_download_monitor().is_radarr_configured():
+                logger.warning(f"⚠️ Agent: Radarr not configured - cannot process download request")
+                return {
+                    'success': False,
+                    'action': 'none',
+                    'movie_title': movie_title,
+                    'error': 'Radarr not configured'
+                }
+            
+            # Add download request to the monitor
+            success = self._get_download_monitor().add_download_request(
+                tmdb_id=tmdb_id,
+                movie_title=movie_title,
+                movie_year=year,
+                phone_number=phone_number
+            )
+            
+            if success:
+                logger.info(f"✅ Agent: Download request added successfully for {movie_title}")
+                return {
+                    'success': True,
+                    'action': 'download_requested',
+                    'movie_title': movie_title,
+                    'movie_year': year,
+                    'tmdb_id': tmdb_id
+                }
+            else:
+                logger.info(f"ℹ️ Agent: Download request already exists for {movie_title}")
+                return {
+                    'success': True,
+                    'action': 'already_requested',
+                    'movie_title': movie_title,
+                    'movie_year': year,
+                    'tmdb_id': tmdb_id
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Agent: Error requesting download: {str(e)}")
+            return {
+                'success': False,
+                'action': 'none',
+                'movie_title': movie_data.get('title') if movie_data else 'Unknown',
+                'error': str(e)
+            }
+    
+    def send_notification(self, phone_number, message_type, movie_data, additional_context=""):
+        """
+        Agentic function: Send SMS notification to user
+        Returns delivery status and message sent
+        """
+        try:
+            if not phone_number or not message_type or not movie_data:
+                logger.warning(f"⚠️ Agent: Missing parameters for notification")
+                return {
+                    'success': False,
+                    'message_type': message_type,
+                    'error': 'Missing required parameters'
+                }
+            
+            # Extract movie details
+            release_date = movie_data.get('release_date', '')
+            year = release_date.split('-')[0] if release_date else 'Unknown year'
+            movie_title = movie_data.get('title')
+            
+            # Generate appropriate message based on type
+            if message_type == "movie_added":
+                message = f"🎬 Adding '{movie_title}' ({year}) to your download queue. I'll let you know when it starts downloading!"
+            elif message_type == "search_triggered":
+                message = f"🔍 Searching for '{movie_title}' ({year}) releases. I'll let you know when download starts!"
+            elif message_type == "download_started":
+                message = f"🎬 Great! I'm getting {movie_title} ({year}) ready for you. I'll text you when it's ready to watch!"
+            elif message_type == "download_completed":
+                message = f"🎉 {movie_title} ({year}) is ready to watch! Enjoy your movie!"
+            else:
+                message = f"📱 Update on {movie_title} ({year}): {additional_context}"
+            
+            # Send SMS
+            result = self.twilio_client.send_sms(phone_number, message)
+            
+            if result.get('success'):
+                logger.info(f"📱 Agent: Sent {message_type} notification to {phone_number}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(phone_number, message, message_type)
+                return {
+                    'success': True,
+                    'message_type': message_type,
+                    'message_sent': message,
+                    'phone_number': phone_number
+                }
+            else:
+                logger.error(f"❌ Agent: Failed to send {message_type} notification: {result.get('error')}")
+                return {
+                    'success': False,
+                    'message_type': message_type,
+                    'error': result.get('error', 'Unknown SMS error')
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Agent: Error sending notification: {str(e)}")
+            return {
+                'success': False,
+                'message_type': message_type,
+                'error': str(e)
+            }
+    
     def get_movie(self, movie_result):
         """
         Service method to handle TMDB search for a detected movie.
@@ -131,9 +402,12 @@ Based on the above context and available functions, analyze the user's request a
         return success
     
     def Answer(self, conversation_history, phone_number):
+        """
+        Agentic Answer method - uses discrete functions for decision making
+        """
         # Validate input
         if not conversation_history:
-            logger.error(f"❌ PlexAgent: No conversation history provided - this should not happen")
+            logger.error(f"❌ Agent: No conversation history provided")
             return {
                 'response_message': "I received your message but couldn't process it. Please try again.",
                 'movie_result': None,
@@ -141,137 +415,126 @@ Based on the above context and available functions, analyze the user's request a
                 'success': False
             }
         
-        # Extract current message from the latest USER message in conversation history
+        # Extract current message from the latest USER message
         current_message = None
         for message in reversed(conversation_history):
             if message.startswith("USER: "):
                 current_message = message.replace("USER: ", "")
                 break
         
-        # Step 1: Detect movie in conversation
-        # Send last 10 messages (both USER and SYSTEM) instead of filtering to only USER messages
-        last_10_messages = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+        logger.info(f"🎬 Agent: Processing request from {phone_number}: {current_message}")
         
-        movie_result = self.openai_client.getMovieName(last_10_messages)
+        # Step 1: Identify movie request using agentic function
+        movie_identification = self.identify_movie_request(conversation_history)
         
-        # Step 2: Search TMDB for the movie if detected
-        tmdb_result, movie_data, radarr_status, release_status = self.get_movie(movie_result)
-        
-        # Step 3: Check movie status and handle accordingly
-        movie_downloaded = False
-        movie_status_message = ""
-        
-        if movie_data and tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-            # Check if movie is released
-            if release_status and not release_status.get('is_released', True):
-                # Movie is not released yet
-                release_date = release_status.get('release_date_formatted', 'Unknown date')
-                days_until = release_status.get('days_until_release', 0)
-                if days_until:
-                    movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is not released yet. It will be available on {release_date} - {days_until} days from now)"
-                else:
-                    movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is not released yet. Release date: {release_date})"
-                logger.info(f"📅 PlexAgent: Movie not released yet: {movie_data.get('title')}")
-            else:
-                # Movie is released, check Radarr status
-                if radarr_status and radarr_status.get('exists_in_radarr'):
-                    if radarr_status.get('is_downloaded'):
-                        # Movie is already downloaded
-                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already downloaded and available in your library)"
-                        logger.info(f"✅ PlexAgent: Movie already downloaded: {movie_data.get('title')}")
-                    elif radarr_status.get('is_downloading'):
-                        # Movie is currently downloading
-                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already being downloaded)"
-                        logger.info(f"📥 PlexAgent: Movie already downloading: {movie_data.get('title')}")
-                        
-                        # Create download request to monitor this already downloading movie
-                        tmdb_id = movie_data.get('id')
-                        release_date = movie_data.get('release_date', '')
-                        year = release_date.split('-')[0] if release_date else 'Unknown year'
-                        
-                        logger.info(f"📱 PlexAgent: Creating download request to monitor already downloading movie: {movie_data.get('title')}")
-                        download_request_created = self._get_download_monitor().add_download_request(
-                            tmdb_id=tmdb_id,
-                            movie_title=movie_data.get('title'),
-                            movie_year=year,
-                            phone_number=phone_number
-                        )
-                        
-                        if download_request_created:
-                            logger.info(f"✅ PlexAgent: Download request created for already downloading movie: {movie_data.get('title')}")
-                        else:
-                            logger.info(f"ℹ️ PlexAgent: Download request already exists for: {movie_data.get('title')}")
-                    else:
-                        # Movie exists in Radarr but not downloaded - trigger search and create download request
-                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already in your download queue - triggering search for available releases)"
-                        logger.info(f"🔍 PlexAgent: Movie in Radarr but not downloaded, triggering search: {movie_data.get('title')}")
-                        # Trigger search for the existing movie
-                        if radarr_status.get('radarr_movie_id'):
-                            self._get_download_monitor().radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
-                            
-                            # Create download request to monitor this existing movie
-                            tmdb_id = movie_data.get('id')
-                            release_date = movie_data.get('release_date', '')
-                            year = release_date.split('-')[0] if release_date else 'Unknown year'
-                            
-                            logger.info(f"📱 PlexAgent: Creating download request to monitor existing movie: {movie_data.get('title')}")
-                            download_request_created = self._get_download_monitor().add_download_request(
-                                tmdb_id=tmdb_id,
-                                movie_title=movie_data.get('title'),
-                                movie_year=year,
-                                phone_number=phone_number
-                            )
-                            
-                            if download_request_created:
-                                logger.info(f"✅ PlexAgent: Download request created for existing movie: {movie_data.get('title')}")
-                            else:
-                                logger.info(f"ℹ️ PlexAgent: Download request already exists for: {movie_data.get('title')}")
-                            
-                            # Don't send notification yet - wait for download to actually start
-                else:
-                    # Movie not in Radarr, request download
-                    logger.info(f"🔍 PlexAgent: Movie not in Radarr, requesting download for {movie_data.get('title')}")
-                    movie_downloaded = self.request_movie_download(movie_data, phone_number)
-                    logger.info(f"📱 PlexAgent: Download request result: {movie_downloaded}")
-                    if movie_downloaded:
-                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' has been added to your download queue)"
-                        logger.info(f"✅ PlexAgent: Successfully added {movie_data.get('title')} to download queue")
-                        
-                        # Don't send notification yet - wait for download to actually start
-                    else:
-                        movie_status_message = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - it may already be requested or unavailable)"
-                        logger.info(f"❌ PlexAgent: Failed to add {movie_data.get('title')} to download queue")
-        
-        # Step 4: Always generate GPT response with full context
-        # Build comprehensive context about movie detection and download status
         movie_context = ""
-        if movie_result and movie_result.get('success') and movie_result.get('movie_name') and movie_result.get('movie_name') != "No movie identified":
-            if movie_status_message:
-                # Use the detailed status message we built
-                movie_context = movie_status_message
-            elif tmdb_result and tmdb_result.get('results') and len(tmdb_result.get('results', [])) > 0:
-                # Fallback to basic message if no detailed status
-                movie_data = tmdb_result['results'][0]
-                release_date = movie_data.get('release_date', '')
-                year = release_date.split('-')[0] if release_date else 'Unknown year'
-                movie_context = f" (Note: A movie '{movie_data.get('title')} ({year})' was identified and found in our database)"
-            else:
-                movie_context = f" (Note: A movie '{movie_result['movie_name']}' was identified but not found in our database)"
-        else:
-            movie_context = " (Note: No movie was identified in the conversation)"
+        movie_data = None
+        tmdb_result = None
+        actions_taken = []
         
+        if movie_identification.get('success') and movie_identification.get('movie_name') != "No movie identified":
+            movie_name = movie_identification['movie_name']
+            logger.info(f"🎬 Agent: Movie identified: {movie_name}")
+            
+            # Step 2: Check movie library status using agentic function
+            library_status = self.check_movie_library_status(movie_name)
+            
+            if library_status.get('success'):
+                movie_data = library_status['movie_data']
+                tmdb_result = library_status['tmdb_result']
+                release_status = library_status['release_status']
+                
+                logger.info(f"🔍 Agent: Movie found in TMDB: {movie_data.get('title')}")
+                
+                # Step 3: Check if movie is released
+                if release_status and not release_status.get('is_released', True):
+                    # Movie not released yet
+                    release_date = release_status.get('release_date_formatted', 'Unknown date')
+                    days_until = release_status.get('days_until_release', 0)
+                    if days_until:
+                        movie_context = f" (Note: The movie '{movie_data.get('title')}' is not released yet. It will be available on {release_date} - {days_until} days from now)"
+                    else:
+                        movie_context = f" (Note: The movie '{movie_data.get('title')}' is not released yet. Release date: {release_date})"
+                    logger.info(f"📅 Agent: Movie not released yet: {movie_data.get('title')}")
+                else:
+                    # Movie is released, check Radarr status using agentic function
+                    radarr_status = self.check_radarr_status(library_status['tmdb_id'], movie_data)
+                    
+                    if radarr_status.get('success'):
+                        if radarr_status.get('exists_in_radarr'):
+                            if radarr_status.get('is_downloaded'):
+                                # Movie already downloaded
+                                movie_context = f" (Note: The movie '{movie_data.get('title')}' is already downloaded and available in your library)"
+                                logger.info(f"✅ Agent: Movie already downloaded: {movie_data.get('title')}")
+                                actions_taken.append("movie_already_available")
+                                
+                            elif radarr_status.get('is_downloading'):
+                                # Movie currently downloading
+                                movie_context = f" (Note: The movie '{movie_data.get('title')}' is already being downloaded)"
+                                logger.info(f"📥 Agent: Movie already downloading: {movie_data.get('title')}")
+                                
+                                # Set up monitoring for already downloading movie
+                                download_request = self.request_download(movie_data, phone_number)
+                                if download_request.get('success'):
+                                    actions_taken.append("monitoring_existing_download")
+                                
+                            else:
+                                # Movie exists but not downloading - trigger search
+                                movie_context = f" (Note: The movie '{movie_data.get('title')}' is already in your download queue - triggering search for available releases)"
+                                logger.info(f"🔍 Agent: Movie in Radarr but not downloaded, triggering search: {movie_data.get('title')}")
+                                
+                                # Trigger search for existing movie
+                                if radarr_status.get('radarr_movie_id'):
+                                    self._get_download_monitor().radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
+                                
+                                # Set up monitoring
+                                download_request = self.request_download(movie_data, phone_number)
+                                if download_request.get('success'):
+                                    actions_taken.append("triggered_search_and_monitoring")
+                        else:
+                            # Movie not in Radarr - request download using agentic function
+                            logger.info(f"🔍 Agent: Movie not in Radarr, requesting download for {movie_data.get('title')}")
+                            download_request = self.request_download(movie_data, phone_number)
+                            
+                            if download_request.get('success'):
+                                if download_request.get('action') == 'download_requested':
+                                    movie_context = f" (Note: The movie '{movie_data.get('title')}' has been added to your download queue)"
+                                    actions_taken.append("download_requested")
+                                else:
+                                    movie_context = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - it may already be requested or unavailable)"
+                                    actions_taken.append("download_already_requested")
+                                
+                                logger.info(f"✅ Agent: Download request result: {download_request.get('action')}")
+                            else:
+                                movie_context = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - {download_request.get('error')})"
+                                actions_taken.append("download_failed")
+                    else:
+                        # Radarr check failed
+                        movie_context = f" (Note: A movie '{movie_data.get('title')}' was identified but I couldn't check your library status)"
+                        actions_taken.append("radarr_check_failed")
+            else:
+                # Movie not found in TMDB
+                movie_context = f" (Note: A movie '{movie_name}' was identified but not found in our database)"
+                actions_taken.append("movie_not_found")
+        else:
+            # No movie identified
+            movie_context = " (Note: No movie was identified in the conversation)"
+            actions_taken.append("no_movie_identified")
+        
+        # Step 4: Generate response using agentic prompt
         if current_message and phone_number:
-            # Build conversation context for agentic prompt
+            # Build comprehensive conversation context
             conversation_context = f"""
 CONVERSATION HISTORY:
-{chr(10).join(conversation_history[-5:])}  # Last 5 messages for context
+{chr(10).join(conversation_history[-5:])}
 
 CURRENT USER MESSAGE: {current_message}
 USER PHONE NUMBER: {phone_number}
 MOVIE CONTEXT: {movie_context}
+ACTIONS TAKEN: {', '.join(actions_taken) if actions_taken else 'none'}
 """
             
-            # Use agentic prompt instead of simple SMS response prompt
+            # Use agentic prompt for response generation
             agentic_prompt = self._build_agentic_prompt(conversation_context)
             
             chatgpt_result = self.openai_client.generate_sms_response(
@@ -284,17 +547,19 @@ MOVIE CONTEXT: {movie_context}
             if chatgpt_result.get('success'):
                 response_message = chatgpt_result['response']
             else:
-                logger.error(f"❌ PlexAgent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
+                logger.error(f"❌ Agent OpenAI Failed: {chatgpt_result.get('error', 'Unknown error')}")
                 response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"
         else:
-            logger.error(f"❌ PlexAgent: Could not extract current message or phone number from conversation history")
+            logger.error(f"❌ Agent: Could not extract current message or phone number")
             response_message = "I received your message but couldn't process it properly. Could you please specify which movie you'd like me to get?"
 
-        # Return the response data
+        # Return comprehensive response data
         return {
             'response_message': response_message,
-            'movie_result': movie_result,
+            'movie_result': movie_identification,
             'tmdb_result': tmdb_result,
+            'movie_data': movie_data,
+            'actions_taken': actions_taken,
             'success': True
         }
     
