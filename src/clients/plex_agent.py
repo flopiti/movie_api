@@ -159,13 +159,50 @@ class PlexAgent:
                         # Movie is currently downloading
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already being downloaded)"
                         logger.info(f"📥 PlexAgent: Movie already downloading: {movie_data.get('title')}")
+                        
+                        # Create download request to monitor this already downloading movie
+                        tmdb_id = movie_data.get('id')
+                        release_date = movie_data.get('release_date', '')
+                        year = release_date.split('-')[0] if release_date else 'Unknown year'
+                        
+                        logger.info(f"📱 PlexAgent: Creating download request to monitor already downloading movie: {movie_data.get('title')}")
+                        download_request_created = self.download_monitor.add_download_request(
+                            tmdb_id=tmdb_id,
+                            movie_title=movie_data.get('title'),
+                            movie_year=year,
+                            phone_number=phone_number
+                        )
+                        
+                        if download_request_created:
+                            logger.info(f"✅ PlexAgent: Download request created for already downloading movie: {movie_data.get('title')}")
+                        else:
+                            logger.info(f"ℹ️ PlexAgent: Download request already exists for: {movie_data.get('title')}")
                     else:
-                        # Movie exists in Radarr but not downloaded - trigger search
+                        # Movie exists in Radarr but not downloaded - trigger search and create download request
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' is already in your download queue - triggering search for available releases)"
                         logger.info(f"🔍 PlexAgent: Movie in Radarr but not downloaded, triggering search: {movie_data.get('title')}")
                         # Trigger search for the existing movie
                         if radarr_status.get('radarr_movie_id'):
                             self.download_monitor.radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
+                            
+                            # Create download request to monitor this existing movie
+                            tmdb_id = movie_data.get('id')
+                            release_date = movie_data.get('release_date', '')
+                            year = release_date.split('-')[0] if release_date else 'Unknown year'
+                            
+                            logger.info(f"📱 PlexAgent: Creating download request to monitor existing movie: {movie_data.get('title')}")
+                            download_request_created = self.download_monitor.add_download_request(
+                                tmdb_id=tmdb_id,
+                                movie_title=movie_data.get('title'),
+                                movie_year=year,
+                                phone_number=phone_number
+                            )
+                            
+                            if download_request_created:
+                                logger.info(f"✅ PlexAgent: Download request created for existing movie: {movie_data.get('title')}")
+                            else:
+                                logger.info(f"ℹ️ PlexAgent: Download request already exists for: {movie_data.get('title')}")
+                            
                             # Don't send notification yet - wait for download to actually start
                 else:
                     # Movie not in Radarr, request download
@@ -308,6 +345,9 @@ class PlexAgent:
             logger.warning("📱 PlexAgent: Already monitoring downloads")
             return
         
+        # Start the DownloadMonitor service first
+        self.download_monitor.start_monitoring()
+        
         self.monitoring = True
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self.monitor_thread.start()
@@ -319,6 +359,9 @@ class PlexAgent:
         self.monitoring = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=5)
+        
+        # Stop the DownloadMonitor service
+        self.download_monitor.stop_monitoring()
         
         logger.info("📱 PlexAgent: Stopped download monitoring service")
     
