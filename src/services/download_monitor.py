@@ -431,9 +431,7 @@ class DownloadMonitor:
         
         try:
             # Load existing download requests from Redis
-            logger.info("📱 Download Monitor: Loading existing requests from Redis...")
             self._load_download_requests()
-            logger.info(f"📱 Download Monitor: Loaded {len(self.download_requests)} requests from Redis")
             
             self.running = True
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
@@ -585,5 +583,12 @@ class DownloadMonitor:
                 'error': str(e)
             }
 
-# Global instance
-download_monitor = DownloadMonitor()
+# Global instance - lazy initialization
+download_monitor = None
+
+def get_download_monitor():
+    """Get the global download monitor instance, creating it if needed"""
+    global download_monitor
+    if download_monitor is None:
+        download_monitor = DownloadMonitor()
+    return download_monitor

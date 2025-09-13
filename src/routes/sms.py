@@ -18,7 +18,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 from config.config import config, OPENAI_API_KEY, TMDB_API_KEY, redis_client
 from ..clients.PROMPTS import SMS_RESPONSE_PROMPT
-from ..services.download_monitor import download_monitor
+from ..services.download_monitor import get_download_monitor
 from ..clients.plex_agent import plex_agent
 from ..services.sms_conversations import sms_conversations
 
@@ -325,7 +325,7 @@ def update_reply_settings():
 def get_download_requests():
     """Get all download requests."""
     try:
-        requests = download_monitor.get_download_requests()
+        requests = get_download_monitor().get_download_requests()
         return jsonify({
             'download_requests': requests,
             'count': len(requests)
@@ -339,7 +339,7 @@ def get_download_requests():
 def get_download_request(tmdb_id):
     """Get a specific download request."""
     try:
-        request = download_monitor.get_download_request(tmdb_id)
+        request = get_download_monitor().get_download_request(tmdb_id)
         if request:
             return jsonify(request), 200
         else:
@@ -357,7 +357,7 @@ def create_download_request():
         if not data or 'tmdb_id' not in data or 'movie_title' not in data or 'movie_year' not in data or 'phone_number' not in data:
             return jsonify({'error': 'Missing required fields: tmdb_id, movie_title, movie_year, phone_number'}), 400
         
-        success = download_monitor.add_download_request(
+        success = get_download_monitor().add_download_request(
             tmdb_id=data['tmdb_id'],
             movie_title=data['movie_title'],
             movie_year=data['movie_year'],
@@ -405,7 +405,7 @@ def stop_download_monitor():
 def clear_all_download_requests():
     """Clear all download requests from memory."""
     try:
-        download_monitor.clear_all_requests()
+        get_download_monitor().clear_all_requests()
         return jsonify({'message': 'All download requests cleared successfully'}), 200
         
     except Exception as e:
@@ -416,7 +416,7 @@ def clear_all_download_requests():
 def cancel_download_request(tmdb_id):
     """Cancel a specific download request."""
     try:
-        success = download_monitor.cancel_download_request(tmdb_id)
+        success = get_download_monitor().cancel_download_request(tmdb_id)
         if success:
             return jsonify({'message': f'Download request for TMDB ID {tmdb_id} cancelled successfully'}), 200
         else:
@@ -430,16 +430,16 @@ def cancel_download_request(tmdb_id):
 def get_download_monitor_status():
     """Get download monitoring service status."""
     try:
-        radarr_status = download_monitor.get_radarr_config_status()
+        radarr_status = get_download_monitor().get_radarr_config_status()
         
         return jsonify({
-            'running': plex_agent.monitoring and download_monitor.running,
+            'running': plex_agent.monitoring and get_download_monitor().running,
             'plex_agent_running': plex_agent.monitoring,
-            'download_monitor_running': download_monitor.running,
-            'radarr_available': download_monitor.radarr_client is not None,
+            'download_monitor_running': get_download_monitor().running,
+            'radarr_available': get_download_monitor().radarr_client is not None,
             'twilio_available': plex_agent.twilio_client.is_configured(),
-            'redis_available': download_monitor.redis_client.is_available(),
-            'active_requests': len(download_monitor.download_requests),
+            'redis_available': get_download_monitor().redis_client.is_available(),
+            'active_requests': len(get_download_monitor().download_requests),
             'radarr_config': radarr_status
         }), 200
         
@@ -451,7 +451,7 @@ def get_download_monitor_status():
 def get_radarr_config():
     """Get Radarr configuration status."""
     try:
-        radarr_status = download_monitor.get_radarr_config_status()
+        radarr_status = get_download_monitor().get_radarr_config_status()
         return jsonify(radarr_status), 200
         
     except Exception as e:
