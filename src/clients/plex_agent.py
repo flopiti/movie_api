@@ -5,7 +5,7 @@ from datetime import datetime
 from config.config import OPENAI_API_KEY, TMDB_API_KEY
 from ..clients.openai_client import OpenAIClient
 from ..clients.tmdb_client import TMDBClient
-from ..clients.PROMPTS import SMS_RESPONSE_PROMPT, MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS
+from ..clients.PROMPTS import SMS_RESPONSE_PROMPT, MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA
 from ..services.download_monitor import get_download_monitor
 from ..clients.twilio_client import TwilioClient
 
@@ -28,6 +28,7 @@ class PlexAgent:
         self.primary_purpose = MOVIE_AGENT_PRIMARY_PURPOSE
         self.procedures = MOVIE_AGENT_PROCEDURES
         self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
+        self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
         
         # Download monitoring
         self.monitoring = False
@@ -52,6 +53,165 @@ CURRENT CONTEXT:
 {conversation_context}
 
 Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take. Use the available functions to gather information and take actions as needed."""
+    
+    def _execute_function_call(self, function_name: str, parameters: dict):
+        """Execute a function call based on the function name and parameters"""
+        try:
+            logger.info(f"🔧 Agent: Executing function {function_name} with parameters: {parameters}")
+            
+            if function_name == "identify_movie_request":
+                conversation_history = parameters.get('conversation_history', [])
+                return self.identify_movie_request(conversation_history)
+                
+            elif function_name == "check_movie_library_status":
+                movie_name = parameters.get('movie_name', '')
+                return self.check_movie_library_status(movie_name)
+                
+            elif function_name == "check_radarr_status":
+                tmdb_id = parameters.get('tmdb_id')
+                movie_data = parameters.get('movie_data')
+                return self.check_radarr_status(tmdb_id, movie_data)
+                
+            elif function_name == "request_download":
+                movie_data = parameters.get('movie_data')
+                phone_number = parameters.get('phone_number')
+                return self.request_download(movie_data, phone_number)
+                
+            elif function_name == "send_notification":
+                phone_number = parameters.get('phone_number')
+                message_type = parameters.get('message_type')
+                movie_data = parameters.get('movie_data')
+                additional_context = parameters.get('additional_context', '')
+                return self.send_notification(phone_number, message_type, movie_data, additional_context)
+                
+            else:
+                logger.error(f"❌ Agent: Unknown function name: {function_name}")
+                return {
+                    'success': False,
+                    'error': f'Unknown function: {function_name}'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Agent: Error executing function {function_name}: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _process_agentic_response(self, conversation_history, phone_number):
+        """Process agentic response with function calling support"""
+        try:
+            # Extract current message
+            current_message = None
+            for message in reversed(conversation_history):
+                if message.startswith("USER: "):
+                    current_message = message.replace("USER: ", "")
+                    break
+            
+            if not current_message:
+                return {
+                    'response_message': "I received your message but couldn't process it properly.",
+                    'success': False
+                }
+            
+            # Build conversation context
+            conversation_context = f"""
+CONVERSATION HISTORY:
+{chr(10).join(conversation_history[-5:])}
+
+CURRENT USER MESSAGE: {current_message}
+USER PHONE NUMBER: {phone_number}
+"""
+            
+            # Build agentic prompt
+            agentic_prompt = self._build_agentic_prompt(conversation_context)
+            
+            # Generate agentic response with function calling
+            response = self.openai_client.generate_agentic_response(
+                prompt=agentic_prompt,
+                functions=[self.function_schema]
+            )
+            
+            if not response.get('success'):
+                logger.error(f"❌ Agent: OpenAI response failed: {response.get('error')}")
+                return {
+                    'response_message': "I received your message but couldn't process it properly.",
+                    'success': False
+                }
+            
+            # Process function calls if any
+            if response.get('has_function_calls') and response.get('tool_calls'):
+                logger.info(f"🔧 Agent: Processing {len(response['tool_calls'])} function calls")
+                
+                function_results = []
+                for tool_call in response['tool_calls']:
+                    try:
+                        # Parse function call arguments
+                        function_args = tool_call.function.arguments
+                        import json
+                        parsed_args = json.loads(function_args)
+                        
+                        function_name = parsed_args.get('function_name')
+                        parameters = parsed_args.get('parameters', {})
+                        
+                        # Execute the function
+                        result = self._execute_function_call(function_name, parameters)
+                        function_results.append({
+                            'function_name': function_name,
+                            'result': result
+                        })
+                        
+                        logger.info(f"✅ Agent: Function {function_name} executed successfully")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Agent: Error processing function call: {str(e)}")
+                        function_results.append({
+                            'function_name': 'unknown',
+                            'result': {'success': False, 'error': str(e)}
+                        })
+                
+                # Generate final response based on function results
+                final_context = f"""
+FUNCTION EXECUTION RESULTS:
+{chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
+
+ORIGINAL USER MESSAGE: {current_message}
+"""
+                
+                final_response = self.openai_client.generate_sms_response(
+                    message=current_message,
+                    sender=phone_number,
+                    prompt_template=self.sms_response_prompt,
+                    movie_context=final_context
+                )
+                
+                if final_response.get('success'):
+                    return {
+                        'response_message': final_response['response'],
+                        'function_results': function_results,
+                        'success': True
+                    }
+                else:
+                    return {
+                        'response_message': "I processed your request but couldn't generate a proper response.",
+                        'function_results': function_results,
+                        'success': True
+                    }
+            else:
+                # No function calls, return direct response
+                return {
+                    'response_message': response.get('response', 'I received your message.'),
+                    'function_results': [],
+                    'success': True
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Agent: Error in agentic response processing: {str(e)}")
+            return {
+                'response_message': "I received your message but encountered an error processing it.",
+                'success': False,
+                'error': str(e)
+            }
     
     # =============================================================================
     # AGENTIC FUNCTION CALLS - Discrete capabilities for agentic decision making
@@ -563,6 +723,25 @@ ACTIONS TAKEN: {', '.join(actions_taken) if actions_taken else 'none'}
             'success': True
         }
     
+    def AnswerAgentic(self, conversation_history, phone_number):
+        """
+        Agentic Answer method using OpenAI function calling for dynamic decision making
+        """
+        # Validate input
+        if not conversation_history:
+            logger.error(f"❌ Agent: No conversation history provided")
+            return {
+                'response_message': "I received your message but couldn't process it. Please try again.",
+                'success': False
+            }
+        
+        logger.info(f"🎬 Agent: Processing agentic request from {phone_number}")
+        
+        # Use the new agentic processing method
+        result = self._process_agentic_response(conversation_history, phone_number)
+        
+        return result
+    
     def _store_outgoing_sms(self, phone_number: str, message: str, message_type: str = "notification") -> bool:
         """Store outgoing SMS message in Redis conversation"""
         try:
@@ -764,38 +943,54 @@ ACTIONS TAKEN: {', '.join(actions_taken) if actions_taken else 'none'}
             logger.error(f"❌ PlexAgent: Error checking download status: {str(e)}")
     
     def _send_download_started_notification(self, request):
-        """Send SMS notification when download starts"""
+        """Send SMS notification when download starts using agentic function"""
         try:
-            message = f"🎬 Great! I'm getting {request.movie_title} ({request.movie_year}) ready for you. I'll text you when it's ready to watch!"
+            # Create movie data object for the notification function
+            movie_data = {
+                'title': request.movie_title,
+                'release_date': f"{request.movie_year}-01-01",  # Approximate date
+                'id': request.tmdb_id
+            }
             
-            result = self.twilio_client.send_sms(request.phone_number, message)
+            # Use the agentic notification function
+            result = self.send_notification(
+                phone_number=request.phone_number,
+                message_type="download_started",
+                movie_data=movie_data
+            )
             
             if result.get('success'):
-                logger.info(f"📱 PlexAgent: Sent download started notification to {request.phone_number}")
-                # Store outgoing SMS in Redis conversation
-                self._store_outgoing_sms(request.phone_number, message, "download_started")
+                logger.info(f"📱 Agent: Sent download started notification to {request.phone_number}")
             else:
-                logger.error(f"❌ PlexAgent: Failed to send download started notification: {result.get('error')}")
+                logger.error(f"❌ Agent: Failed to send download started notification: {result.get('error')}")
                 
         except Exception as e:
-            logger.error(f"❌ PlexAgent: Error sending download started notification: {str(e)}")
+            logger.error(f"❌ Agent: Error sending download started notification: {str(e)}")
     
     def _send_download_completed_notification(self, request):
-        """Send SMS notification when download completes"""
+        """Send SMS notification when download completes using agentic function"""
         try:
-            message = f"🎉 {request.movie_title} ({request.movie_year}) is ready to watch! Enjoy your movie!"
+            # Create movie data object for the notification function
+            movie_data = {
+                'title': request.movie_title,
+                'release_date': f"{request.movie_year}-01-01",  # Approximate date
+                'id': request.tmdb_id
+            }
             
-            result = self.twilio_client.send_sms(request.phone_number, message)
+            # Use the agentic notification function
+            result = self.send_notification(
+                phone_number=request.phone_number,
+                message_type="download_completed",
+                movie_data=movie_data
+            )
             
             if result.get('success'):
-                logger.info(f"📱 PlexAgent: Sent download completed notification to {request.phone_number}")
-                # Store outgoing SMS in Redis conversation
-                self._store_outgoing_sms(request.phone_number, message, "download_completed")
+                logger.info(f"📱 Agent: Sent download completed notification to {request.phone_number}")
             else:
-                logger.error(f"❌ PlexAgent: Failed to send download completed notification: {result.get('error')}")
+                logger.error(f"❌ Agent: Failed to send download completed notification: {result.get('error')}")
                 
         except Exception as e:
-            logger.error(f"❌ PlexAgent: Error sending download completed notification: {str(e)}")
+            logger.error(f"❌ Agent: Error sending download completed notification: {str(e)}")
 
 # Global instance
 plex_agent = PlexAgent()

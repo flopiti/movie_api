@@ -319,3 +319,65 @@ ERROR HANDLING:
 - If any function fails, use GENERATE_SMS_RESPONSE to inform user
 - Provide helpful alternatives when movies aren't found
 - Handle technical issues gracefully with user-friendly messages"""
+
+# Function Calling Schema for OpenAI
+MOVIE_AGENT_FUNCTION_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "movie_agent_function_call",
+        "description": "Call a specific movie agent function with the provided parameters",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "function_name": {
+                    "type": "string",
+                    "enum": [
+                        "identify_movie_request",
+                        "check_movie_library_status", 
+                        "check_radarr_status",
+                        "request_download",
+                        "send_notification"
+                    ],
+                    "description": "The name of the movie agent function to call"
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Parameters for the function call",
+                    "properties": {
+                        "conversation_history": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Array of conversation messages (for identify_movie_request)"
+                        },
+                        "movie_name": {
+                            "type": "string",
+                            "description": "Movie title to search for (for check_movie_library_status)"
+                        },
+                        "tmdb_id": {
+                            "type": "integer",
+                            "description": "TMDB ID of the movie (for check_radarr_status, request_download)"
+                        },
+                        "movie_data": {
+                            "type": "object",
+                            "description": "Movie data object (for request_download, send_notification)"
+                        },
+                        "phone_number": {
+                            "type": "string",
+                            "description": "User's phone number (for request_download, send_notification)"
+                        },
+                        "message_type": {
+                            "type": "string",
+                            "enum": ["movie_added", "search_triggered", "download_started", "download_completed"],
+                            "description": "Type of notification to send (for send_notification)"
+                        },
+                        "additional_context": {
+                            "type": "string",
+                            "description": "Additional context for notifications (for send_notification)"
+                        }
+                    }
+                }
+            },
+            "required": ["function_name", "parameters"]
+        }
+    }
+}

@@ -209,3 +209,53 @@ class OpenAIClient:
                 "error": f"OpenAI API error: {str(e)}",
                 "success": False
             }
+    
+    def generate_agentic_response(self, prompt: str, functions: list = None) -> Dict[str, Any]:
+        """Generate an agentic response with optional function calling support."""
+        if not self.client:
+            return {"error": "OpenAI API key not configured", "success": False}
+        
+        try:
+            # Prepare messages
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Prepare function calling parameters
+            function_params = {}
+            if functions:
+                function_params["tools"] = functions
+                function_params["tool_choice"] = "auto"  # Let AI decide when to use functions
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",  # Use GPT-4 for better function calling
+                messages=messages,
+                max_tokens=500,
+                temperature=0.3,
+                **function_params
+            )
+            
+            response_message = response.choices[0].message
+            
+            # Check if the AI wants to call a function
+            if response_message.tool_calls:
+                return {
+                    "success": True,
+                    "response": response_message.content,
+                    "tool_calls": response_message.tool_calls,
+                    "has_function_calls": True
+                }
+            else:
+                return {
+                    "success": True,
+                    "response": response_message.content,
+                    "tool_calls": None,
+                    "has_function_calls": False
+                }
+            
+        except Exception as e:
+            logger.error(f"OpenAI agentic response error: {str(e)}")
+            return {
+                "error": f"OpenAI API error: {str(e)}",
+                "success": False
+            }
