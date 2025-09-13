@@ -32,10 +32,11 @@ class DownloadRequest:
     phone_number: str
     requested_at: datetime
     radarr_movie_id: Optional[int] = None
-    status: str = "requested"  # requested, added_to_radarr, downloading, completed, failed
+    status: str = "requested"  # requested, added_to_radarr, queued, downloading, completed, failed
     download_started_at: Optional[datetime] = None
     download_completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    download_started_notification_sent: bool = False  # Track if notification was already sent
 
 class DownloadMonitor:
     """Monitors movie downloads and sends SMS notifications"""
@@ -149,7 +150,8 @@ class DownloadMonitor:
                 'status': request.status,
                 'download_started_at': request.download_started_at.isoformat() if request.download_started_at else None,
                 'download_completed_at': request.download_completed_at.isoformat() if request.download_completed_at else None,
-                'error_message': request.error_message
+                'error_message': request.error_message,
+                'download_started_notification_sent': request.download_started_notification_sent
             }
             
             redis_key = f"download_request:{request.tmdb_id}"
@@ -182,7 +184,8 @@ class DownloadMonitor:
                         status=data['status'],
                         download_started_at=datetime.fromisoformat(data['download_started_at']) if data.get('download_started_at') else None,
                         download_completed_at=datetime.fromisoformat(data['download_completed_at']) if data.get('download_completed_at') else None,
-                        error_message=data.get('error_message')
+                        error_message=data.get('error_message'),
+                        download_started_notification_sent=data.get('download_started_notification_sent', False)
                     )
                     
                     self.download_requests[request.tmdb_id] = request
@@ -215,6 +218,11 @@ class DownloadMonitor:
                     request.status = "downloading"
                     request.download_started_at = datetime.now()
                     logger.info(f"📱 Download Monitor: Movie {request.movie_title} is already downloading")
+                    
+                    # Send notification that movie is already downloading (only if not already sent)
+                    if not request.download_started_notification_sent:
+                        self._send_download_started_notification(request)
+                        request.download_started_notification_sent = True
                 else:
                     # Trigger search for the movie
                     if self.radarr_client.search_for_movie(existing_movie['id']):
@@ -272,8 +280,10 @@ class DownloadMonitor:
                             request.status = "downloading"
                             request.download_started_at = datetime.now()
                             
-                            # Send SMS notification
-                            self._send_download_started_notification(request)
+                            # Send SMS notification (only if not already sent)
+                            if not request.download_started_notification_sent:
+                                self._send_download_started_notification(request)
+                                request.download_started_notification_sent = True
                             
                             logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
                         elif download_status and download_status.get('status', '').lower() == 'queued':
@@ -290,8 +300,10 @@ class DownloadMonitor:
                             request.status = "downloading"
                             request.download_started_at = datetime.now()
                             
-                            # Send SMS notification
-                            self._send_download_started_notification(request)
+                            # Send SMS notification (only if not already sent)
+                            if not request.download_started_notification_sent:
+                                self._send_download_started_notification(request)
+                                request.download_started_notification_sent = True
                             
                             logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
                         elif not download_status:
@@ -458,7 +470,8 @@ class DownloadMonitor:
                 'status': request.status,
                 'download_started_at': request.download_started_at.isoformat() if request.download_started_at else None,
                 'download_completed_at': request.download_completed_at.isoformat() if request.download_completed_at else None,
-                'error_message': request.error_message
+                'error_message': request.error_message,
+                'download_started_notification_sent': request.download_started_notification_sent
             })
         
         return requests

@@ -166,8 +166,7 @@ class PlexAgent:
                         # Trigger search for the existing movie
                         if radarr_status.get('radarr_movie_id'):
                             self.download_monitor.radarr_client.search_for_movie(radarr_status['radarr_movie_id'])
-                            # Send notification that search was triggered
-                            self._send_search_triggered_notification(movie_data, phone_number)
+                            # Don't send notification yet - wait for download to actually start
                 else:
                     # Movie not in Radarr, request download
                     logger.info(f"🔍 PlexAgent: Movie not in Radarr, requesting download for {movie_data.get('title')}")
@@ -177,8 +176,7 @@ class PlexAgent:
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' has been added to your download queue)"
                         logger.info(f"✅ PlexAgent: Successfully added {movie_data.get('title')} to download queue")
                         
-                        # Send immediate SMS notification that movie was added
-                        self._send_movie_added_notification(movie_data, phone_number)
+                        # Don't send notification yet - wait for download to actually start
                     else:
                         movie_status_message = f" (Note: The movie '{movie_data.get('title')}' could not be added to your download queue - it may already be requested or unavailable)"
                         logger.info(f"❌ PlexAgent: Failed to add {movie_data.get('title')} to download queue")
@@ -358,8 +356,12 @@ class PlexAgent:
                             # Update Redis with new status
                             self.download_monitor._store_download_request(request)
                             
-                            # Send SMS notification
-                            self._send_download_started_notification(request)
+                            # Send SMS notification (only if not already sent)
+                            if not request.download_started_notification_sent:
+                                self._send_download_started_notification(request)
+                                request.download_started_notification_sent = True
+                                # Update Redis again with notification flag
+                                self.download_monitor._store_download_request(request)
                             
                             logger.info(f"📱 PlexAgent: Download started for {request.movie_title}")
                         elif download_status and download_status.get('status', '').lower() == 'queued':
@@ -379,8 +381,12 @@ class PlexAgent:
                             # Update Redis with new status
                             self.download_monitor._store_download_request(request)
                             
-                            # Send SMS notification
-                            self._send_download_started_notification(request)
+                            # Send SMS notification (only if not already sent)
+                            if not request.download_started_notification_sent:
+                                self._send_download_started_notification(request)
+                                request.download_started_notification_sent = True
+                                # Update Redis again with notification flag
+                                self.download_monitor._store_download_request(request)
                             
                             logger.info(f"📱 PlexAgent: Download started for {request.movie_title}")
                         elif not download_status:

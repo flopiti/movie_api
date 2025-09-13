@@ -61,8 +61,7 @@ class TwilioClient:
                 'stored_at': datetime.now().isoformat()
             }
             
-            # Store message in Redis
-            self._store_message_in_redis(message_data)
+            # Note: Redis storage is handled by the calling agent methods
             
             return {
                 'success': True,
