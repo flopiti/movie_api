@@ -195,6 +195,12 @@ class SmsConversations:
                     elif isinstance(timestamp, datetime):
                         # If it's already a datetime, make it naive for consistent comparison
                         return timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+                    elif isinstance(timestamp, (int, float)):
+                        # Handle Unix timestamps (seconds since epoch)
+                        try:
+                            return datetime.fromtimestamp(timestamp).replace(tzinfo=None)
+                        except:
+                            return datetime.min.replace(tzinfo=None)
                     
                     return datetime.min.replace(tzinfo=None)
                 
