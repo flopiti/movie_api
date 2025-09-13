@@ -202,7 +202,24 @@ class SmsConversations:
             
             # Convert to list and sort by last message time
             conversation_list = list(conversations.values())
-            conversation_list.sort(key=lambda x: str(x['last_message_time']) if x['last_message_time'] else '', reverse=True)
+            
+            def conversation_sort_key(conv):
+                last_time = conv.get('last_message_time')
+                if not last_time:
+                    return datetime.min.replace(tzinfo=None)
+                
+                if isinstance(last_time, str):
+                    try:
+                        dt = datetime.fromisoformat(last_time.replace('Z', '+00:00'))
+                        return dt.replace(tzinfo=None)
+                    except:
+                        return datetime.min.replace(tzinfo=None)
+                elif isinstance(last_time, datetime):
+                    return last_time.replace(tzinfo=None) if last_time.tzinfo else last_time
+                
+                return datetime.min.replace(tzinfo=None)
+            
+            conversation_list.sort(key=conversation_sort_key, reverse=True)
             
             return conversation_list
             
