@@ -345,14 +345,21 @@ class PlexAgent:
             logger.warning("📱 PlexAgent: Already monitoring downloads")
             return
         
-        # Start the DownloadMonitor service first
-        self.download_monitor.start_monitoring()
-        
-        self.monitoring = True
-        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
-        
-        logger.info("📱 PlexAgent: Started download monitoring service")
+        try:
+            # Start the DownloadMonitor service first
+            logger.info("📱 PlexAgent: Starting DownloadMonitor service...")
+            self.download_monitor.start_monitoring()
+            logger.info(f"📱 PlexAgent: DownloadMonitor running status: {self.download_monitor.running}")
+            
+            self.monitoring = True
+            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread.start()
+            
+            logger.info("📱 PlexAgent: Started download monitoring service")
+            
+        except Exception as e:
+            logger.error(f"❌ PlexAgent: Failed to start monitoring service: {str(e)}")
+            raise
     
     def stop_monitoring(self):
         """Stop the download monitoring service"""

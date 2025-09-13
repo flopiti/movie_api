@@ -429,14 +429,22 @@ class DownloadMonitor:
             logger.warning("📱 Download Monitor: Already running")
             return
         
-        # Load existing download requests from Redis
-        self._load_download_requests()
-        
-        self.running = True
-        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
-        
-        logger.info("📱 Download Monitor: Started monitoring service")
+        try:
+            # Load existing download requests from Redis
+            logger.info("📱 Download Monitor: Loading existing requests from Redis...")
+            self._load_download_requests()
+            logger.info(f"📱 Download Monitor: Loaded {len(self.download_requests)} requests from Redis")
+            
+            self.running = True
+            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread.start()
+            
+            logger.info("📱 Download Monitor: Started monitoring service")
+            
+        except Exception as e:
+            logger.error(f"❌ Download Monitor: Failed to start monitoring service: {str(e)}")
+            self.running = False
+            raise
     
     def stop_monitoring(self):
         """Stop the download monitoring service"""

@@ -433,7 +433,9 @@ def get_download_monitor_status():
         radarr_status = download_monitor.get_radarr_config_status()
         
         return jsonify({
-            'running': plex_agent.monitoring,
+            'running': plex_agent.monitoring and download_monitor.running,
+            'plex_agent_running': plex_agent.monitoring,
+            'download_monitor_running': download_monitor.running,
             'radarr_available': download_monitor.radarr_client is not None,
             'twilio_available': plex_agent.twilio_client.is_configured(),
             'redis_available': download_monitor.redis_client.is_available(),
