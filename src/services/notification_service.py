@@ -36,14 +36,14 @@ class NotificationService:
             year = release_date.split('-')[0] if release_date else 'Unknown year'
             movie_title = movie_data.get('title')
             
-            # Use agentic system to generate message - no hardcoded messages
-            # The message should be provided by the calling agentic system
+            # The agent should provide the message content via additional_context
+            # This service just sends the message, it doesn't generate it
             if not additional_context:
                 logger.error(f"❌ NotificationService: No message content provided for {message_type}")
                 return {
                     'success': False,
                     'message_type': message_type,
-                    'error': 'No message content provided'
+                    'error': 'No message content provided - agent must provide message content'
                 }
             
             message = additional_context
