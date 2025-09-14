@@ -75,11 +75,6 @@ class AgenticService:
                 value = self._extract_field_value(result, field)
                 field_values[field] = value
         
-        # Debug logging
-        if function_name == 'check_movie_library_status':
-            logger.info(f"🔍 DEBUG: Result keys: {list(result.keys())}")
-            logger.info(f"🔍 DEBUG: Field values: {field_values}")
-        
         # Format template with extracted values
         try:
             return template.format(**field_values)
@@ -134,7 +129,13 @@ class AgenticService:
             
             # Resolve function references
             for func_name, field_name in function_refs:
+                logger.info(f"🔍 TEMPLATE: Looking for {func_name}.{field_name}")
+                # Check both function_results and iteration_results
                 func_result = next((fr['result'] for fr in function_results if fr['function_name'] == func_name), None)
+                if not func_result and iteration_results:
+                    func_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == func_name), None)
+                
+                logger.info(f"🔍 TEMPLATE: Found func_result: {func_result is not None}")
                 if func_result:
                     # Extract nested field like movie_data.title
                     if '.' in field_name:
@@ -144,12 +145,17 @@ class AgenticService:
                             for key in nested_keys:
                                 value = value[key]
                             format_dict[f'{func_name}.{field_name}'] = value
-                        except (KeyError, TypeError):
+                            logger.info(f"🔍 TEMPLATE: Extracted {func_name}.{field_name} = {value}")
+                        except (KeyError, TypeError) as e:
                             format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
+                            logger.info(f"🔍 TEMPLATE: Failed to extract {func_name}.{field_name}: {e}")
                     else:
-                        format_dict[f'{func_name}.{field_name}'] = func_result.get(field_name, 'NOT_FOUND')
+                        value = func_result.get(field_name, 'NOT_FOUND')
+                        format_dict[f'{func_name}.{field_name}'] = value
+                        logger.info(f"🔍 TEMPLATE: Extracted {func_name}.{field_name} = {value}")
                 else:
                     format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
+                    logger.info(f"🔍 TEMPLATE: No func_result found for {func_name}")
             
             # Also handle simple field references like {tmdb_id} and {movie_data}
             simple_fields = re.findall(r'\{([^}]+)\}', template)
@@ -177,7 +183,10 @@ class AgenticService:
                             format_dict[field] = current_result.get(field, 'NOT_FOUND')
             
             # Format the template
-            return template.format(**format_dict)
+            logger.info(f"🔍 TEMPLATE: Final format_dict: {format_dict}")
+            result = template.format(**format_dict)
+            logger.info(f"🔍 TEMPLATE: Final result: {result}")
+            return result
         except Exception as e:
             return None
     
