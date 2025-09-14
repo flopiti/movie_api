@@ -100,7 +100,7 @@ class AgenticService:
         
         return concise
     
-    def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str, current_function_name: str) -> str:
+    def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str, current_function_name: str, iteration_results: List[Dict] = None) -> str:
         """Format available data template by resolving function references"""
         try:
             # Extract phone number from conversation context
@@ -141,8 +141,11 @@ class AgenticService:
             logger.info(f"🔍 SIMPLE FIELDS: {simple_fields}")
             for field in simple_fields:
                 if field not in format_dict and '.' not in field:
-                    # Try to get from check_movie_library_status result
+                    # Try to get from check_movie_library_status result (check both function_results and current iteration)
                     movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
+                    if not movie_lib_result:
+                        # Also check current iteration results
+                        movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
                     logger.info(f"🔍 MOVIE_LIB_RESULT: {movie_lib_result}")
                     if movie_lib_result:
                         value = movie_lib_result.get(field, 'NOT_FOUND')
@@ -431,7 +434,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         if config.get('available_data_template'):
                             # Parse template to extract function references and format data
                             template = config['available_data_template']
-                            available_data = self._format_available_data_template(template, function_results, conversation_context, function_name)
+                            available_data = self._format_available_data_template(template, function_results, conversation_context, function_name, iteration_results)
                             if available_data:
                                 function_summary += f"\nAVAILABLE DATA: {available_data}\n"
                             
