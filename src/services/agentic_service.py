@@ -287,6 +287,10 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
                         function_summary += "- Workflow complete - generate final SMS response\n"
                     
+                    # Log the function summary being sent to AI
+                    logger.info(f"🔍 AgenticService: Function summary being sent to AI:")
+                    logger.info(f"🔍 AgenticService: {function_summary}")
+                    
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)
                     
