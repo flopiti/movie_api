@@ -57,6 +57,7 @@ class RadarrService:
                 'success': True,
                 'tmdb_id': tmdb_id,
                 'movie_title': movie_data.get('title'),
+                'movie_data': movie_data,  # Include the movie_data in the response
                 'radarr_status': radarr_status,
                 'exists_in_radarr': radarr_status.get('exists_in_radarr', False) if radarr_status else False,
                 'is_downloaded': radarr_status.get('is_downloaded', False) if radarr_status else False,
