@@ -260,8 +260,13 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_summary += "- You MUST call check_movie_library_status next\n"
                     elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
                         function_summary += "- You MUST call check_radarr_status next\n"
+                        function_summary += "- EXTRACT tmdb_id AND movie_data from check_movie_library_status result\n"
+                        function_summary += "- Pass BOTH parameters: {'tmdb_id': X, 'movie_data': {...}}\n"
                     elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
                         function_summary += "- You MUST call request_download next\n"
+                        function_summary += "- EXTRACT movie_data from check_movie_library_status result\n"
+                        function_summary += "- Use phone_number from context: {phone_number}\n"
+                        function_summary += "- Pass BOTH parameters: {'movie_data': {...}, 'phone_number': '+14384109395'}\n"
                     elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
                         function_summary += "- Workflow complete - generate final SMS response\n"
                     
