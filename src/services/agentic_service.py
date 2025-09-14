@@ -409,8 +409,13 @@ class AgenticService:
                         result = fr['result']
                         
                         # Generate concise summary using configuration
-                        summary = self._generate_function_summary(function_name, result)
-                        function_summary += f"- {function_name}: {summary}\n"
+                        try:
+                            summary = self._generate_function_summary(function_name, result)
+                            function_summary += f"- {function_name}: {summary}\n"
+                        except Exception as e:
+                            logger.error(f"❌ AgenticService: Error generating summary for {function_name}: {str(e)}")
+                            logger.error(f"❌ AgenticService: Result type: {type(result)}, Result: {result}")
+                            function_summary += f"- {function_name}: Error generating summary\n"
                     
                     # Add available data for parameter passing using configuration
                     for fr in iteration_results:
@@ -420,10 +425,15 @@ class AgenticService:
                         
                         if config.get('available_data_template'):
                             # Parse template to extract function references and format data
-                            template = config['available_data_template']
-                            available_data = self._format_available_data_template(template, function_results, conversation_context, function_name, iteration_results)
-                            if available_data:
-                                function_summary += f"\nAVAILABLE DATA: {available_data}\n"
+                            try:
+                                template = config['available_data_template']
+                                available_data = self._format_available_data_template(template, function_results, conversation_context, function_name, iteration_results)
+                                if available_data:
+                                    function_summary += f"\nAVAILABLE DATA: {available_data}\n"
+                            except Exception as e:
+                                logger.error(f"❌ AgenticService: Error formatting available data for {function_name}: {str(e)}")
+                                logger.error(f"❌ AgenticService: Template: {config.get('available_data_template')}")
+                                logger.error(f"❌ AgenticService: Result: {result}")
                             
                     
                     # Log the function summary being sent to AI
