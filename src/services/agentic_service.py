@@ -121,9 +121,11 @@ class AgenticService:
                 if phone_match:
                     phone_number = phone_match.group(1).strip()
             
-            # Parse template for function references like {check_movie_library_status.movie_data}
+            # Parse template for function references like {check_movie_library_status.movie_data.title}
             import re
+            logger.info(f"🔍 TEMPLATE: Parsing template: {template}")
             function_refs = re.findall(r'\{([^.]+)\.([^}]+)\}', template)
+            logger.info(f"🔍 TEMPLATE: Found function_refs: {function_refs}")
             
             format_dict = {'phone_number': phone_number or 'NOT_PROVIDED'}
             
