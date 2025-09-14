@@ -34,21 +34,22 @@ CURRENT CONTEXT:
 
 Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take.
 
-IMPORTANT: You are REQUIRED to complete the full movie workflow. Do not stop until you have called request_download. 
+IMPORTANT: You are REQUIRED to complete the full movie workflow ONLY if a movie is identified. If no movie is identified, respond conversationally. 
 
 CRITICAL FUNCTION CALLING REQUIREMENTS:
-- If a movie is identified, you MUST call functions in this exact sequence:
-  1. identify_movie_request (if movie not already identified)
-  2. check_movie_library_status (REQUIRED after movie identification)
-  3. check_radarr_status (REQUIRED after getting movie data)
-  4. request_download (REQUIRED unless movie is already downloaded)
-- Do NOT stop after just identifying a movie - you must complete the full workflow
+- ALWAYS start with identify_movie_request to understand user intent
+- If NO MOVIE is identified (result: "No movie identified"), STOP calling functions and respond conversationally
+- If a movie IS identified, you MUST call functions in this exact sequence:
+  1. check_movie_library_status (REQUIRED after movie identification)
+  2. check_radarr_status (REQUIRED after getting movie data)
+  3. request_download (REQUIRED unless movie is already downloaded)
+- Do NOT call additional functions if no movie was identified
 - Do NOT promise to notify users unless you actually call request_download
 - After each function call, you will receive the results and should continue with the next required function
-- Continue calling functions until the complete workflow is finished
+- Continue calling functions until the complete workflow is finished OR no movie is identified
 - NEVER stop after check_movie_library_status - you MUST always call check_radarr_status next
 - NEVER stop after check_radarr_status - you MUST always call request_download next (unless movie is already downloaded)
-- The workflow is NOT complete until you have called request_download
+- The workflow is NOT complete until you have called request_download OR no movie was identified
 
 CRITICAL PARAMETER PASSING:
 - When calling check_radarr_status: Pass BOTH tmdb_id AND movie_data from the previous function result
@@ -236,7 +237,12 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     # Add explicit instructions for next steps
                     function_summary += f"\nNEXT STEPS REQUIRED:\n"
                     if any(fr['function_name'] == 'identify_movie_request' for fr in iteration_results):
-                        function_summary += "- You MUST call check_movie_library_status next\n"
+                        # Check if movie was identified
+                        movie_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'identify_movie_request'), None)
+                        if movie_result and movie_result.get('movie_name') == 'No movie identified':
+                            function_summary += "- NO MOVIE IDENTIFIED - STOP calling functions and respond conversationally\n"
+                        else:
+                            function_summary += "- You MUST call check_movie_library_status next\n"
                     elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
                         function_summary += "- You MUST call check_radarr_status next\n"
                     elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
