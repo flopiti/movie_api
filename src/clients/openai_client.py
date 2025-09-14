@@ -293,15 +293,16 @@ class OpenAIClient:
             # Add instruction to return JSON
             json_prompt = f"""{prompt}
 
-IMPORTANT: You must respond with a valid JSON object in this exact format:
-{{
-    "sms_message": "The actual SMS message to send to the user",
-    "action": "sms_response" or "function_call",
-    "function_name": "function_name_if_applicable",
-    "function_args": {{"arg1": "value1"}} if function_call needed
-}}
+                IMPORTANT: You must respond with a valid JSON object in this exact format:
+                {{
+                    "sms_message": "The actual SMS message to send to the user",
+                    "action": "sms_response" or "function_call",
+                    "function_name": "function_name_if_applicable",
+                    "function_args": {{"arg1": "value1"}} if function_call needed
+                }}
 
-The sms_message field should contain ONLY the clean, user-friendly message without any internal instructions or formatting."""
+                The sms_message field should contain ONLY the clean, user-friendly message without any internal instructions or formatting.
+                """
             
             response = self.client.chat.completions.create(
                 model=OPENAI_MODELS['structured_sms'],

@@ -500,7 +500,9 @@ class AgenticService:
                 structured_response = self.openai_client.generate_structured_sms_response(
                     prompt=f"{services['sms_response_prompt']}\n\nUser message: {current_message}"
                 )
-                
+                print("structured_response")
+                print(structured_response)
+
                 if structured_response.get('success'):
                     sms_message = structured_response.get('sms_message', '')
                     return {
