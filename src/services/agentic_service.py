@@ -97,6 +97,37 @@ class AgenticService:
         
         return concise
     
+    def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str) -> str:
+        """Format available data template by resolving function references"""
+        try:
+            # Extract phone number from conversation context
+            phone_number = None
+            if conversation_context:
+                import re
+                phone_match = re.search(r'USER PHONE NUMBER:\s*([+\d\s\-\(\)]+)', conversation_context, re.IGNORECASE)
+                if phone_match:
+                    phone_number = phone_match.group(1).strip()
+            
+            # Parse template for function references like {check_movie_library_status.movie_data}
+            import re
+            function_refs = re.findall(r'\{([^.]+)\.([^}]+)\}', template)
+            
+            format_dict = {'phone_number': phone_number or 'NOT_PROVIDED'}
+            
+            # Resolve function references
+            for func_name, field_name in function_refs:
+                func_result = next((fr['result'] for fr in function_results if fr['function_name'] == func_name), None)
+                if func_result:
+                    format_dict[f'{func_name}.{field_name}'] = func_result.get(field_name)
+                else:
+                    format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
+            
+            # Format the template
+            return template.format(**format_dict)
+        except Exception as e:
+            logger.warning(f"Failed to format available data template: {e}")
+            return None
+    
     def _build_agentic_prompt(self, conversation_context=""):
         """Build the complete agentic prompt by combining all prompt components"""
         return f"""{self.primary_purpose}
@@ -356,33 +387,10 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         if config.get('available_data_template'):
                             logger.info(f"🔍 AgenticService: Processing {function_name} branch")
                             
-                            # For functions that need data from previous results, get it from function_results
-                            if function_name in ['check_radarr_status', 'request_download']:
-                                movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
-                                if movie_lib_result:
-                                    # Extract phone number from conversation context
-                                    phone_number = None
-                                    if conversation_context:
-                                        # Try to extract phone number from context
-                                        import re
-                                        phone_match = re.search(r'USER PHONE NUMBER:\s*([+\d\s\-\(\)]+)', conversation_context, re.IGNORECASE)
-                                        if phone_match:
-                                            phone_number = phone_match.group(1).strip()
-                                    
-                                    # Only add available data if we have a phone number
-                                    if phone_number:
-                                        available_data = config['available_data_template'].format(
-                                            tmdb_id=movie_lib_result.get('tmdb_id'),
-                                            movie_data=movie_lib_result.get('movie_data'),
-                                            phone_number=phone_number
-                                        )
-                                        function_summary += f"\nAVAILABLE DATA: {available_data}\n"
-                            else:
-                                # For check_movie_library_status, use its own result
-                                available_data = config['available_data_template'].format(
-                                    tmdb_id=result.get('tmdb_id'),
-                                    movie_data=result.get('movie_data')
-                                )
+                            # Parse template to extract function references and format data
+                            template = config['available_data_template']
+                            available_data = self._format_available_data_template(template, function_results, conversation_context)
+                            if available_data:
                                 function_summary += f"\nAVAILABLE DATA: {available_data}\n"
                     
                     # Log the function summary being sent to AI

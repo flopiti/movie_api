@@ -16,13 +16,13 @@
     "summary_template": "{movie_title} - Exists: {exists_in_radarr}, Downloaded: {is_downloaded}, Downloading: {is_downloading}",
     "extract_fields": ["movie_title", "exists_in_radarr", "is_downloaded", "is_downloading"],
     "parameter_fields": ["tmdb_id", "movie_data.title"],
-    "available_data_template": "movie_data={movie_data}, phone_number={phone_number}"
+    "available_data_template": "movie_data={check_movie_library_status.movie_data}, phone_number={phone_number}"
   },
   "request_download": {
     "summary_template": "{action} for {movie_title} ({movie_year})",
     "extract_fields": ["action", "movie_title", "movie_year"],
     "parameter_fields": ["movie_data.title", "movie_data.year", "phone_number"],
-    "available_data_template": "movie_data={movie_data}"
+    "available_data_template": "movie_data={check_movie_library_status.movie_data}"
   },
   "send_notification": {
     "summary_template": "Sent {message_type} notification for {movie_title} ({year})",
