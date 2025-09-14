@@ -6,6 +6,7 @@ Handles agentic decision making and function calling.
 
 import logging
 import json
+from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
 from ..clients.PROMPTS import MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA
 
