@@ -39,6 +39,11 @@ class AgenticService:
     def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
         """Extract field value from nested dictionary using dot notation"""
         try:
+            # Handle case where result is not a dictionary
+            if not isinstance(result, dict):
+                logger.warning(f"Result is not a dictionary: {type(result)} - {result}")
+                return 'Unknown'
+            
             # Special handling for title and year fields
             if field_path in ['title', 'year'] and 'movie_data' in result:
                 movie_data = result['movie_data']
@@ -54,9 +59,13 @@ class AgenticService:
             keys = field_path.split('.')
             value = result
             for key in keys:
+                if not isinstance(value, dict):
+                    logger.warning(f"Value is not a dictionary when accessing key '{key}': {type(value)} - {value}")
+                    return 'Unknown'
                 value = value[key]
             return value
         except (KeyError, TypeError) as e:
+            logger.warning(f"Error extracting field '{field_path}' from result: {str(e)}")
             return 'Unknown'
     
     def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
@@ -344,10 +353,15 @@ class AgenticService:
                     functions=[self.function_schema],
                     response_format="json"
                 )
+
+    
                 
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
+                
+                print("response line 354")
+                print(response.get('response'))
                 
                 # Add AI response to conversation
                 messages.append({"role": "assistant", "content": response.get('response', '')})
