@@ -174,11 +174,10 @@ Always provide ONLY a clean, user-friendly SMS response."""
                     'success': False
                 }
             
-            # Build conversation context - include current message in conversation history
-            full_conversation = conversation_history + [f"USER: {current_message}"]
+            # Build conversation context - use the full conversation history
             conversation_context = f"""
 CONVERSATION HISTORY:
-{chr(10).join(full_conversation[-5:])}
+{chr(10).join(conversation_history)}
 
 CURRENT USER MESSAGE: {current_message}
 USER PHONE NUMBER: {phone_number}
