@@ -38,6 +38,7 @@ IMPORTANT: You are REQUIRED to complete the full movie workflow ONLY if a movie 
 
 CRITICAL FUNCTION CALLING REQUIREMENTS:
 - ALWAYS start with identify_movie_request to understand user intent
+- When calling identify_movie_request, you MUST pass the FULL conversation history from the context above
 - If NO MOVIE is identified (result: "No movie identified"), STOP calling functions and respond conversationally
 - If a movie IS identified, you MUST call functions in this exact sequence:
   1. check_movie_library_status (REQUIRED after movie identification)

@@ -97,6 +97,30 @@ MOVIE_DETECTION_TEST_CASES = [
             "USER: yoo do you know about devil wears prada 2?"
         ],
         "expected_movie": "Breakfast At Tiffany (1961)"  # Should prioritize first USER message
+    },
+    {
+        "name": "Casual greeting conversation",
+        "conversation": [
+            "USER: yoo"
+        ],
+        "expected_movie": None  # Should detect as casual greeting, no movie
+    },
+    {
+        "name": "Conversational movie reference",
+        "conversation": [
+            "USER: do you know about blackhat"
+        ],
+        "expected_movie": "Blackhat (2015)"  # Should detect conversational movie reference
+    },
+    {
+        "name": "Blackhat detection failure - current bug",
+        "conversation": [
+            "USER: do you know about Blackhat",
+            "SYSTEM: Yo! How's it going? Need help with a movie or just want to chat?",
+            "USER: yo"
+        ],
+        "expected_movie": "Blackhat (2015)",  # Currently failing - should detect but returns "No movie identified"
+        "currently_failing": True
     }
 ]
 
