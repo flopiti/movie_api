@@ -104,12 +104,7 @@ Always provide ONLY a clean, user-friendly SMS response."""
             
             if function_name == "identify_movie_request":
                 conversation_history = parameters.get('conversation_history', [])
-                # Ensure current message is included in conversation history for movie detection
-                if current_message:
-                    full_conversation = conversation_history + [f"USER: {current_message}"]
-                else:
-                    full_conversation = conversation_history
-                return services['movie_identification'].identify_movie_request(full_conversation)
+                return services['movie_identification'].identify_movie_request(conversation_history)
                 
             elif function_name == "check_movie_library_status":
                 movie_name = parameters.get('movie_name', '')
@@ -192,7 +187,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
             logger.info(f"🔍 AgenticService: Data being sent to AI:")
             logger.info(f"🔍 AgenticService: Current message: '{current_message}'")
             logger.info(f"🔍 AgenticService: Phone number: '{phone_number}'")
-            logger.info(f"🔍 AgenticService: Full conversation: {full_conversation}")
+            logger.info(f"🔍 AgenticService: Full conversation: {conversation_history}")
             logger.info(f"🔍 AgenticService: Conversation context length: {len(conversation_context)} chars")
             
             # Start conversation with AI
