@@ -278,6 +278,7 @@ You have access to the following functions to fulfill your movie management resp
    - Output: Status including downloaded, downloading, queued, or not present
    - Usage: Determine current library status
    - IMPORTANT: Call this after check_movie_library_status, then call request_download if needed
+   - CRITICAL: You MUST pass BOTH tmdb_id AND movie_data parameters from the previous function result
 
 4. REQUEST_DOWNLOAD(movie_data, phone_number)
    - Purpose: Add movie to download queue in Radarr and set up monitoring
@@ -317,6 +318,12 @@ FUNCTION SELECTION GUIDELINES:
 - Use appropriate Radarr functions based on current status
 - Always generate a response using GENERATE_SMS_RESPONSE
 - Set up monitoring for any initiated downloads
+
+CRITICAL PARAMETER PASSING:
+- When calling check_radarr_status, you MUST pass BOTH tmdb_id AND movie_data from the previous function result
+- When calling request_download, you MUST pass BOTH movie_data AND phone_number
+- Always extract the required parameters from the previous function's output
+- Do NOT call functions with missing required parameters
 
 ERROR HANDLING:
 - If any function fails, use GENERATE_SMS_RESPONSE to inform user
@@ -362,7 +369,7 @@ MOVIE_AGENT_FUNCTION_SCHEMA = {
                         },
                         "movie_data": {
                             "type": "object",
-                            "description": "Movie data object (for request_download, send_notification)"
+                            "description": "Movie data object (for check_radarr_status, request_download, send_notification)"
                         },
                         "phone_number": {
                             "type": "string",
