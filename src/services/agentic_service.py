@@ -45,7 +45,6 @@ class AgenticService:
                 value = value[key]
             return value
         except (KeyError, TypeError) as e:
-            logger.warning(f"Failed to extract field '{field_path}' from result: {e}")
             return 'Unknown'
     
     def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
@@ -63,7 +62,6 @@ class AgenticService:
             else:
                 value = self._extract_field_value(result, field)
                 field_values[field] = value
-                logger.info(f"🔍 Extracted field '{field}' = '{value}'")
         
         # Format template with extracted values
         try:
@@ -138,7 +136,6 @@ class AgenticService:
             
             # Also handle simple field references like {tmdb_id} and {movie_data}
             simple_fields = re.findall(r'\{([^}]+)\}', template)
-            logger.info(f"🔍 SIMPLE FIELDS: {simple_fields}")
             for field in simple_fields:
                 if field not in format_dict and '.' not in field:
                     # Try to get from check_movie_library_status result (check both function_results and current iteration)
@@ -146,14 +143,11 @@ class AgenticService:
                     if not movie_lib_result:
                         # Also check current iteration results
                         movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
-                    logger.info(f"🔍 MOVIE_LIB_RESULT: {movie_lib_result}")
                     if movie_lib_result:
                         value = movie_lib_result.get(field, 'NOT_FOUND')
                         format_dict[field] = value
-                        logger.info(f"🔍 FIELD {field} = {value}")
                     else:
                         format_dict[field] = 'NOT_FOUND'
-                        logger.info(f"🔍 FIELD {field} = NOT_FOUND (no movie_lib_result)")
             
             # For templates without function references, use current function's result
             if not function_refs:
@@ -168,7 +162,6 @@ class AgenticService:
             # Format the template
             return template.format(**format_dict)
         except Exception as e:
-            logger.warning(f"Failed to format available data template '{template}': {e}")
             return None
     
     
@@ -233,7 +226,6 @@ Always provide ONLY a clean, user-friendly SMS response."""
         # For structured responses, we should rarely need this complex parsing
         # This is kept as a fallback for any remaining unstructured responses
         cleaned_response = ai_response.strip()
-        logger.info(f"🔍 AgenticService: Fallback response extraction: '{cleaned_response}'")
         
         # Simple cleanup - remove common prefixes
         prefixes_to_remove = [
@@ -251,7 +243,6 @@ Always provide ONLY a clean, user-friendly SMS response."""
     def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
         """Execute a function call based on the function name and parameters"""
         try:
-            logger.info(f"🔧 AgenticService: Executing function {function_name} with parameters: {parameters}")
             
             if function_name == "identify_movie_request":
                 conversation_history = parameters.get('conversation_history', [])
@@ -260,7 +251,6 @@ Always provide ONLY a clean, user-friendly SMS response."""
             elif function_name == "check_movie_library_status":
                 movie_name = parameters.get('movie_name', '')
                 result = services['movie_library'].check_movie_library_status(movie_name)
-                logger.info(f"🎬 LIBRARY CHECK RESULT: tmdb_id={result.get('tmdb_id')}, movie_data={result.get('movie_data')}")
                 return result
                 
             elif function_name == "check_radarr_status":
@@ -338,11 +328,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
             agentic_prompt = self._build_agentic_prompt(conversation_context)
             
             # Log the data being sent to AI for debugging
-            logger.info(f"🔍 AgenticService: Data being sent to AI:")
-            logger.info(f"🔍 AgenticService: Current message: '{current_message}'")
-            logger.info(f"🔍 AgenticService: Phone number: '{phone_number}'")
-            logger.info(f"🔍 AgenticService: Full conversation: {conversation_history}")
-            logger.info(f"🔍 AgenticService: Conversation context length: {len(conversation_context)} chars")
             
             # Start conversation with AI
             messages = [{"role": "user", "content": agentic_prompt}]
@@ -352,7 +337,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
             
             while iteration < max_iterations:
                 iteration += 1
-                logger.info(f"🔄 AgenticService: Starting iteration {iteration}")
                 
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
@@ -369,7 +353,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 
                 # Process function calls if any
                 if response.get('has_function_calls') and response.get('tool_calls'):
-                    logger.info(f"🔧 AgenticService: Processing {len(response['tool_calls'])} function calls in iteration {iteration}")
                     
                     # Execute all function calls in this iteration
                     iteration_results = []
@@ -382,31 +365,20 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_name = parsed_args.get('function_name')
                             parameters = parsed_args.get('parameters', {})
                             
-                            logger.info(f"🔧 AgenticService: Function Call #{i}: {function_name}")
                             
                             # Log concise parameters instead of full data
                             concise_params = self._get_concise_parameters(function_name, parameters)
-                            logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {concise_params}")
                             
                             
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
                             
-                            # Log concise result info
-                            if function_name == 'identify_movie_request' and result.get('success'):
-                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: Movie identified: {result.get('movie_name', 'Unknown')}")
-                            elif function_name == 'check_movie_library_status' and result.get('success'):
-                                movie_data = result.get('movie_data', {})
-                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: Movie found: {movie_data.get('title', 'Unknown')} ({movie_data.get('year', 'Unknown')})")
-                            else:
-                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result.get('success', False)}")
                             
                             iteration_results.append({
                                 'function_name': function_name,
                                 'result': result
                             })
                             
-                            logger.info(f"✅ AgenticService: Function Call #{i} ({function_name}) completed successfully")
                             
                         except Exception as e:
                             logger.error(f"❌ AgenticService: Function Call #{i} Error: {str(e)}")
@@ -440,7 +412,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             
                     
                     # Log the function summary being sent to AI
-                    logger.info(f"🔍 AgenticService: Function summary being sent to AI")
                     
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)
@@ -449,7 +420,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     continue
                 else:
                     # No more function calls - AI is done
-                    logger.info(f"🔍 AgenticService: No more function calls in iteration {iteration}")
                     break
             
             # Generate final response based on all function results
@@ -473,7 +443,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 
                 if notification_sent:
                     # Notification was already sent, no need for additional SMS response
-                    logger.info(f"📱 AgenticService: Notification already sent, skipping final SMS response")
                     return {
                         'response_message': '',  # Empty response since notification was sent
                         'function_results': function_results,
@@ -516,7 +485,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     }
             else:
                 # No function calls were made - use structured response for clean output
-                logger.info(f"🔍 AgenticService: NO FUNCTION CALLS MADE - generating structured response")
                 
                 # Use structured response to ensure clean SMS output
                 structured_response = self.openai_client.generate_structured_sms_response(
@@ -525,7 +493,6 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 
                 if structured_response.get('success'):
                     sms_message = structured_response.get('sms_message', '')
-                    logger.info(f"🔍 AgenticService: Generated structured SMS response: {sms_message}")
                     return {
                         'response_message': sms_message,
                         'function_results': [],
