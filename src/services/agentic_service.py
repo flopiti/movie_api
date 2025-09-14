@@ -218,12 +218,21 @@ class AgenticService:
     
     def _build_agentic_prompt(self, conversation_context=""):
         """Build the complete agentic prompt using the template from PROMPTS.py"""
-        return MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE.format(
-            primary_purpose=self.primary_purpose,
-            procedures=self.procedures,
-            available_functions=self.available_functions,
-            conversation_context=conversation_context
-        )
+        try:
+            return MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE.format(
+                primary_purpose=self.primary_purpose,
+                procedures=self.procedures,
+                available_functions=self.available_functions,
+                conversation_context=conversation_context
+            )
+        except Exception as e:
+            logger.error(f"❌ AgenticService: Error formatting prompt template: {str(e)}")
+            logger.error(f"❌ AgenticService: Template: {MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE}")
+            logger.error(f"❌ AgenticService: Primary purpose: {self.primary_purpose}")
+            logger.error(f"❌ AgenticService: Procedures: {self.procedures}")
+            logger.error(f"❌ AgenticService: Available functions: {self.available_functions}")
+            logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
+            raise
     
     def _extract_clean_response(self, ai_response: str) -> str:
         """Extract clean SMS response from AI output - simplified for structured responses"""
@@ -330,15 +339,25 @@ class AgenticService:
                 """
             
             # Build agentic prompt
-            agentic_prompt = self._build_agentic_prompt(conversation_context)
+            try:
+                agentic_prompt = self._build_agentic_prompt(conversation_context)
+            except Exception as e:
+                logger.error(f"❌ AgenticService: Error building agentic prompt: {str(e)}")
+                logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
+                raise
             
             # Log the data being sent to AI for debugging
             
             # Start conversation with AI
-            messages = [{"role": "user", "content": agentic_prompt}]
-            function_results = []
-            max_iterations = 5  # Prevent infinite loops
-            iteration = 0
+            try:
+                messages = [{"role": "user", "content": agentic_prompt}]
+                function_results = []
+                max_iterations = 5  # Prevent infinite loops
+                iteration = 0
+            except Exception as e:
+                logger.error(f"❌ AgenticService: Error setting up conversation: {str(e)}")
+                logger.error(f"❌ AgenticService: Agentic prompt: {agentic_prompt}")
+                raise
             
             while iteration < max_iterations:
                 iteration += 1
