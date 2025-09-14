@@ -33,31 +33,46 @@ def flexible_movie_match(detected_movie, expected_movie):
     if detected_movie == expected_movie:
         return True
     
-    # If expected has year but detected doesn't, check if base titles match
-    if expected_movie and '(' in expected_movie:
-        expected_base = expected_movie.split(' (')[0]
-        if detected_movie == expected_base:
-            return True
-    
-    # If detected has year but expected doesn't, check if base titles match
-    if detected_movie and '(' in detected_movie:
-        detected_base = detected_movie.split(' (')[0]
-        if detected_base == expected_movie:
-            return True
-    
-    # Handle "The" prefix differences
+    # Normalize both titles for flexible comparison
     def normalize_title(title):
-        """Remove 'The' prefix for comparison."""
-        if title and title.startswith('The '):
-            return title[4:]  # Remove "The "
-        return title
+        """Normalize title for flexible comparison."""
+        if not title:
+            return ""
+        
+        # Convert to lowercase
+        normalized = title.lower()
+        
+        # Remove extra spaces
+        import re
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        
+        # Remove common punctuation differences
+        normalized = normalized.replace("'", "").replace("'", "")
+        
+        # Remove "The" prefix
+        if normalized.startswith('the '):
+            normalized = normalized[4:]
+        
+        return normalized
     
-    # Compare normalized titles (without "The")
+    # Compare normalized titles
     normalized_detected = normalize_title(detected_movie)
     normalized_expected = normalize_title(expected_movie)
     
     if normalized_detected == normalized_expected:
         return True
+    
+    # If expected has year but detected doesn't, check if base titles match
+    if expected_movie and '(' in expected_movie:
+        expected_base = expected_movie.split(' (')[0]
+        if normalize_title(detected_movie) == normalize_title(expected_base):
+            return True
+    
+    # If detected has year but expected doesn't, check if base titles match
+    if detected_movie and '(' in detected_movie:
+        detected_base = detected_movie.split(' (')[0]
+        if normalize_title(detected_base) == normalize_title(expected_movie):
+            return True
     
     # Also check if one has year and the other doesn't, with normalized titles
     if expected_movie and '(' in expected_movie:

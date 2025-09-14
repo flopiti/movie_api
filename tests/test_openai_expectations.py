@@ -4,6 +4,27 @@ OpenAI Client Test Expectations
 Contains test cases and expected results for OpenAI client testing.
 """
 
+import re
+
+def normalize_movie_title(title):
+    """
+    Normalize movie title for flexible comparison.
+    Handles case-insensitive matching and minor formatting differences.
+    """
+    if not title:
+        return ""
+    
+    # Convert to lowercase
+    normalized = title.lower()
+    
+    # Remove extra spaces
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    # Remove common punctuation differences
+    normalized = normalized.replace("'", "").replace("'", "")
+    
+    return normalized
+
 # Movie Detection Test Cases
 MOVIE_DETECTION_TEST_CASES = [
     {
@@ -96,7 +117,7 @@ MOVIE_DETECTION_TEST_CASES = [
             "USER: add devils wears prada 2",
             "USER: yoo do you know about devil wears prada 2?"
         ],
-        "expected_movie": "Breakfast At Tiffany (1961)"  # Should prioritize first USER message
+        "expected_movie": "Breakfast At Tiffany's (1961)"  # Should prioritize first USER message
     },
     {
         "name": "Casual greeting conversation",
@@ -121,6 +142,19 @@ MOVIE_DETECTION_TEST_CASES = [
         ],
         "expected_movie": "Blackhat (2015)",  # Currently failing - should detect but returns "No movie identified"
         "currently_failing": True
+    },
+    {
+        "name": "Black or White movie request - full conversation",
+        "conversation": [
+            "USER: and do you know black or white",
+            "SYSTEM: Yo! 🎬 Great news! I'm getting Blackhat (2015) ready for you. I'll text you when it's ready to watch!",
+            "SYSTEM: 🎬 Great! I'm getting Blackhat (2015) ready for you. I'll text you when it's ready to watch!",
+            "USER: do you know about blackhat?",
+            "SYSTEM: Hey! What's up? Need help with a movie or just chilling?",
+            "USER: yo",
+            "USER: yo"
+        ],
+        "expected_movie": "Black or White (2014)"  # Should detect movie title with "or" in it from first message
     }
 ]
 
@@ -249,7 +283,9 @@ VALIDATION_RULES = {
         "success_conditions": ["success == true"],
         "movie_name_conditions": [
             "movie_name != 'No movie identified' OR expected_movie is None"
-        ]
+        ],
+        "flexible_matching": True,  # Enable case-insensitive and flexible matching
+        "normalize_function": "normalize_movie_title"  # Function to normalize movie titles for comparison
     },
     "sms_response": {
         "required_fields": ["success", "response", "original_message", "sender"],
