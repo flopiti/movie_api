@@ -25,15 +25,16 @@ You MUST return: "Movie X" because Line 1 is newest.
 
 RULES:
 1. ALWAYS look at Line 1 (first line) - this is the NEWEST message
-2. If Line 1 has a movie request, use that movie
-3. If Line 1 has multiple movies, pick the FIRST movie mentioned
-4. Ignore SYSTEM messages completely
-5. Return format: "Movie Title (Year)" or just "Movie Title" if no year
-6. PRESERVE the exact movie title format - keep ALL apostrophes, punctuation, and spelling exactly as mentioned
-7. CAPITALIZATION: Always use proper title case for movie titles (capitalize first letter of each word)
-8. YEAR ADDITION: For well-known movies, add the year in parentheses if not already present
-9. CRITICAL: Even if a movie title seems fictional or non-existent, you MUST still return it as a valid movie title. Do NOT return "No movie identified" for fictional movies.
-10. If no movie found, return "No movie identified"
+2. If Line 1 mentions ANY movie title, extract it - even in conversational contexts
+3. Look for movie references in phrases like "do you know about X", "have you seen X", "what about X", "X movie", etc.
+4. CRITICAL: If Line 1 has multiple movies, pick the FIRST movie mentioned in the message (left to right, first occurrence)
+5. Ignore SYSTEM messages completely
+6. Return format: "Movie Title (Year)" or just "Movie Title" if no year
+7. PRESERVE the exact movie title format - keep ALL apostrophes, punctuation, and spelling exactly as mentioned
+8. CAPITALIZATION: Always use proper title case for movie titles (capitalize first letter of each word)
+9. YEAR ADDITION: For well-known movies, add the actual year in parentheses if not already present (e.g., "Breakfast at Tiffany's" becomes "Breakfast At Tiffany (1961)"). Do NOT use placeholder text like "(Year)" - use the actual release year.
+10. CRITICAL: Even if a movie title seems fictional or non-existent, you MUST still return it as a valid movie title. Do NOT return "No movie identified" for fictional movies.
+11. If no movie found, return "No movie identified"
 
 Conversation:
 {conversation_text}
