@@ -156,12 +156,12 @@ Always provide ONLY a clean, user-friendly SMS response."""
     def process_agentic_response(self, conversation_history, phone_number, services: dict):
         """Process agentic response with function calling support"""
         try:
-            # Extract current message
+            # Extract current message (the most recent USER message)
             current_message = None
-            for message in reversed(conversation_history):
+            for message in conversation_history:
                 if message.startswith("USER: "):
                     current_message = message.replace("USER: ", "")
-                    break
+                    # Don't break here - we want the LAST (most recent) USER message
             
             if not current_message:
                 return {
