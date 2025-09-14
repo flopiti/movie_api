@@ -69,6 +69,34 @@ class AgenticService:
             logger.warning(f"Missing field {e} for function {function_name}")
             return f"{function_name}: Success" if result.get('success', False) else f"{function_name}: Failed"
     
+    def _get_concise_parameters(self, function_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate concise parameter logging using configuration"""
+        config = self.function_summary_config.get(function_name, self.function_summary_config.get('default', {}))
+        parameter_fields = config.get('parameter_fields', [])
+        
+        concise = {}
+        for field_config in parameter_fields:
+            if isinstance(field_config, dict):
+                # Handle complex field configuration
+                field_name = field_config.get('field')
+                field_type = field_config.get('type', 'value')
+                field_label = field_config.get('label', field_name)
+                
+                if field_type == 'count':
+                    # Count items in list/array
+                    value = parameters.get(field_name, [])
+                    concise[field_label] = f"{len(value)} {field_label}"
+                else:
+                    # Regular value extraction
+                    value = self._extract_field_value(parameters, field_name)
+                    concise[field_label] = value
+            else:
+                # Handle simple string field names
+                value = self._extract_field_value(parameters, field_config)
+                concise[field_config] = value
+        
+        return concise
+    
     def _build_agentic_prompt(self, conversation_context=""):
         """Build the complete agentic prompt by combining all prompt components"""
         return f"""{self.primary_purpose}
@@ -278,7 +306,10 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             parameters = parsed_args.get('parameters', {})
                             
                             logger.info(f"🔧 AgenticService: Function Call #{i}: {function_name}")
-                            logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {parameters}")
+                            
+                            # Log concise parameters instead of full data
+                            concise_params = self._get_concise_parameters(function_name, parameters)
+                            logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {concise_params}")
                             
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
