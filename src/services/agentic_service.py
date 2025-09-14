@@ -118,11 +118,23 @@ Always provide ONLY a clean, user-friendly SMS response."""
             elif function_name == "check_radarr_status":
                 tmdb_id = parameters.get('tmdb_id')
                 movie_data = parameters.get('movie_data')
+                if not movie_data:
+                    logger.error(f"❌ AgenticService: check_radarr_status called without movie_data! Parameters: {parameters}")
+                    return {
+                        'success': False,
+                        'error': 'CRITICAL ERROR: check_radarr_status requires movie_data parameter. You must extract movie_data from the previous check_movie_library_status result.'
+                    }
                 return services['radarr'].check_radarr_status(tmdb_id, movie_data)
                 
             elif function_name == "request_download":
                 movie_data = parameters.get('movie_data')
                 phone_number = parameters.get('phone_number')
+                if not movie_data or not phone_number:
+                    logger.error(f"❌ AgenticService: request_download called with missing parameters! Parameters: {parameters}")
+                    return {
+                        'success': False,
+                        'error': 'CRITICAL ERROR: request_download requires BOTH movie_data AND phone_number parameters. You must extract movie_data from previous results and use phone_number from context.'
+                    }
                 return services['radarr'].request_download(movie_data, phone_number)
                 
             elif function_name == "send_notification":
@@ -285,13 +297,26 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 # Check if any critical functions failed
                 has_failures = any(not fr['result'].get('success', False) for fr in function_results)
                 
+                # Extract movie name if identified
+                movie_name = None
+                for fr in function_results:
+                    if fr['function_name'] == 'identify_movie_request' and fr['result'].get('movie_name') != 'No movie identified':
+                        movie_name = fr['result'].get('movie_name')
+                        break
+                
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
                 {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
 
                 ORIGINAL USER MESSAGE: {current_message}
+                MOVIE IDENTIFIED: {movie_name if movie_name else 'None'}
                 
-                CRITICAL: If any functions failed (success: false), you MUST inform the user about the failure and what went wrong. Do NOT give false positive responses when functions fail.
+                CRITICAL RESPONSE REQUIREMENTS:
+                - If a movie was identified but functions failed, acknowledge the movie and explain what went wrong
+                - If no movie was identified, respond conversationally
+                - NEVER give generic responses when a specific movie was requested
+                - If Radarr/download functions failed, tell the user the movie couldn't be added to their library
+                - Be specific about what failed and offer alternatives
                 """
                 
                 # Use structured response for cleaner output
