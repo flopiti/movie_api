@@ -210,7 +210,7 @@ class OpenAIClient:
                 "success": False
             }
     
-    def generate_agentic_response(self, prompt: str, functions: list = None) -> Dict[str, Any]:
+    def generate_agentic_response(self, prompt: str, functions: list = None, response_format: str = "text") -> Dict[str, Any]:
         """Generate an agentic response with optional function calling support."""
         if not self.client:
             return {"error": "OpenAI API key not configured", "success": False}
@@ -226,6 +226,10 @@ class OpenAIClient:
             if functions:
                 function_params["tools"] = functions
                 function_params["tool_choice"] = "auto"  # Let AI decide when to use functions
+            
+            # Add response format for structured output
+            if response_format == "json":
+                function_params["response_format"] = {"type": "json_object"}
             
             response = self.client.chat.completions.create(
                 model="gpt-4",  # Use GPT-4 for better function calling
@@ -255,6 +259,62 @@ class OpenAIClient:
             
         except Exception as e:
             logger.error(f"OpenAI agentic response error: {str(e)}")
+            return {
+                "error": f"OpenAI API error: {str(e)}",
+                "success": False
+            }
+    
+    def generate_structured_sms_response(self, prompt: str) -> Dict[str, Any]:
+        """Generate a structured SMS response with JSON output."""
+        if not self.client:
+            return {"error": "OpenAI API key not configured", "success": False}
+        
+        try:
+            # Add instruction to return JSON
+            json_prompt = f"""{prompt}
+
+IMPORTANT: You must respond with a valid JSON object in this exact format:
+{{
+    "sms_message": "The actual SMS message to send to the user",
+    "action": "sms_response" or "function_call",
+    "function_name": "function_name_if_applicable",
+    "function_args": {{"arg1": "value1"}} if function_call needed
+}}
+
+The sms_message field should contain ONLY the clean, user-friendly message without any internal instructions or formatting."""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": json_prompt}],
+                max_tokens=300,
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            
+            # Parse JSON response
+            import json
+            try:
+                parsed_response = json.loads(response_text)
+                return {
+                    "success": True,
+                    "sms_message": parsed_response.get("sms_message", ""),
+                    "action": parsed_response.get("action", "sms_response"),
+                    "function_name": parsed_response.get("function_name"),
+                    "function_args": parsed_response.get("function_args", {}),
+                    "raw_response": response_text
+                }
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response: {response_text}")
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON response: {str(e)}",
+                    "raw_response": response_text
+                }
+            
+        except Exception as e:
+            logger.error(f"OpenAI structured SMS response error: {str(e)}")
             return {
                 "error": f"OpenAI API error: {str(e)}",
                 "success": False

@@ -63,78 +63,24 @@ CRITICAL: DO NOT return internal instructions, explanations, or prompts to the u
 Always provide ONLY a clean, user-friendly SMS response."""
     
     def _extract_clean_response(self, ai_response: str) -> str:
-        """Extract clean SMS response from AI output, removing internal instructions"""
-        import re
-        
-        # Clean up the response first
+        """Extract clean SMS response from AI output - simplified for structured responses"""
+        # For structured responses, we should rarely need this complex parsing
+        # This is kept as a fallback for any remaining unstructured responses
         cleaned_response = ai_response.strip()
-        logger.info(f"🔍 AgenticService: Original AI response: '{ai_response}'")
-        logger.info(f"🔍 AgenticService: Cleaned response: '{cleaned_response}'")
+        logger.info(f"🔍 AgenticService: Fallback response extraction: '{cleaned_response}'")
         
-        # Only remove very specific internal instruction prefixes
+        # Simple cleanup - remove common prefixes
         prefixes_to_remove = [
             r'^SMS RESPONSE:\s*',
             r'^Response:\s*',
             r'^Message:\s*'
         ]
         
+        import re
         for prefix in prefixes_to_remove:
             cleaned_response = re.sub(prefix, '', cleaned_response, flags=re.IGNORECASE)
         
-        # Look for quoted text after "SMS RESPONSE:" or similar patterns
-        sms_pattern = r'(?:SMS RESPONSE:|Response:|Message:)\s*["\']([^"\']+)["\']'
-        match = re.search(sms_pattern, cleaned_response, re.IGNORECASE)
-        if match:
-            result = match.group(1).strip()
-            logger.info(f"🔍 AgenticService: Found SMS pattern match: '{result}'")
-            return result
-        
-        # Pattern to find text in quotes at the end
-        quote_pattern = r'["\']([^"\']+)["\']\s*$'
-        match = re.search(quote_pattern, cleaned_response)
-        if match:
-            result = match.group(1).strip()
-            logger.info(f"🔍 AgenticService: Found quote pattern match: '{result}'")
-            return result
-        
-        # Check if the response contains specific internal instructions that should be removed
-        internal_phrases = [
-            'there\'s no need to call functions',
-            'instead, send a',
-            'send a friendly sms',
-            'no need to call any functions',
-            'doesn\'t contain any specific request',
-            'at this point',
-            'initiate the conversation',
-            'ask what movie'
-        ]
-        
-        # If response contains internal instructions, try to extract the actual message
-        if any(phrase in cleaned_response.lower() for phrase in internal_phrases):
-            # Look for the main sentence or paragraph after the instruction
-            sentences = re.split(r'[.!?]+', cleaned_response)
-            for sentence in sentences:
-                sentence = sentence.strip()
-                if len(sentence) > 10 and not any(word in sentence.lower() for word in internal_phrases):
-                    result = sentence + '.'
-                    logger.info(f"🔍 AgenticService: Found sentence after internal instruction: '{result}'")
-                    return result
-        
-        # If response is too short or looks like a fragment, try to find the main content
-        if len(cleaned_response) < 10 or cleaned_response in ['?', '!', '.']:
-            # Look for the main sentence or paragraph
-            sentences = re.split(r'[.!?]+', cleaned_response)
-            for sentence in sentences:
-                sentence = sentence.strip()
-                if len(sentence) > 10 and not any(word in sentence.lower() for word in ['sms response', 'internal', 'instruction']):
-                    result = sentence + '.'
-                    logger.info(f"🔍 AgenticService: Found sentence from fragment: '{result}'")
-                    return result
-        
-        # Return the response as-is (don't modify it further)
-        result = cleaned_response.strip()
-        logger.info(f"🔍 AgenticService: Returning response as-is: '{result}'")
-        return result
+        return cleaned_response
     
     def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
         """Execute a function call based on the function name and parameters"""
@@ -309,18 +255,16 @@ USER PHONE NUMBER: {phone_number}
                 ORIGINAL USER MESSAGE: {current_message}
                 """
                 
-                final_response = self.openai_client.generate_sms_response(
-                    message=current_message,
-                    sender=phone_number,
-                    prompt_template=services['sms_response_prompt'],
-                    movie_context=final_context
+                # Use structured response for cleaner output
+                final_response = self.openai_client.generate_structured_sms_response(
+                    prompt=f"{services['sms_response_prompt']}\n\nContext: {final_context}"
                 )
                 
                 if final_response.get('success'):
-                    # Extract clean response even from function call results
-                    clean_response = self._extract_clean_response(final_response['response'])
+                    # Use the structured SMS message directly
+                    sms_message = final_response.get('sms_message', '')
                     return {
-                        'response_message': clean_response,
+                        'response_message': sms_message,
                         'function_results': function_results,
                         'success': True
                     }
@@ -331,49 +275,26 @@ USER PHONE NUMBER: {phone_number}
                         'success': True
                     }
             else:
-                # No function calls were made - extract clean response from AI output
-                ai_response = messages[-1]["content"] if len(messages) > 1 else ""
-                logger.info(f"🔍 AgenticService: NO FUNCTION CALLS MADE - AI response: {ai_response}")
-                clean_response = self._extract_clean_response(ai_response)
-                logger.info(f"🔍 AgenticService: Extracted clean response: {clean_response}")
+                # No function calls were made - use structured response for clean output
+                logger.info(f"🔍 AgenticService: NO FUNCTION CALLS MADE - generating structured response")
                 
-                # Check if the extracted response still contains internal instructions
-                if any(phrase in clean_response.lower() for phrase in [
-                    "let's use the", "we need to prompt", "internal instructions", 
-                    "function calling", "available functions", "procedures for",
-                    "sms response:", "there's no need to call", "instead, send a",
-                    "since the user's message", "doesn't contain any specific",
-                    "no need to call any functions", "send a friendly sms",
-                    "doesn't contain any specific request", "at this point",
-                    "initiate the conversation", "ask what movie"
-                ]):
-                    logger.warning(f"⚠️ AgenticService: Extracted response still contains internal instructions")
-                    # Fall back to simple SMS response
-                    fallback_response = self.openai_client.generate_sms_response(
-                        message=current_message,
-                        sender=phone_number,
-                        prompt_template=services['sms_response_prompt'],
-                        movie_context=""
-                    )
-                    
-                    if fallback_response.get('success'):
-                        # Extract clean response from fallback too
-                        clean_fallback = self._extract_clean_response(fallback_response['response'])
-                        return {
-                            'response_message': clean_fallback,
-                            'function_results': [],
-                            'success': True
-                        }
-                    else:
-                        return {
-                            'response_message': "I received your message. How can I help you with a movie?",
-                            'function_results': [],
-                            'success': True
-                        }
-                else:
-                    # Response looks clean
+                # Use structured response to ensure clean SMS output
+                structured_response = self.openai_client.generate_structured_sms_response(
+                    prompt=f"{services['sms_response_prompt']}\n\nUser message: {current_message}"
+                )
+                
+                if structured_response.get('success'):
+                    sms_message = structured_response.get('sms_message', '')
+                    logger.info(f"🔍 AgenticService: Generated structured SMS response: {sms_message}")
                     return {
-                        'response_message': clean_response,
+                        'response_message': sms_message,
+                        'function_results': [],
+                        'success': True
+                    }
+                else:
+                    # Fallback to simple response
+                    return {
+                        'response_message': "Hello! How can I help you with your movie requests today?",
                         'function_results': [],
                         'success': True
                     }
