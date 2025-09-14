@@ -97,7 +97,7 @@ class AgenticService:
         
         return concise
     
-    def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str) -> str:
+    def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str, current_function_name: str) -> str:
         """Format available data template by resolving function references"""
         try:
             # Extract phone number from conversation context
@@ -122,11 +122,22 @@ class AgenticService:
                 else:
                     format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
             
+            # For templates without function references, use current function's result
+            if not function_refs:
+                current_result = next((fr['result'] for fr in function_results if fr['function_name'] == current_function_name), None)
+                if current_result:
+                    # Extract simple field names from template like {tmdb_id}
+                    simple_fields = re.findall(r'\{([^}]+)\}', template)
+                    for field in simple_fields:
+                        if field not in format_dict:  # Don't override function references
+                            format_dict[field] = current_result.get(field, 'NOT_FOUND')
+            
             # Format the template
             return template.format(**format_dict)
         except Exception as e:
-            logger.warning(f"Failed to format available data template: {e}")
+            logger.warning(f"Failed to format available data template '{template}': {e}")
             return None
+    
     
     def _build_agentic_prompt(self, conversation_context=""):
         """Build the complete agentic prompt by combining all prompt components"""
@@ -389,9 +400,11 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             
                             # Parse template to extract function references and format data
                             template = config['available_data_template']
-                            available_data = self._format_available_data_template(template, function_results, conversation_context)
+                            available_data = self._format_available_data_template(template, function_results, conversation_context, function_name)
                             if available_data:
                                 function_summary += f"\nAVAILABLE DATA: {available_data}\n"
+                                logger.info(f"🔍 AgenticService: Available data for {function_name}: {available_data}")
+                            
                     
                     # Log the function summary being sent to AI
                     logger.info(f"🔍 AgenticService: Function summary being sent to AI")
