@@ -301,7 +301,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         if movie_lib_result:
                             movie_data = movie_lib_result.get('movie_data')
                             function_summary += f"- CRITICAL: You MUST pass phone_number, message_type, AND movie_data to send_notification\n"
-                            function_summary += f"- CORRECT PARAMETERS: {{'phone_number': '+14384109395', 'message_type': 'download_started', 'movie_data': {movie_data}, 'additional_context': '🎬 Download started for [MOVIE_TITLE]! You will be notified when it is ready to watch.'}}\n"
+                            function_summary += f"- CORRECT PARAMETERS: {{'phone_number': '+14384109395', 'message_type': 'download_started', 'movie_data': {movie_data}, 'additional_context': '[AGENT MUST GENERATE MESSAGE CONTENT USING PROMPT]'}}\n"
                             function_summary += f"- WRONG PARAMETERS: {{'phone_number': '', 'message_type': 'download_started'}}  <-- DO NOT DO THIS\n"
                         else:
                             function_summary += "- Workflow complete - generate final SMS response\n"
