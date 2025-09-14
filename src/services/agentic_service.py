@@ -39,6 +39,18 @@ class AgenticService:
     def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
         """Extract field value from nested dictionary using dot notation"""
         try:
+            # Special handling for title and year fields
+            if field_path in ['title', 'year'] and 'movie_data' in result:
+                movie_data = result['movie_data']
+                if field_path == 'title':
+                    return movie_data.get('title', 'Unknown')
+                elif field_path == 'year':
+                    # Extract year from release_date
+                    release_date = movie_data.get('release_date', '')
+                    if release_date:
+                        return release_date.split('-')[0] if '-' in release_date else release_date
+                    return 'Unknown'
+            
             keys = field_path.split('.')
             value = result
             for key in keys:
@@ -63,11 +75,16 @@ class AgenticService:
                 value = self._extract_field_value(result, field)
                 field_values[field] = value
         
+        # Debug logging
+        if function_name == 'check_movie_library_status':
+            logger.info(f"🔍 DEBUG: Result keys: {list(result.keys())}")
+            logger.info(f"🔍 DEBUG: Field values: {field_values}")
+        
         # Format template with extracted values
         try:
             return template.format(**field_values)
         except KeyError as e:
-            logger.warning(f"Missing field {e} for function {function_name}")
+            logger.warning(f"Missing field {e} for function {function_name}. Available fields: {list(field_values.keys())}")
             return f"{function_name}: Success" if result.get('success', False) else f"{function_name}: Failed"
     
     def _get_concise_parameters(self, function_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
