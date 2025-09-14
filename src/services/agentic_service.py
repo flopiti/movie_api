@@ -283,13 +283,18 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_summary += f"- WRONG PARAMETERS: {{'tmdb_id': {tmdb_id}}}  <-- DO NOT DO THIS\n"
                     elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
                         function_summary += "- You MUST call request_download next\n"
-                        # Extract movie_data from the check_movie_library_status result
-                        movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
+                        # Extract movie_data from the check_movie_library_status result (from ALL function results)
+                        movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
+                        logger.info(f"🔍 AgenticService: Looking for check_movie_library_status result in function_results")
+                        logger.info(f"🔍 AgenticService: Found movie_lib_result: {movie_lib_result is not None}")
                         if movie_lib_result:
                             movie_data = movie_lib_result.get('movie_data')
+                            logger.info(f"🔍 AgenticService: Extracted movie_data: {movie_data is not None}")
                             function_summary += f"- CRITICAL: You MUST pass BOTH movie_data AND phone_number to request_download\n"
                             function_summary += f"- CORRECT PARAMETERS: {{'movie_data': {movie_data}, 'phone_number': '+14384109395'}}\n"
                             function_summary += f"- WRONG PARAMETERS: {{'tmdb_id': 201088, 'phone_number': '+14384109395'}}  <-- DO NOT DO THIS\n"
+                        else:
+                            logger.info(f"🔍 AgenticService: No movie_lib_result found!")
                     elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
                         function_summary += "- Workflow complete - generate final SMS response\n"
                     
