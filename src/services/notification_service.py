@@ -48,17 +48,28 @@ class NotificationService:
             
             message = additional_context
             
-            # Return the message content to the agent - don't send SMS here
-            # The agent will handle sending the final SMS response
-            logger.info(f"📱 NotificationService: Prepared {message_type} notification message: {message}")
-            return {
-                'success': True,
-                'message_type': message_type,
-                'message_content': message,
-                'phone_number': phone_number,
-                'movie_title': movie_title,
-                'year': year
-            }
+            # Send the SMS notification
+            result = self.twilio_client.send_sms(phone_number, message)
+            
+            if result.get('success'):
+                logger.info(f"📱 NotificationService: Sent {message_type} notification to {phone_number}: {message}")
+                # Store outgoing SMS in Redis conversation
+                self._store_outgoing_sms(phone_number, message, message_type)
+                return {
+                    'success': True,
+                    'message_type': message_type,
+                    'message_sent': message,
+                    'phone_number': phone_number,
+                    'movie_title': movie_title,
+                    'year': year
+                }
+            else:
+                logger.error(f"❌ NotificationService: Failed to send {message_type} notification: {result.get('error')}")
+                return {
+                    'success': False,
+                    'message_type': message_type,
+                    'error': result.get('error', 'Unknown SMS error')
+                }
                 
         except Exception as e:
             logger.error(f"❌ NotificationService: Error sending notification: {str(e)}")

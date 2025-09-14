@@ -332,12 +332,21 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         movie_name = fr['result'].get('movie_name')
                         break
                 
-                # Check if there's a notification message to use
-                notification_message = None
+                # Check if a notification was already sent
+                notification_sent = False
                 for fr in function_results:
                     if fr['function_name'] == 'send_notification' and fr['result'].get('success'):
-                        notification_message = fr['result'].get('message_content')
+                        notification_sent = True
                         break
+                
+                if notification_sent:
+                    # Notification was already sent, no need for additional SMS response
+                    logger.info(f"📱 AgenticService: Notification already sent, skipping final SMS response")
+                    return {
+                        'response_message': '',  # Empty response since notification was sent
+                        'function_results': function_results,
+                        'success': True
+                    }
                 
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
@@ -347,14 +356,11 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 MOVIE IDENTIFIED: {movie_name if movie_name else 'None'}
                 
                 CRITICAL RESPONSE REQUIREMENTS:
-                - If a notification message was prepared, USE THAT MESSAGE as your response
                 - If a movie was identified but functions failed, acknowledge the movie and explain what went wrong
                 - If no movie was identified, respond conversationally
                 - NEVER give generic responses when a specific movie was requested
                 - If Radarr/download functions failed, tell the user the movie couldn't be added to their library
                 - Be specific about what failed and offer alternatives
-                
-                NOTIFICATION MESSAGE TO USE: {notification_message if notification_message else 'None'}
                 """
                 
                 # Use structured response for cleaner output
