@@ -347,55 +347,43 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         summary = self._generate_function_summary(function_name, result)
                         function_summary += f"- {function_name}: {summary}\n"
                     
-                    # Add explicit instructions for next steps
-                    function_summary += f"\nNEXT STEPS REQUIRED:\n"
-                    if any(fr['function_name'] == 'identify_movie_request' for fr in iteration_results):
-                        logger.info(f"🔍 AgenticService: Processing identify_movie_request branch")
-                        # Check if movie was identified
-                        movie_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'identify_movie_request'), None)
-                        if movie_result and movie_result.get('movie_name') == 'No movie identified':
-                            function_summary += "- NO MOVIE IDENTIFIED - STOP calling functions and respond conversationally\n"
-                        else:
-                            function_summary += "- You MUST call check_movie_library_status next\n"
-                    elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
-                        logger.info(f"🔍 AgenticService: Processing check_movie_library_status branch")
-                        function_summary += "- You MUST call check_radarr_status next\n"
-                        # Extract the actual data from the result
-                        movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
-                        if movie_lib_result:
-                            tmdb_id = movie_lib_result.get('tmdb_id')
-                            movie_data = movie_lib_result.get('movie_data')
-                            function_summary += f"- AVAILABLE DATA: tmdb_id={tmdb_id}, movie_data={movie_data}\n"
-                            function_summary += f"- CRITICAL: You MUST pass BOTH tmdb_id AND movie_data to check_radarr_status\n"
-                            function_summary += f"- CORRECT PARAMETERS: {{'tmdb_id': {tmdb_id}, 'movie_data': {movie_data}}}\n"
-                            function_summary += f"- WRONG PARAMETERS: {{'tmdb_id': {tmdb_id}}}  <-- DO NOT DO THIS\n"
-                    elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
-                        logger.info(f"🔍 AgenticService: Processing check_radarr_status branch")
-                        function_summary += "- You MUST call request_download next\n"
-                        # Extract movie_data from the check_movie_library_status result (from ALL function results)
-                        movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
-                        logger.info(f"🔍 AgenticService: Looking for check_movie_library_status result in function_results")
-                        logger.info(f"🔍 AgenticService: Found movie_lib_result: {movie_lib_result is not None}")
-                        if movie_lib_result:
-                            movie_data = movie_lib_result.get('movie_data')
-                            logger.info(f"🔍 AgenticService: Extracted movie_data: {movie_data is not None}")
-                            function_summary += f"- CRITICAL: You MUST pass BOTH movie_data AND phone_number to request_download\n"
-                            function_summary += f"- CORRECT PARAMETERS: {{'movie_data': {movie_data}, 'phone_number': '+14384109395'}}\n"
-                            function_summary += f"- WRONG PARAMETERS: {{'tmdb_id': 201088, 'phone_number': '+14384109395'}}  <-- DO NOT DO THIS\n"
-                        else:
-                            logger.info(f"🔍 AgenticService: No movie_lib_result found!")
-                    elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
-                        logger.info(f"🔍 AgenticService: Processing request_download branch")
-                        function_summary += "- You MUST call send_notification next\n"
-                        # Extract movie_data from the check_movie_library_status result (from ALL function results)
-                        movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
-                        if movie_lib_result:
-                            movie_data = movie_lib_result.get('movie_data')
-                            function_summary += f"- CRITICAL: You MUST pass phone_number, message_type, AND movie_data to send_notification\n"
-                            function_summary += f"- CORRECT PARAMETERS: {{'phone_number': '+14384109395', 'message_type': 'download_started', 'movie_data': {movie_data}, 'additional_context': '[AGENT MUST GENERATE MESSAGE CONTENT USING PROMPT]'}}\n"
-                            function_summary += f"- WRONG PARAMETERS: {{'phone_number': '', 'message_type': 'download_started'}}  <-- DO NOT DO THIS\n"
-                        else:
-                            function_summary += "- Workflow complete - generate final SMS response\n"
+                    # Add available data for parameter passing using configuration
+                    for fr in iteration_results:
+                        function_name = fr['function_name']
+                        result = fr['result']
+                        config = self.function_summary_config.get(function_name, {})
+                        
+                        if config.get('available_data_template'):
+                            logger.info(f"🔍 AgenticService: Processing {function_name} branch")
+                            
+                            # For functions that need data from previous results, get it from function_results
+                            if function_name in ['check_radarr_status', 'request_download']:
+                                movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
+                                if movie_lib_result:
+                                    # Extract phone number from conversation context
+                                    phone_number = None
+                                    if conversation_context:
+                                        # Try to extract phone number from context
+                                        import re
+                                        phone_match = re.search(r'USER PHONE NUMBER:\s*([+\d\s\-\(\)]+)', conversation_context, re.IGNORECASE)
+                                        if phone_match:
+                                            phone_number = phone_match.group(1).strip()
+                                    
+                                    # Only add available data if we have a phone number
+                                    if phone_number:
+                                        available_data = config['available_data_template'].format(
+                                            tmdb_id=movie_lib_result.get('tmdb_id'),
+                                            movie_data=movie_lib_result.get('movie_data'),
+                                            phone_number=phone_number
+                                        )
+                                        function_summary += f"\nAVAILABLE DATA: {available_data}\n"
+                            else:
+                                # For check_movie_library_status, use its own result
+                                available_data = config['available_data_template'].format(
+                                    tmdb_id=result.get('tmdb_id'),
+                                    movie_data=result.get('movie_data')
+                                )
+                                function_summary += f"\nAVAILABLE DATA: {available_data}\n"
                     
                     # Log the function summary being sent to AI
                     logger.info(f"🔍 AgenticService: Function summary being sent to AI")
