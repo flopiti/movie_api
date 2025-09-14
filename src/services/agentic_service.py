@@ -272,8 +272,13 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_summary += "- You MUST call check_movie_library_status next\n"
                     elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
                         function_summary += "- You MUST call check_radarr_status next\n"
-                        function_summary += "- EXTRACT tmdb_id AND movie_data from check_movie_library_status result\n"
-                        function_summary += "- Pass BOTH parameters: {'tmdb_id': X, 'movie_data': {...}}\n"
+                        # Extract the actual data from the result
+                        movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
+                        if movie_lib_result:
+                            tmdb_id = movie_lib_result.get('tmdb_id')
+                            movie_data = movie_lib_result.get('movie_data')
+                            function_summary += f"- AVAILABLE DATA: tmdb_id={tmdb_id}, movie_data={movie_data}\n"
+                            function_summary += f"- Pass EXACTLY: {{'tmdb_id': {tmdb_id}, 'movie_data': {movie_data}}}\n"
                     elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
                         function_summary += "- You MUST call request_download next\n"
                         function_summary += "- EXTRACT movie_data from check_movie_library_status result\n"
