@@ -166,7 +166,7 @@ class AgenticService:
                     format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
                     logger.info(f"🔍 TEMPLATE: No func_result found for {func_name}")
             
-            # Also handle simple field references like {tmdb_id} and {movie_data}
+            # Also handle simple field references like {tmdb_id} and {title}
             simple_fields = re.findall(r'\{([^}]+)\}', template)
             for field in simple_fields:
                 if field not in format_dict and '.' not in field:
@@ -176,7 +176,14 @@ class AgenticService:
                         # Also check current iteration results
                         movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
                     if movie_lib_result:
-                        value = movie_lib_result.get(field, 'NOT_FOUND')
+                        # Special handling for title and year fields
+                        if field == 'title' and 'movie_data' in movie_lib_result:
+                            value = movie_lib_result['movie_data'].get('title', 'NOT_FOUND')
+                        elif field == 'year' and 'movie_data' in movie_lib_result:
+                            release_date = movie_lib_result['movie_data'].get('release_date', '')
+                            value = release_date.split('-')[0] if release_date and '-' in release_date else 'NOT_FOUND'
+                        else:
+                            value = movie_lib_result.get(field, 'NOT_FOUND')
                         format_dict[field] = value
                     else:
                         format_dict[field] = 'NOT_FOUND'
