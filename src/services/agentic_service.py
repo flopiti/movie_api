@@ -144,6 +144,13 @@ class AgenticService:
                         try:
                             for key in nested_keys:
                                 value = value[key]
+                            
+                            # Special handling for year extraction from release_date
+                            if field_name == 'release_date' and isinstance(value, str) and '-' in value:
+                                year_value = value.split('-')[0]
+                                format_dict[f'{func_name}.year'] = year_value
+                                logger.info(f"🔍 TEMPLATE: Extracted {func_name}.year = {year_value} from release_date")
+                            
                             format_dict[f'{func_name}.{field_name}'] = value
                             logger.info(f"🔍 TEMPLATE: Extracted {func_name}.{field_name} = {value}")
                         except (KeyError, TypeError) as e:
@@ -304,9 +311,10 @@ Always provide ONLY a clean, user-friendly SMS response."""
             elif function_name == "send_notification":
                 phone_number = parameters.get('phone_number')
                 message_type = parameters.get('message_type')
-                movie_data = parameters.get('movie_data')
+                movie_title = parameters.get('movie_title', '')
+                movie_year = parameters.get('movie_year', '')
                 additional_context = parameters.get('additional_context', '')
-                return services['notification'].send_notification(phone_number, message_type, movie_data, additional_context)
+                return services['notification'].send_notification(phone_number, message_type, movie_title, movie_year, additional_context)
                 
             else:
                 logger.error(f"❌ AgenticService: Unknown function name: {function_name}")
@@ -438,6 +446,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             
                     
                     # Log the function summary being sent to AI
+                    logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
                     
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)

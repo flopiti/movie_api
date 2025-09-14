@@ -17,24 +17,19 @@ class NotificationService:
     def __init__(self):
         self.twilio_client = TwilioClient()
     
-    def send_notification(self, phone_number, message_type, movie_data, additional_context=""):
+    def send_notification(self, phone_number, message_type, movie_title="", movie_year="", additional_context=""):
         """
         Agentic function: Send SMS notification to user
         Returns delivery status and message sent
         """
         try:
-            if not phone_number or not message_type or not movie_data:
+            if not phone_number or not message_type:
                 logger.warning(f"⚠️ NotificationService: Missing parameters for notification")
                 return {
                     'success': False,
                     'message_type': message_type,
                     'error': 'Missing required parameters'
                 }
-            
-            # Extract movie details
-            release_date = movie_data.get('release_date', '')
-            year = release_date.split('-')[0] if release_date else 'Unknown year'
-            movie_title = movie_data.get('title')
             
             # The agent should provide the message content via additional_context
             # This service just sends the message, it doesn't generate it

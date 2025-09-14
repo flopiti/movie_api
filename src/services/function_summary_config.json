@@ -16,7 +16,7 @@
     "summary_template": "{movie_title} - Exists: {exists_in_radarr}, Downloaded: {is_downloaded}, Downloading: {is_downloading}",
     "extract_fields": ["movie_title", "exists_in_radarr", "is_downloaded", "is_downloading"],
     "parameter_fields": ["tmdb_id", "title"],
-    "available_data_template": "tmdb_id={check_movie_library_status.tmdb_id}, title={check_movie_library_status.title}, year={check_movie_library_status.year}, phone_number={phone_number}"
+    "available_data_template": "tmdb_id={check_movie_library_status.tmdb_id}, title={check_movie_library_status.movie_data.title}, year={check_movie_library_status.year}, phone_number={phone_number}"
   },
   "request_download": {
     "summary_template": "{action} for {movie_title} ({movie_year})",
@@ -27,8 +27,8 @@
   "send_notification": {
     "summary_template": "Sent {message_type} notification for {movie_title} ({year})",
     "extract_fields": ["message_type", "movie_title", "year"],
-    "parameter_fields": ["phone_number", "message_type", "title"],
-    "available_data_template": "title={check_movie_library_status.title}, year={check_movie_library_status.year}, phone_number={phone_number}"
+    "parameter_fields": ["phone_number", "message_type", "movie_title", "movie_year"],
+    "available_data_template": "title={check_movie_library_status.movie_data.title}, year={check_movie_library_status.year}, phone_number={phone_number}"
   },
   "trigger_movie_search": {
     "summary_template": "Search triggered for movie ID: {radarr_movie_id}",
