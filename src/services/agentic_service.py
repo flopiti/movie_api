@@ -481,6 +481,8 @@ class AgenticService:
                 
                 if final_response.get('success'):
                     # Use the structured SMS message directly
+                    print("final_response line 484")
+                    print(final_response)
                     sms_message = final_response.get('sms_message', '')
                     return {
                         'response_message': sms_message,
@@ -500,11 +502,13 @@ class AgenticService:
                 structured_response = self.openai_client.generate_structured_sms_response(
                     prompt=f"{services['sms_response_prompt']}\n\nUser message: {current_message}"
                 )
-                print("structured_response")
+                print("structured_response line 505 ")
                 print(structured_response)
 
                 if structured_response.get('success'):
                     sms_message = structured_response.get('sms_message', '')
+                    print("sms_message line 510")
+                    print(sms_message)
                     return {
                         'response_message': sms_message,
                         'function_results': [],
