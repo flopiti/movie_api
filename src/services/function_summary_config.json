@@ -7,7 +7,7 @@
     ]
   },
   "check_movie_library_status": {
-    "summary_template": "Found {title} ({year}) - TMDB ID: {tmdb_id}",
+    "summary_template": "Found {movie_data.title} ({movie_data.year}) - TMDB ID: {tmdb_id}",
     "extract_fields": ["movie_data.title", "movie_data.year", "tmdb_id"],
     "parameter_fields": ["movie_name"],
     "available_data_template": "tmdb_id={tmdb_id}, movie_data={movie_data}"
