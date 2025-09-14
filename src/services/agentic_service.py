@@ -264,6 +264,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     # Add explicit instructions for next steps
                     function_summary += f"\nNEXT STEPS REQUIRED:\n"
                     if any(fr['function_name'] == 'identify_movie_request' for fr in iteration_results):
+                        logger.info(f"🔍 AgenticService: Processing identify_movie_request branch")
                         # Check if movie was identified
                         movie_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'identify_movie_request'), None)
                         if movie_result and movie_result.get('movie_name') == 'No movie identified':
@@ -271,6 +272,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         else:
                             function_summary += "- You MUST call check_movie_library_status next\n"
                     elif any(fr['function_name'] == 'check_movie_library_status' for fr in iteration_results):
+                        logger.info(f"🔍 AgenticService: Processing check_movie_library_status branch")
                         function_summary += "- You MUST call check_radarr_status next\n"
                         # Extract the actual data from the result
                         movie_lib_result = next((fr['result'] for fr in iteration_results if fr['function_name'] == 'check_movie_library_status'), None)
@@ -282,6 +284,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_summary += f"- CORRECT PARAMETERS: {{'tmdb_id': {tmdb_id}, 'movie_data': {movie_data}}}\n"
                             function_summary += f"- WRONG PARAMETERS: {{'tmdb_id': {tmdb_id}}}  <-- DO NOT DO THIS\n"
                     elif any(fr['function_name'] == 'check_radarr_status' for fr in iteration_results):
+                        logger.info(f"🔍 AgenticService: Processing check_radarr_status branch")
                         function_summary += "- You MUST call request_download next\n"
                         # Extract movie_data from the check_movie_library_status result (from ALL function results)
                         movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
