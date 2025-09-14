@@ -44,7 +44,8 @@ class AgenticService:
             for key in keys:
                 value = value[key]
             return value
-        except (KeyError, TypeError):
+        except (KeyError, TypeError) as e:
+            logger.warning(f"Failed to extract field '{field_path}' from result: {e}")
             return 'Unknown'
     
     def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
@@ -60,7 +61,9 @@ class AgenticService:
             if field == 'success_status':
                 field_values[field] = 'Success' if result.get('success', False) else 'Failed'
             else:
-                field_values[field] = self._extract_field_value(result, field)
+                value = self._extract_field_value(result, field)
+                field_values[field] = value
+                logger.info(f"🔍 Extracted field '{field}' = '{value}'")
         
         # Format template with extracted values
         try:
