@@ -55,8 +55,9 @@ CRITICAL FUNCTION CALLING REQUIREMENTS:
 CRITICAL PARAMETER PASSING:
 - When calling check_radarr_status: Pass BOTH tmdb_id AND movie_data from the previous function result
 - When calling request_download: Pass BOTH movie_data AND phone_number (use the phone number from context)
+- NEVER call check_radarr_status with only tmdb_id - you MUST pass movie_data too
 - NEVER call request_download with only tmdb_id - you MUST pass movie_data and phone_number
-- Extract parameters from previous function results - do NOT call functions with missing parameters
+- Extract ALL required parameters from previous function results - do NOT call functions with missing parameters
 - If a function fails due to missing parameters, inform the user about the failure
 
 IMPORTANT: You must either:
