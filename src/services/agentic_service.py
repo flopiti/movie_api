@@ -121,7 +121,18 @@ class AgenticService:
             for func_name, field_name in function_refs:
                 func_result = next((fr['result'] for fr in function_results if fr['function_name'] == func_name), None)
                 if func_result:
-                    format_dict[f'{func_name}.{field_name}'] = func_result.get(field_name)
+                    # Extract nested field like movie_data.title
+                    if '.' in field_name:
+                        nested_keys = field_name.split('.')
+                        value = func_result
+                        try:
+                            for key in nested_keys:
+                                value = value[key]
+                            format_dict[f'{func_name}.{field_name}'] = value
+                        except (KeyError, TypeError):
+                            format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
+                    else:
+                        format_dict[f'{func_name}.{field_name}'] = func_result.get(field_name, 'NOT_FOUND')
                 else:
                     format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
             
