@@ -157,11 +157,12 @@ Always provide ONLY a clean, user-friendly SMS response."""
         """Process agentic response with function calling support"""
         try:
             # Extract current message (the most recent USER message)
+            # Conversation history is ordered with newest message FIRST
             current_message = None
             for message in conversation_history:
                 if message.startswith("USER: "):
                     current_message = message.replace("USER: ", "")
-                    # Don't break here - we want the LAST (most recent) USER message
+                    break  # Take the FIRST USER message (which is the newest)
             
             if not current_message:
                 return {
