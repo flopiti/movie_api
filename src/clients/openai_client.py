@@ -3,6 +3,7 @@
 OpenAI API client for cleaning movie filenames and generating SMS responses.
 """
 
+import json
 import logging
 from typing import Dict, Any
 from openai import OpenAI
@@ -182,12 +183,14 @@ class OpenAIClient:
             # Limit to last 10 messages (most recent are first)
             limited_conversation = conversation[:10]
             
+            # Reverse conversation so it reads naturally from oldest to newest
+            reversed_conversation = list(reversed(limited_conversation))
+            
             # Join conversation into a single string
-            conversation_text = "\n".join(limited_conversation)
+            conversation_text = "\n".join(reversed_conversation)
             
             # Use prompt from PROMPTS file
             prompt = MOVIE_DETECTION_PROMPT.format(conversation_text=conversation_text)
-            
 
             response = self.client.chat.completions.create(
                 model=OPENAI_MODELS['movie_detection'],
@@ -195,22 +198,30 @@ class OpenAIClient:
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=100,
-                temperature=0.3
+                temperature=0.3,
+                response_format={"type": "json_object"}
             )
             
             response_text = response.choices[0].message.content.strip()
-            
-            # Clean up the response
-            if response_text.startswith('"') and response_text.endswith('"'):
-                response_text = response_text[1:-1]
-            
-            pass  # Movie detected
-            
-            return {
-                "success": True,
-                "movie_name": response_text,
-                "conversation": limited_conversation
-            }
+            # Parse JSON response
+            try:
+                parsed_response = json.loads(response_text)
+                movie_title = parsed_response.get("movie_title", "No movie identified")
+                confidence = parsed_response.get("confidence", "none")
+                
+                return {
+                    "success": True,
+                    "movie_name": movie_title,
+                    "confidence": confidence,
+                    "conversation": limited_conversation,
+                    "raw_response": response_text
+                }
+            except json.JSONDecodeError as e:
+                return {
+                    "error": f"Failed to parse JSON response: {str(e)}",
+                    "success": False,
+                    "raw_response": response_text
+                }
             
         except Exception as e:
             pass

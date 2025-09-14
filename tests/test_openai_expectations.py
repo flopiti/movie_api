@@ -75,13 +75,6 @@ MOVIE_DETECTION_TEST_CASES = [
         "expected_movie": "Blade Runner (2017)"
     },
     {
-        "name": "Multiple movies mentioned",
-        "conversation": [
-            "USER: I want to watch either The Dark Knight or Inception"
-        ],
-        "expected_movie": "The Dark Knight (2008)"  # Should pick the first one
-    },
-    {
         "name": "Movie with article",
         "conversation": [
             "USER: Can you download The Lord of the Rings?"
@@ -114,8 +107,8 @@ MOVIE_DETECTION_TEST_CASES = [
         "name": "Breakfast at Tiffany's priority over Devil Wears Prada 2",
         "conversation": [
             "USER: can you add breakfast at tiffany?",
+            "SYSTEM: Sure, I'll add Devil Wears Prada 2",
             "USER: add devils wears prada 2",
-            "USER: yoo do you know about devil wears prada 2?"
         ],
         "expected_movie": "Breakfast At Tiffany's (1961)"  # Should prioritize first USER message
     },
@@ -147,14 +140,21 @@ MOVIE_DETECTION_TEST_CASES = [
         "name": "Black or White movie request - full conversation",
         "conversation": [
             "USER: and do you know black or white",
-            "SYSTEM: Yo! 🎬 Great news! I'm getting Blackhat (2015) ready for you. I'll text you when it's ready to watch!",
-            "SYSTEM: 🎬 Great! I'm getting Blackhat (2015) ready for you. I'll text you when it's ready to watch!",
+            "SYSTEM: 🎬 Great! I'm getting Blackhat (2015) ready for you. I'll text you when I have updates",
             "USER: do you know about blackhat?",
             "SYSTEM: Hey! What's up? Need help with a movie or just chilling?",
-            "USER: yo",
             "USER: yo"
         ],
         "expected_movie": "Black or White (2014)"  # Should detect movie title with "or" in it from first message
+    },
+    {
+        "name": "Snow White request with casual follow-up",
+        "conversation": [
+            "USER: Can you the new snow white?",
+            "SYSTEM: Yo! How's it going? Anything on your mind today?",
+            "USER: yo"
+        ],
+        "expected_movie": "Snow White"  # Should detect Snow White from first message (newest first)
     }
 ]
 

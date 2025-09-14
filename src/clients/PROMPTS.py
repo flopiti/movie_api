@@ -4,43 +4,26 @@ All prompts used in the application
 """
 
 # Movie Detection Prompt
-MOVIE_DETECTION_PROMPT = """You must extract the movie title from this conversation. Return ONLY the movie title with year.
+MOVIE_DETECTION_PROMPT = """Extract movie title from conversation and return JSON.
 
-CRITICAL RULE: The conversation shows messages with the NEWEST message FIRST. You MUST look at ONLY the FIRST line and IGNORE all other lines completely.
+The conversation is ordered from oldest to newest messages. Look for movie requests in USER messages. Focus on the most recent movie request.
 
-EXAMPLES:
-If conversation is:
-Line 1: "USER: can you add Movie A?"
-Line 2: "USER: add Movie B"
-Line 3: "USER: what about Movie C?"
+If a movie is mentioned, return:
+{{
+  "movie_title": "Movie Name",
+  "year": year_of_movie,
+  "confidence": "confidence"
+}}
 
-You MUST return: "Movie A" because Line 1 is newest. IGNORE Movie B and Movie C completely.
-
-If conversation is:
-Line 1: "USER: Actually, can you get me Movie X? I heard it's really good"
-Line 2: "SYSTEM: That sounds interesting! Tell me more."
-Line 3: "USER: Hey! I was thinking about Movie Y movies today"
-
-You MUST return: "Movie X" because Line 1 is newest. IGNORE Movie Y completely.
-
-ABSOLUTE RULES:
-1. ONLY look at Line 1 (first line) - this is the NEWEST message
-2. COMPLETELY IGNORE all other lines (Line 2, Line 3, etc.) - do not consider any movies mentioned in them
-3. If Line 1 mentions ANY movie title, extract it - even in conversational contexts
-4. Look for movie references in phrases like "do you know about X", "have you seen X", "what about X", "X movie", etc.
-5. CRITICAL: If Line 1 has multiple movies, pick the FIRST movie mentioned in the message (left to right, first occurrence)
-6. Ignore SYSTEM messages completely
-7. Return format: "Movie Title (Year)" or just "Movie Title" if no year
-8. PRESERVE the exact movie title format - keep ALL apostrophes, punctuation, and spelling exactly as mentioned
-9. CAPITALIZATION: Use proper title case for movie titles (capitalize first letter of each word), but preserve lowercase conjunctions like "or", "and", "of", "the" when they appear in the middle of titles
-10. YEAR ADDITION: ALWAYS add the actual year in parentheses for ALL movies if not already present. Do NOT use placeholder text like "(Year)" - use the actual release year. If you don't know the exact year, make your best educated guess based on the movie's era/popularity.
-11. CRITICAL: Even if a movie title seems fictional or non-existent, you MUST still return it as a valid movie title. Do NOT return "No movie identified" for fictional movies.
-12. If no movie found in Line 1, return "No movie identified"
+If no movie found, return:
+{{
+  "movie_title": null,
+  "year": null,
+  "confidence": "none"
+}}
 
 Conversation:
-{conversation_text}
-
-Movie:"""
+{conversation_text}"""
 
 # SMS Response Prompt (Default)
 SMS_RESPONSE_PROMPT = """You are a friendly movie assistant who's here to help with movies but also enjoys casual conversation. Keep your response under 160 characters and appropriate for SMS communication.

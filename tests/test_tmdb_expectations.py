@@ -201,6 +201,19 @@ MOVIE_SEARCH_TEST_CASES = [
                 "id": 78
             }
         }
+    },
+    {
+        "name": "Snow White search",
+        "query": "snow white",
+        "expected_results": {
+            "success": True,
+            "total_results": "> 0",
+            "first_result": {
+                "title": "Snow White",
+                "release_date": "2025-03-12",  # Flexible date matching
+                "id": 447273
+            }
+        }
     }
 ]
 

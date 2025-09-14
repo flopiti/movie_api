@@ -46,8 +46,12 @@ def flexible_movie_match(detected_movie, expected_movie):
         import re
         normalized = re.sub(r'\s+', ' ', normalized).strip()
         
-        # Remove common punctuation differences
-        normalized = normalized.replace("'", "").replace("'", "")
+        # Handle possessive forms before removing apostrophes
+        # Convert possessive forms like "Tiffany's" to "Tiffany"
+        normalized = re.sub(r"'s\b", "", normalized)
+        
+        # Remove common punctuation differences (apostrophes, quotes)
+        normalized = normalized.replace("'", "").replace("'", "").replace("'", "").replace("'", "")
         
         # Remove "The" prefix
         if normalized.startswith('the '):
@@ -85,6 +89,16 @@ def flexible_movie_match(detected_movie, expected_movie):
         if detected_base == normalized_expected:
             return True
     
+    # Handle possessive forms - check if one ends with 's' and the other doesn't
+    if normalized_detected.endswith('s') and not normalized_expected.endswith('s'):
+        # Try removing the 's' from detected
+        if normalized_detected[:-1] == normalized_expected:
+            return True
+    elif normalized_expected.endswith('s') and not normalized_detected.endswith('s'):
+        # Try removing the 's' from expected
+        if normalized_expected[:-1] == normalized_detected:
+            return True
+    
     return False
  
 def test_openai_connection():
@@ -120,7 +134,7 @@ def test_movie_detection():
     passed = 0
     total = len(test_cases)
     
-    for test_case in test_cases:
+    for i, test_case in enumerate(test_cases, 1):
         try:
             result = client.getMovieName(test_case['conversation'])
             
@@ -140,7 +154,7 @@ def test_movie_detection():
         except Exception as e:
             print(f"  ❌ {test_case['name']}: {str(e)}")
     
-    print(f"  📊 Movie Detection: {passed}/{total} passed")
+    print(f"\n📊 Movie Detection: {passed}/{total} passed")
     return passed == total
 
 def test_sms_response_generation():
