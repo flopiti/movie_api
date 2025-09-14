@@ -203,7 +203,7 @@ class PlexAgent:
                             
                             # Send SMS notification (only if not already sent)
                             if not request.download_started_notification_sent:
-                                self._send_download_started_notification(request)
+                                self._send_download_status_notification(request, "download_started")
                                 request.download_started_notification_sent = True
                                 # Update Redis again with notification flag
                                 self._get_download_monitor()._store_download_request(request)
@@ -228,7 +228,7 @@ class PlexAgent:
                             
                             # Send SMS notification (only if not already sent)
                             if not request.download_started_notification_sent:
-                                self._send_download_started_notification(request)
+                                self._send_download_status_notification(request, "download_started")
                                 request.download_started_notification_sent = True
                                 # Update Redis again with notification flag
                                 self._get_download_monitor()._store_download_request(request)
@@ -247,8 +247,8 @@ class PlexAgent:
                             # Update Redis with completed status
                             self._get_download_monitor()._store_download_request(request)
                             
-                            # Send SMS notification
-                            self._send_download_completed_notification(request)
+                            # Send SMS notification via agentic system
+                            self._send_download_status_notification(request, "download_completed")
                             
                             logger.info(f"📱 PlexAgent: Download completed for {request.movie_title}")
                             
@@ -257,6 +257,32 @@ class PlexAgent:
                             
         except Exception as e:
             logger.error(f"❌ PlexAgent: Error checking download status: {str(e)}")
+    
+    def _send_download_status_notification(self, request, status_type):
+        """Send SMS notification for download status changes using agentic system"""
+        try:
+            # Create a conversation context for the agentic system
+            movie_data = {
+                'title': request.movie_title,
+                'year': request.movie_year,
+                'id': request.tmdb_id
+            }
+            
+            # Create a simple conversation history for the agentic system
+            conversation_history = [
+                f"Download status update: {request.movie_title} ({request.movie_year}) - {status_type}"
+            ]
+            
+            # Use agentic system to generate and send notification
+            result = self._process_agentic_response(conversation_history, request.phone_number)
+            
+            if result.get('success'):
+                logger.info(f"📱 PlexAgent: Sent {status_type} notification via agentic system")
+            else:
+                logger.error(f"❌ PlexAgent: Failed to send {status_type} notification: {result.get('error')}")
+                
+        except Exception as e:
+            logger.error(f"❌ PlexAgent: Error sending {status_type} notification: {str(e)}")
     
     def _send_download_started_notification(self, request):
         """Send SMS notification when download starts using agentic function"""

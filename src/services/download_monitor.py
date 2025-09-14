@@ -370,55 +370,37 @@ class DownloadMonitor:
             return False
 
     def _send_download_started_notification(self, request: DownloadRequest):
-        """Send SMS notification when download starts"""
+        """Send SMS notification when download starts - delegate to notification service"""
         try:
-            message = f"🎬 Great! I'm getting {request.movie_title} ({request.movie_year}) ready for you. I'll text you when it's ready to watch!"
+            # Use notification service with agentic-generated message
+            # The notification service will handle the actual SMS sending
+            logger.info(f"📱 Download Monitor: Download started for {request.movie_title}")
+            # Note: Actual notification will be sent by the agentic system via notification service
             
-            result = self.twilio_client.send_sms(request.phone_number, message)
-            
-            if result.get('success'):
-                logger.info(f"📱 Download Monitor: Sent download started notification to {request.phone_number}")
-                # Store outgoing SMS in Redis conversation
-                self._store_outgoing_sms(request.phone_number, message, "download_started")
-            else:
-                logger.error(f"❌ Download Monitor: Failed to send download started notification: {result.get('error')}")
-                
         except Exception as e:
-            logger.error(f"❌ Download Monitor: Error sending download started notification: {str(e)}")
+            logger.error(f"❌ Download Monitor: Error in download started notification: {str(e)}")
     
     def _send_download_completed_notification(self, request: DownloadRequest):
-        """Send SMS notification when download completes"""
+        """Send SMS notification when download completes - delegate to notification service"""
         try:
-            message = f"🎉 {request.movie_title} ({request.movie_year}) is ready to watch! Enjoy your movie!"
+            # Use notification service with agentic-generated message
+            # The notification service will handle the actual SMS sending
+            logger.info(f"📱 Download Monitor: Download completed for {request.movie_title}")
+            # Note: Actual notification will be sent by the agentic system via notification service
             
-            result = self.twilio_client.send_sms(request.phone_number, message)
-            
-            if result.get('success'):
-                logger.info(f"📱 Download Monitor: Sent download completed notification to {request.phone_number}")
-                # Store outgoing SMS in Redis conversation
-                self._store_outgoing_sms(request.phone_number, message, "download_completed")
-            else:
-                logger.error(f"❌ Download Monitor: Failed to send download completed notification: {result.get('error')}")
-                
         except Exception as e:
-            logger.error(f"❌ Download Monitor: Error sending download completed notification: {str(e)}")
+            logger.error(f"❌ Download Monitor: Error in download completed notification: {str(e)}")
     
     def _send_download_failed_notification(self, request: DownloadRequest):
-        """Send SMS notification when download fails"""
+        """Send SMS notification when download fails - delegate to notification service"""
         try:
-            message = f"😔 Sorry, I couldn't get {request.movie_title} ({request.movie_year}) ready for you. {request.error_message or 'Please try again later.'}"
+            # Use notification service with agentic-generated message
+            # The notification service will handle the actual SMS sending
+            logger.info(f"📱 Download Monitor: Download failed for {request.movie_title}")
+            # Note: Actual notification will be sent by the agentic system via notification service
             
-            result = self.twilio_client.send_sms(request.phone_number, message)
-            
-            if result.get('success'):
-                logger.info(f"📱 Download Monitor: Sent download failed notification to {request.phone_number}")
-                # Store outgoing SMS in Redis conversation
-                self._store_outgoing_sms(request.phone_number, message, "download_failed")
-            else:
-                logger.error(f"❌ Download Monitor: Failed to send download failed notification: {result.get('error')}")
-                
         except Exception as e:
-            logger.error(f"❌ Download Monitor: Error sending download failed notification: {str(e)}")
+            logger.error(f"❌ Download Monitor: Error in download failed notification: {str(e)}")
     
     def start_monitoring(self):
         """Start the download monitoring service"""

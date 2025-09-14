@@ -36,17 +36,17 @@ class NotificationService:
             year = release_date.split('-')[0] if release_date else 'Unknown year'
             movie_title = movie_data.get('title')
             
-            # Generate appropriate message based on type
-            if message_type == "movie_added":
-                message = f"🎬 Adding '{movie_title}' ({year}) to your download queue. I'll let you know when it starts downloading!"
-            elif message_type == "search_triggered":
-                message = f"🔍 Searching for '{movie_title}' ({year}) releases. I'll let you know when download starts!"
-            elif message_type == "download_started":
-                message = f"🎬 Great! I'm getting {movie_title} ({year}) ready for you. I'll text you when it's ready to watch!"
-            elif message_type == "download_completed":
-                message = f"🎉 {movie_title} ({year}) is ready to watch! Enjoy your movie!"
-            else:
-                message = f"📱 Update on {movie_title} ({year}): {additional_context}"
+            # Use agentic system to generate message - no hardcoded messages
+            # The message should be provided by the calling agentic system
+            if not additional_context:
+                logger.error(f"❌ NotificationService: No message content provided for {message_type}")
+                return {
+                    'success': False,
+                    'message_type': message_type,
+                    'error': 'No message content provided'
+                }
+            
+            message = additional_context
             
             # Send SMS
             result = self.twilio_client.send_sms(phone_number, message)
