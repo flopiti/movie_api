@@ -136,6 +136,22 @@ class AgenticService:
                 else:
                     format_dict[f'{func_name}.{field_name}'] = 'NOT_FOUND'
             
+            # Also handle simple field references like {tmdb_id} and {movie_data}
+            simple_fields = re.findall(r'\{([^}]+)\}', template)
+            logger.info(f"🔍 SIMPLE FIELDS: {simple_fields}")
+            for field in simple_fields:
+                if field not in format_dict and '.' not in field:
+                    # Try to get from check_movie_library_status result
+                    movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
+                    logger.info(f"🔍 MOVIE_LIB_RESULT: {movie_lib_result}")
+                    if movie_lib_result:
+                        value = movie_lib_result.get(field, 'NOT_FOUND')
+                        format_dict[field] = value
+                        logger.info(f"🔍 FIELD {field} = {value}")
+                    else:
+                        format_dict[field] = 'NOT_FOUND'
+                        logger.info(f"🔍 FIELD {field} = NOT_FOUND (no movie_lib_result)")
+            
             # For templates without function references, use current function's result
             if not function_refs:
                 current_result = next((fr['result'] for fr in function_results if fr['function_name'] == current_function_name), None)
@@ -368,6 +384,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             # Log concise parameters instead of full data
                             concise_params = self._get_concise_parameters(function_name, parameters)
                             logger.info(f"🔧 AgenticService: Function Call #{i} Parameters: {concise_params}")
+                            
                             
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
