@@ -195,6 +195,13 @@ COMMUNICATION STYLE:
 - Always inform users you'll notify them when movies are ready
 - Show you're there to help but also just chat
 
+RESPONSE FORMAT REQUIREMENTS:
+- ALL responses must be in valid JSON format
+- When providing SMS responses, format as: {"sms_message": "your response here"}
+- When calling functions, use the provided function calling schema
+- Never return plain text - always wrap responses in JSON structure
+- Ensure JSON is properly formatted and parseable
+
 CONTEXT AWARENESS:
 You operate in a movie ecosystem with:
 - TMDB database for movie information and release dates
@@ -242,6 +249,8 @@ STEP 5: RESPONSE GENERATION
 - Include only essential information
 - Keep response under 160 characters when possible
 - DO NOT explain your internal process or reasoning
+- CRITICAL: Format ALL responses as valid JSON: {"sms_message": "your response here"}
+- Never return plain text - always wrap in JSON structure
 
 STEP 6: MONITORING SETUP
 - If download was initiated, set up monitoring for progress updates
@@ -252,6 +261,7 @@ ERROR HANDLING:
 - If movie not found in TMDB: Inform user and suggest alternatives
 - If Radarr unavailable: Inform user of temporary unavailability
 - If request fails: Provide helpful error message and next steps
+- CRITICAL: All error responses must be in JSON format: {"sms_message": "error message here"}
 
 CONTINUOUS MONITORING:
 - Periodically check download status for active requests
@@ -334,7 +344,16 @@ CRITICAL PARAMETER PASSING:
 ERROR HANDLING:
 - If any function fails, use GENERATE_SMS_RESPONSE to inform user
 - Provide helpful alternatives when movies aren't found
-- Handle technical issues gracefully with user-friendly messages"""
+- Handle technical issues gracefully with user-friendly messages
+- CRITICAL: All responses must be in JSON format: {"sms_message": "response here"}
+
+JSON FORMAT REQUIREMENTS:
+- ALL responses must be valid JSON objects
+- SMS responses: {"sms_message": "your message here"}
+- Function calls: Use the provided function calling schema
+- Error responses: {"sms_message": "error description here"}
+- Never return plain text - always wrap in JSON structure
+- Ensure JSON is properly formatted and parseable"""
 
 # Function Calling Schema for OpenAI
 MOVIE_AGENT_FUNCTION_SCHEMA = {

@@ -358,14 +358,14 @@ Always provide ONLY a clean, user-friendly SMS response."""
             
             # Build conversation context - use the full conversation history
             conversation_context = f"""
-CONVERSATION HISTORY:
-{chr(10).join(conversation_history)}
+                CONVERSATION HISTORY:
+                {chr(10).join(conversation_history)}
 
-CURRENT USER MESSAGE: {current_message}
-USER PHONE NUMBER: {phone_number}
+                CURRENT USER MESSAGE: {current_message}
+                USER PHONE NUMBER: {phone_number}
 
-CRITICAL: When calling request_download, you MUST pass the phone_number parameter with the value: {phone_number}
-"""
+                CRITICAL: When calling request_download, you MUST pass the phone_number parameter with the value: {phone_number}
+                """
             
             # Build agentic prompt
             agentic_prompt = self._build_agentic_prompt(conversation_context)
@@ -381,10 +381,15 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
             while iteration < max_iterations:
                 iteration += 1
                 
+                # Clear iteration logging
+                logger.info(f"🔄 ===== STARTING ITERATION {iteration}/{max_iterations} =====")
+                logger.info(f"🔄 AgenticService: Beginning iteration {iteration} of agentic processing")
+                
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
                     prompt=messages[-1]["content"],
-                    functions=[self.function_schema]
+                    functions=[self.function_schema],
+                    response_format="json"
                 )
                 
                 if not response.get('success'):
@@ -461,10 +466,18 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     function_results.extend(iteration_results)
                     
                     # Continue to next iteration to let AI decide what to do next
+                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} =====")
+                    logger.info(f"🔄 AgenticService: Iteration {iteration} completed, continuing to next iteration")
                     continue
                 else:
                     # No more function calls - AI is done
+                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} (FINAL) =====")
+                    logger.info(f"🔄 AgenticService: Iteration {iteration} completed - no more function calls, ending agentic processing")
                     break
+            
+            # Log if we hit max iterations
+            if iteration >= max_iterations:
+                logger.warning(f"⚠️ AgenticService: Reached maximum iterations ({max_iterations}), ending agentic processing")
             
             # Generate final response based on all function results
             if function_results:
