@@ -126,14 +126,11 @@ class AgenticService:
             if not function_refs:
                 current_result = next((fr['result'] for fr in function_results if fr['function_name'] == current_function_name), None)
                 if current_result:
-                    logger.info(f"🔍 AgenticService: Current function result for {current_function_name}: {current_result}")
                     # Extract simple field names from template like {tmdb_id}
                     simple_fields = re.findall(r'\{([^}]+)\}', template)
                     for field in simple_fields:
                         if field not in format_dict:  # Don't override function references
-                            value = current_result.get(field, 'NOT_FOUND')
-                            format_dict[field] = value
-                            logger.info(f"🔍 AgenticService: Field '{field}' = '{value}'")
+                            format_dict[field] = current_result.get(field, 'NOT_FOUND')
             
             # Format the template
             return template.format(**format_dict)
@@ -229,7 +226,9 @@ Always provide ONLY a clean, user-friendly SMS response."""
                 
             elif function_name == "check_movie_library_status":
                 movie_name = parameters.get('movie_name', '')
-                return services['movie_library'].check_movie_library_status(movie_name)
+                result = services['movie_library'].check_movie_library_status(movie_name)
+                logger.info(f"🎬 LIBRARY CHECK RESULT: tmdb_id={result.get('tmdb_id')}, movie_data={result.get('movie_data')}")
+                return result
                 
             elif function_name == "check_radarr_status":
                 tmdb_id = parameters.get('tmdb_id')
@@ -399,21 +398,11 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         config = self.function_summary_config.get(function_name, {})
                         
                         if config.get('available_data_template'):
-                            logger.info(f"🔍 AgenticService: Processing {function_name} branch")
-                            
-                            # Log all function results for debugging
-                            logger.info(f"🔍 AgenticService: All function results so far:")
-                            for i, fr in enumerate(function_results):
-                                logger.info(f"🔍 AgenticService: Function {i+1}: {fr['function_name']} -> {fr['result']}")
-                            
                             # Parse template to extract function references and format data
                             template = config['available_data_template']
                             available_data = self._format_available_data_template(template, function_results, conversation_context, function_name)
                             if available_data:
                                 function_summary += f"\nAVAILABLE DATA: {available_data}\n"
-                                logger.info(f"🔍 AgenticService: Available data for {function_name}: {available_data}")
-                            else:
-                                logger.warning(f"🔍 AgenticService: Failed to generate available data for {function_name}")
                             
                     
                     # Log the function summary being sent to AI
