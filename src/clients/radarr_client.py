@@ -573,6 +573,25 @@ class RadarrClient:
                 }
         return None
     
+    def is_movie_downloaded(self, movie_id: int) -> bool:
+        """
+        Check if a movie has been downloaded (has a file)
+        
+        Args:
+            movie_id: Radarr movie ID
+            
+        Returns:
+            True if movie is downloaded, False otherwise
+        """
+        try:
+            movie = self.get_movie_by_id(movie_id)
+            if movie:
+                return movie.get('hasFile', False)
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error checking if movie {movie_id} is downloaded: {str(e)}")
+            return False
+    
     def get_radarr_config_info(self) -> Dict[str, Any]:
         """
         Get comprehensive Radarr configuration information for debugging
