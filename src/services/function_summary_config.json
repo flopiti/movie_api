@@ -1,0 +1,34 @@
+{
+  "identify_movie_request": {
+    "summary_template": "Movie identified: {movie_name}",
+    "extract_fields": ["movie_name"]
+  },
+  "check_movie_library_status": {
+    "summary_template": "Found {title} ({year}) - TMDB ID: {tmdb_id}",
+    "extract_fields": ["movie_data.title", "movie_data.year", "tmdb_id"]
+  },
+  "check_radarr_status": {
+    "summary_template": "{movie_title} - Exists: {exists_in_radarr}, Downloaded: {is_downloaded}, Downloading: {is_downloading}",
+    "extract_fields": ["movie_title", "exists_in_radarr", "is_downloaded", "is_downloading"]
+  },
+  "request_download": {
+    "summary_template": "{action} for {movie_title} ({movie_year})",
+    "extract_fields": ["action", "movie_title", "movie_year"]
+  },
+  "send_notification": {
+    "summary_template": "Sent {message_type} notification for {movie_title} ({year})",
+    "extract_fields": ["message_type", "movie_title", "year"]
+  },
+  "trigger_movie_search": {
+    "summary_template": "Search triggered for movie ID: {radarr_movie_id}",
+    "extract_fields": ["radarr_movie_id"]
+  },
+  "setup_download_monitoring": {
+    "summary_template": "Monitoring setup for {movie_title} ({movie_year})",
+    "extract_fields": ["movie_title", "movie_year"]
+  },
+  "default": {
+    "summary_template": "{success_status}",
+    "extract_fields": ["success"]
+  }
+}

@@ -20,6 +20,53 @@ class AgenticService:
         self.procedures = MOVIE_AGENT_PROCEDURES
         self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
         self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
+        
+        # Load function summary configuration
+        self.function_summary_config = self._load_function_summary_config()
+    
+    def _load_function_summary_config(self):
+        """Load function summary configuration from JSON file"""
+        try:
+            import os
+            config_path = os.path.join(os.path.dirname(__file__), 'function_summary_config.json')
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load function summary config: {e}")
+            return {}
+    
+    def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
+        """Extract field value from nested dictionary using dot notation"""
+        try:
+            keys = field_path.split('.')
+            value = result
+            for key in keys:
+                value = value[key]
+            return value
+        except (KeyError, TypeError):
+            return 'Unknown'
+    
+    def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
+        """Generate concise function summary using configuration"""
+        config = self.function_summary_config.get(function_name, self.function_summary_config.get('default', {}))
+        
+        template = config.get('summary_template', '{success_status}')
+        extract_fields = config.get('extract_fields', ['success'])
+        
+        # Extract field values
+        field_values = {}
+        for field in extract_fields:
+            if field == 'success_status':
+                field_values[field] = 'Success' if result.get('success', False) else 'Failed'
+            else:
+                field_values[field] = self._extract_field_value(result, field)
+        
+        # Format template with extracted values
+        try:
+            return template.format(**field_values)
+        except KeyError as e:
+            logger.warning(f"Missing field {e} for function {function_name}")
+            return f"{function_name}: Success" if result.get('success', False) else f"{function_name}: Failed"
     
     def _build_agentic_prompt(self, conversation_context=""):
         """Build the complete agentic prompt by combining all prompt components"""
@@ -261,7 +308,12 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                     # Add function results to conversation for next iteration
                     function_summary = f"Function execution results:\n"
                     for fr in iteration_results:
-                        function_summary += f"- {fr['function_name']}: {fr['result']}\n"
+                        function_name = fr['function_name']
+                        result = fr['result']
+                        
+                        # Generate concise summary using configuration
+                        summary = self._generate_function_summary(function_name, result)
+                        function_summary += f"- {function_name}: {summary}\n"
                     
                     # Add explicit instructions for next steps
                     function_summary += f"\nNEXT STEPS REQUIRED:\n"
@@ -314,8 +366,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             function_summary += "- Workflow complete - generate final SMS response\n"
                     
                     # Log the function summary being sent to AI
-                    logger.info(f"🔍 AgenticService: Function summary being sent to AI:")
-                    logger.info(f"🔍 AgenticService: {function_summary}")
+                    logger.info(f"🔍 AgenticService: Function summary being sent to AI")
                     
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)
