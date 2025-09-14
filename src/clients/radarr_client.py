@@ -617,7 +617,6 @@ class RadarrClient:
             movies = self.get_movies()
             config_info['total_movies'] = len(movies)
             
-            logger.info(f"🔧 Radarr Config Info: {config_info}")
             
         except Exception as e:
             logger.error(f"❌ Failed to gather Radarr config info: {str(e)}")
