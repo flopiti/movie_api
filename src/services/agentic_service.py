@@ -235,7 +235,14 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
                             
-                            logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result}")
+                            # Log concise result info
+                            if function_name == 'identify_movie_request' and result.get('success'):
+                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: Movie identified: {result.get('movie_name', 'Unknown')}")
+                            elif function_name == 'check_movie_library_status' and result.get('success'):
+                                movie_data = result.get('movie_data', {})
+                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: Movie found: {movie_data.get('title', 'Unknown')} ({movie_data.get('year', 'Unknown')})")
+                            else:
+                                logger.info(f"🔧 AgenticService: Function Call #{i} Result: {result.get('success', False)}")
                             
                             iteration_results.append({
                                 'function_name': function_name,
