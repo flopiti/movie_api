@@ -17,6 +17,15 @@ from .PROMPTS import (
 
 logger = logging.getLogger(__name__)
 
+# Centralized model configuration
+OPENAI_MODELS = {
+    'filename_cleaning': 'gpt-4o-mini',
+    'movie_detection': 'gpt-4o-mini', 
+    'sms_response': 'gpt-4o-mini',
+    'agentic': 'gpt-4o-mini',
+    'structured_sms': 'gpt-4o-mini'
+}
+
 class OpenAIClient:
     """OpenAI API client for cleaning movie filenames."""
     
@@ -48,7 +57,7 @@ class OpenAIClient:
         try:
             # Step 1: Initial cleaning
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=OPENAI_MODELS['filename_cleaning'],
                 messages=[
                     {"role": "system", "content": FILENAME_CLEANING_SYSTEM_MESSAGE},
                     {"role": "user", "content": initial_prompt}
@@ -88,7 +97,7 @@ class OpenAIClient:
                 )
 
                 alternative_response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model=OPENAI_MODELS['filename_cleaning'],
                     messages=[
                         {"role": "system", "content": FILENAME_ALTERNATIVE_CLEANING_SYSTEM_MESSAGE},
                         {"role": "user", "content": alternative_prompt}
@@ -136,7 +145,7 @@ class OpenAIClient:
                 formatted_prompt += f"\n\nContext: {movie_context}"
 
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=OPENAI_MODELS['sms_response'],
                 messages=[
                     {"role": "user", "content": formatted_prompt}
                 ],
@@ -181,7 +190,7 @@ class OpenAIClient:
             
 
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=OPENAI_MODELS['movie_detection'],
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
@@ -232,7 +241,7 @@ class OpenAIClient:
                 function_params["response_format"] = {"type": "json_object"}
             
             response = self.client.chat.completions.create(
-                model="gpt-4",  # Use GPT-4 for better function calling
+                model=OPENAI_MODELS['agentic'],  # Use GPT-4 for better function calling
                 messages=messages,
                 max_tokens=500,
                 temperature=0.3,
@@ -284,7 +293,7 @@ IMPORTANT: You must respond with a valid JSON object in this exact format:
 The sms_message field should contain ONLY the clean, user-friendly message without any internal instructions or formatting."""
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=OPENAI_MODELS['structured_sms'],
                 messages=[{"role": "user", "content": json_prompt}],
                 max_tokens=300,
                 temperature=0.3,
