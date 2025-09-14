@@ -299,7 +299,17 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                         else:
                             logger.info(f"🔍 AgenticService: No movie_lib_result found!")
                     elif any(fr['function_name'] == 'request_download' for fr in iteration_results):
-                        function_summary += "- Workflow complete - generate final SMS response\n"
+                        logger.info(f"🔍 AgenticService: Processing request_download branch")
+                        function_summary += "- You MUST call send_notification next\n"
+                        # Extract movie_data from the check_movie_library_status result (from ALL function results)
+                        movie_lib_result = next((fr['result'] for fr in function_results if fr['function_name'] == 'check_movie_library_status'), None)
+                        if movie_lib_result:
+                            movie_data = movie_lib_result.get('movie_data')
+                            function_summary += f"- CRITICAL: You MUST pass phone_number, message_type, AND movie_data to send_notification\n"
+                            function_summary += f"- CORRECT PARAMETERS: {{'phone_number': '+14384109395', 'message_type': 'download_started', 'movie_data': {movie_data}, 'additional_context': 'Download requested'}}\n"
+                            function_summary += f"- WRONG PARAMETERS: {{'phone_number': '', 'message_type': 'download_started'}}  <-- DO NOT DO THIS\n"
+                        else:
+                            function_summary += "- Workflow complete - generate final SMS response\n"
                     
                     # Log the function summary being sent to AI
                     logger.info(f"🔍 AgenticService: Function summary being sent to AI:")
