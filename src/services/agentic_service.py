@@ -177,6 +177,13 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
             # Build agentic prompt
             agentic_prompt = self._build_agentic_prompt(conversation_context)
             
+            # Log the data being sent to AI for debugging
+            logger.info(f"🔍 AgenticService: Data being sent to AI:")
+            logger.info(f"🔍 AgenticService: Current message: '{current_message}'")
+            logger.info(f"🔍 AgenticService: Phone number: '{phone_number}'")
+            logger.info(f"🔍 AgenticService: Full conversation: {full_conversation}")
+            logger.info(f"🔍 AgenticService: Conversation context length: {len(conversation_context)} chars")
+            
             # Start conversation with AI
             messages = [{"role": "user", "content": agentic_prompt}]
             function_results = []
