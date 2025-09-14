@@ -28,9 +28,8 @@ class RedisClient:
     
     def __init__(self):
         """Initialize Redis client with configuration from environment variables."""
-        # Only initialize if not already done
-        if self._client is None:
-            self._init_redis()
+        # Don't re-initialize if already done (singleton pattern)
+        pass
     
     def _init_redis(self):
         """Initialize Redis connection."""
