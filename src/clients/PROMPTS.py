@@ -197,7 +197,7 @@ COMMUNICATION STYLE:
 
 RESPONSE FORMAT REQUIREMENTS:
 - ALL responses must be in valid JSON format
-- When providing SMS responses, format as: {"sms_message": "your response here"}
+- When providing SMS responses, format as: {{"sms_message": "your response here"}}
 - When calling functions, use the provided function calling schema
 - Never return plain text - always wrap responses in JSON structure
 - Ensure JSON is properly formatted and parseable
@@ -249,7 +249,7 @@ STEP 5: RESPONSE GENERATION
 - Include only essential information
 - Keep response under 160 characters when possible
 - DO NOT explain your internal process or reasoning
-- CRITICAL: Format ALL responses as valid JSON: {"sms_message": "your response here"}
+- CRITICAL: Format ALL responses as valid JSON: {{"sms_message": "your response here"}}
 - Never return plain text - always wrap in JSON structure
 
 STEP 6: MONITORING SETUP
@@ -261,7 +261,7 @@ ERROR HANDLING:
 - If movie not found in TMDB: Inform user and suggest alternatives
 - If Radarr unavailable: Inform user of temporary unavailability
 - If request fails: Provide helpful error message and next steps
-- CRITICAL: All error responses must be in JSON format: {"sms_message": "error message here"}
+- CRITICAL: All error responses must be in JSON format: {{"sms_message": "error message here"}}
 
 CONTINUOUS MONITORING:
 - Periodically check download status for active requests
@@ -345,13 +345,13 @@ ERROR HANDLING:
 - If any function fails, use GENERATE_SMS_RESPONSE to inform user
 - Provide helpful alternatives when movies aren't found
 - Handle technical issues gracefully with user-friendly messages
-- CRITICAL: All responses must be in JSON format: {"sms_message": "response here"}
+- CRITICAL: All responses must be in JSON format: {{"sms_message": "response here"}}
 
 JSON FORMAT REQUIREMENTS:
 - ALL responses must be valid JSON objects
-- SMS responses: {"sms_message": "your message here"}
+- SMS responses: {{"sms_message": "your message here"}}
 - Function calls: Use the provided function calling schema
-- Error responses: {"sms_message": "error description here"}
+- Error responses: {{"sms_message": "error description here"}}
 - Never return plain text - always wrap in JSON structure
 - Ensure JSON is properly formatted and parseable"""
 
@@ -412,7 +412,7 @@ Always provide ONLY a clean, user-friendly SMS response.
 
 CRITICAL JSON FORMAT REQUIREMENT:
 - You MUST respond in valid JSON format
-- All responses must be structured as: {"sms_message": "your response here"}
+- All responses must be structured as: {{"sms_message": "your response here"}}
 - Never return plain text - always wrap responses in JSON structure
 - Ensure JSON is properly formatted and parseable"""
 
