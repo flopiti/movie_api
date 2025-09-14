@@ -30,7 +30,10 @@ RULES:
 4. Ignore SYSTEM messages completely
 5. Return format: "Movie Title (Year)" or just "Movie Title" if no year
 6. PRESERVE the exact movie title format - keep ALL apostrophes, punctuation, and spelling exactly as mentioned
-7. If no movie found, return "No movie identified"
+7. CAPITALIZATION: Always use proper title case for movie titles (capitalize first letter of each word)
+8. YEAR ADDITION: For well-known movies, add the year in parentheses if not already present
+9. CRITICAL: Even if a movie title seems fictional or non-existent, you MUST still return it as a valid movie title. Do NOT return "No movie identified" for fictional movies.
+10. If no movie found, return "No movie identified"
 
 Conversation:
 {conversation_text}

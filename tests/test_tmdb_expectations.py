@@ -161,6 +161,46 @@ MOVIE_SEARCH_TEST_CASES = [
             "total_results": ">= 0",  # May or may not find results
             "year_matches": ">= 0"
         }
+    },
+    {
+        "name": "Blade Runner ambiguous search",
+        "query": "Blade Runner (2017)",
+        "expected_results": {
+            "success": False,
+            "total_results": "> 0",
+            "first_result": {
+                "title": "Blade Runner 2049",
+                "release_date": "2017-10-*",  # Flexible date matching
+                "id": 335984
+            },
+            "note": "Should find Blade Runner 2049 even with ambiguous 'Blade Runner (2017)' query"
+        }
+    },
+    {
+        "name": "Blade Runner exact search",
+        "query": "Blade Runner 2049",
+        "expected_results": {
+            "success": True,
+            "total_results": "> 0",
+            "first_result": {
+                "title": "Blade Runner 2049",
+                "release_date": "2017-10-*",  # Flexible date matching
+                "id": 335984
+            }
+        }
+    },
+    {
+        "name": "Blade Runner original",
+        "query": "Blade Runner",
+        "expected_results": {
+            "success": True,
+            "total_results": "> 0",
+            "first_result": {
+                "title": "Blade Runner",
+                "release_date": "1982-06-*",  # Flexible date matching
+                "id": 78
+            }
+        }
     }
 ]
 

@@ -157,11 +157,12 @@ def test_sms_response_generation():
                 expected_keywords = test_case.get('expected_keywords', [])
                 if expected_keywords:
                     found_keywords = [kw for kw in expected_keywords if kw.lower() in response.lower()]
-                    if found_keywords:
+                    if len(found_keywords) == len(expected_keywords):
                         print(f"  ✅ {test_case['name']}")
                         passed += 1
                     else:
-                        print(f"  ❌ {test_case['name']}: Missing keywords {expected_keywords}")
+                        missing_keywords = [kw for kw in expected_keywords if kw.lower() not in response.lower()]
+                        print(f"  ❌ {test_case['name']}: Missing keywords {missing_keywords}")
                 else:
                     print(f"  ✅ {test_case['name']}")
                     passed += 1
