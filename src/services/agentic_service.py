@@ -34,7 +34,7 @@ CURRENT CONTEXT:
 
 Based on the above context and available functions, analyze the user's request and determine the appropriate actions to take.
 
-IMPORTANT: You are REQUIRED to complete the full movie workflow ONLY if a movie is identified. If no movie is identified, respond conversationally. 
+IMPORTANT: You are REQUIRED to complete the full movie workflow ONLY if a movie is identified. If no movie is identified, respond conversationally and naturally - be friendly and warm, not robotic. 
 
 CRITICAL FUNCTION CALLING REQUIREMENTS:
 - ALWAYS start with identify_movie_request to understand user intent
@@ -66,6 +66,11 @@ CRITICAL: DO NOT return internal instructions, explanations, or prompts to the u
 - DO NOT explain what you're going to do
 - DO NOT include phrases like "there's no need to call functions"
 - Just provide the actual SMS message the user should receive
+
+CONVERSATIONAL RESPONSES:
+- For casual greetings and conversation - respond naturally and warmly
+- Don't immediately ask for movie requests - let the conversation flow naturally
+- Show personality and be friendly, not robotic
 
 Always provide ONLY a clean, user-friendly SMS response."""
     
@@ -313,7 +318,7 @@ CRITICAL: When calling request_download, you MUST pass the phone_number paramete
                 else:
                     # Fallback to simple response
                     return {
-                        'response_message': "Hello! How can I help you with your movie requests today?",
+                        'response_message': "Hey! What's up? How can I help you today?",
                         'function_results': [],
                         'success': True
                     }
