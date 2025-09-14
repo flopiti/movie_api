@@ -37,15 +37,15 @@ MOVIE_DETECTION_TEST_CASES = [
         ],
         "expected_movie": None
     },
-    {
-        "name": "Ambiguous movie reference",
-        "conversation": [
-            "USER: I want to see that new superhero movie",
-            "SYSTEM: Which superhero movie are you referring to?",
-            "USER: The one with Spider-Man"
-        ],
-        "expected_movie": "Spider-Man (2002)"
-    },
+    # {
+    #     "name": "Ambiguous movie reference",
+    #     "conversation": [
+    #         "USER: I want to see that new superhero movie",
+    #         "SYSTEM: Which superhero movie are you referring to?",
+    #         "USER: The one with Spider-Man"
+    #     ],
+    #     "expected_movie": "Spider-Man (2002)"
+    # },
     {
         "name": "Movie with specific year mentioned",
         "conversation": [

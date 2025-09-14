@@ -11,6 +11,7 @@ SMS is the first medium of communication
     - Monitor downloads and notify users when they start and complete
     - Notice the user when the download has completed and is ready to be watched
     - Notice when the movie being requested is not released yet, and inform the user of the release date
+    - NOT IMPLEMENTED YET: Ask precision questions if the user is not clear on the movie they are requesting, and ask for confirmation is needed
     
 The agent will be monitoring a few things across the ecosystem, which means on it's periodic intervals it will be the one triggering actions, 
 but it will also respond to user requests as they come in. 
