@@ -50,6 +50,12 @@ CRITICAL FUNCTION CALLING REQUIREMENTS:
 - NEVER stop after check_radarr_status - you MUST always call request_download next (unless movie is already downloaded)
 - The workflow is NOT complete until you have called request_download
 
+CRITICAL PARAMETER PASSING:
+- When calling check_radarr_status: Pass BOTH tmdb_id AND movie_data from the previous function result
+- When calling request_download: Pass BOTH movie_data AND phone_number (use the phone number from context)
+- Extract parameters from previous function results - do NOT call functions with missing parameters
+- If a function fails due to missing parameters, inform the user about the failure
+
 IMPORTANT: You must either:
 1. Call the appropriate functions to gather information and take actions, OR
 2. Provide a direct SMS response to the user
@@ -155,6 +161,8 @@ CONVERSATION HISTORY:
 
 CURRENT USER MESSAGE: {current_message}
 USER PHONE NUMBER: {phone_number}
+
+CRITICAL: When calling request_download, you MUST pass the phone_number parameter with the value: {phone_number}
 """
             
             # Build agentic prompt
@@ -248,11 +256,16 @@ USER PHONE NUMBER: {phone_number}
             
             # Generate final response based on all function results
             if function_results:
+                # Check if any critical functions failed
+                has_failures = any(not fr['result'].get('success', False) for fr in function_results)
+                
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
                 {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
 
                 ORIGINAL USER MESSAGE: {current_message}
+                
+                CRITICAL: If any functions failed (success: false), you MUST inform the user about the failure and what went wrong. Do NOT give false positive responses when functions fail.
                 """
                 
                 # Use structured response for cleaner output
@@ -266,13 +279,13 @@ USER PHONE NUMBER: {phone_number}
                     return {
                         'response_message': sms_message,
                         'function_results': function_results,
-                        'success': True
+                        'success': not has_failures  # Only success if no failures occurred
                     }
                 else:
                     return {
                         'response_message': "I processed your request but couldn't generate a proper response.",
                         'function_results': function_results,
-                        'success': True
+                        'success': False
                     }
             else:
                 # No function calls were made - use structured response for clean output
