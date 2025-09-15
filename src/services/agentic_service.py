@@ -372,7 +372,8 @@ class AgenticService:
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
                     prompt=current_message_content,
-                    functions=[self.function_schema]
+                    functions=[self.function_schema],
+                    response_format="json"
                 )
                 
                 if not response.get('success'):

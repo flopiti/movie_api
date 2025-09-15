@@ -20,7 +20,7 @@ from src.services.notification_service import NotificationService
 from src.clients.openai_client import OpenAIClient
 from src.clients.tmdb_client import TMDBClient
 from src.clients.radarr_client import RadarrClient
-
+from src.clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
 # Get API keys
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
@@ -141,23 +141,15 @@ class AgenticServiceTestRunner:
     
     def test_movie_request(self):
         """Test AgenticService with movie request"""
-        print("🎬 Testing AgenticService with movie request")
-        print("=" * 60)
-        
-        if not OPENAI_API_KEY:
-            print("❌ ERROR: OpenAI API key not found!")
-            print("Please set OPENAI_API_KEY environment variable")
-            return {'success': False, 'error': 'No OpenAI API key'}
-        
-        movie_request = "Can you add The Matrix to my library?"
-        conversation_history = [f"USER: {movie_request}"]
-        
-        print(f"📱 Request: {movie_request}")
-        print(f"📞 Phone: {self.test_phone_number}")
-        print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-        print()
-        
-        print("🤖 Running AgenticService with REAL OpenAI calls...")
+
+        conversation_history = [f"USER: Can you add The Matrix to my library?"]
+    
+        ### Here we are testing the string, but adding the movie requires the movie to be : 
+        # - recognized by TMDB
+        # - recognized by Radarr
+        # - NOT Currently in the library
+        # - Released
+    
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
         
         response_message = result['response_message']
@@ -226,6 +218,38 @@ class AgenticServiceTestRunner:
             'success': "🔍" in response_message or "DEBUG" in response_message
         }
     
+    def test_generate_agentic_response(self):
+        """Test generate_agentic_response method"""
+        result = self.openai_client.generate_agentic_response("Hello", functions=[MOVIE_AGENT_FUNCTION_SCHEMA])
+        print("result line 224")
+        print(result)
+        assert result.get('success') == True
+        assert 'response' in result
+        assert 'has_function_calls' in result
+        print("✅ generate_agentic_response test passed")
+        return {'success': True}
+    
+    def test_monitoring_movie_requests(self):
+        """Test monitoring movie requests - verify generate_agentic_response calls identify_movie_request"""
+        prompt = "USER: Get me the last Harry Potter"
+        result = self.openai_client.generate_agentic_response(prompt, functions=[MOVIE_AGENT_FUNCTION_SCHEMA])
+        print("result line 236")
+        print(result)
+        assert result.get('success') == True
+        assert result.get('has_function_calls') == True
+        assert result.get('tool_calls') is not None
+        
+        # Check that identify_movie_request was called
+        tool_call = result['tool_calls'][0]
+        assert tool_call.function.name == "movie_agent_function_call"
+        
+        import json
+        function_args = json.loads(tool_call.function.arguments)
+        assert function_args['function_name'] == "identify_movie_request"
+        
+        print("✅ Test monitoring movie requests passed")
+        return {'success': True}
+    
     def run_all_tests(self):
         """Run all tests"""
         print("🎬 Starting AgenticService Tests...")
@@ -243,10 +267,16 @@ class AgenticServiceTestRunner:
         print("=" * 60)
         result2 = self.test_movie_request()
         
+        
         print("\n" + "=" * 60)
-        print("TEST 3: Debug Output Test")
+        print("TEST 4: generate_agentic_response")
         print("=" * 60)
-        result3 = self.test_debug_output()
+        result4 = self.test_generate_agentic_response()
+        
+        print("\n" + "=" * 60)
+        print("TEST 5: Test monitoring movie requests")
+        print("=" * 60)
+        result5 = self.test_monitoring_movie_requests()
         
         print("\n" + "=" * 60)
         print("✅ ALL TESTS COMPLETED!")
@@ -262,15 +292,15 @@ class AgenticServiceTestRunner:
         else:
             print("❌ Test 2: The agent needs improvement for movie requests.")
         
-        if result3.get('success'):
-            print("✅ Test 3: Debug output is working correctly!")
+        if result4.get('success'):
+            print("✅ Test 4: generate_agentic_response works correctly!")
         else:
-            print("❌ Test 3: Debug output needs improvement.")
+            print("❌ Test 4: generate_agentic_response needs improvement.")
         
         return {
             'casual_conversation': result1,
             'movie_request': result2,
-            'debug_output': result3
+            'generate_agentic_response': result4
         }
 
 def main():
@@ -279,6 +309,8 @@ def main():
     parser.add_argument('--casual-only', action='store_true', help='Run only casual conversation test')
     parser.add_argument('--movie-only', action='store_true', help='Run only movie request test')
     parser.add_argument('--debug-only', action='store_true', help='Run only debug output test')
+    parser.add_argument('--agentic-only', action='store_true', help='Run only generate_agentic_response test')
+    parser.add_argument('--monitoring-only', action='store_true', help='Run only test monitoring movie requests')
     
     args = parser.parse_args()
     
@@ -301,6 +333,18 @@ def main():
         print("🎬 Running ONLY Debug Output Test")
         print("=" * 60)
         result = test_runner.test_debug_output()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    elif args.agentic_only:
+        print("🎬 Running ONLY generate_agentic_response Test")
+        print("=" * 60)
+        result = test_runner.test_generate_agentic_response()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    elif args.monitoring_only:
+        print("🎬 Running ONLY Test monitoring movie requests")
+        print("=" * 60)
+        result = test_runner.test_monitoring_movie_requests()
         print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
         
     else:

@@ -354,6 +354,8 @@ JSON FORMAT REQUIREMENTS:
 - Error responses: {{"sms_message": "error description here"}}
 - Never return plain text - always wrap in JSON structure
 - Ensure JSON is properly formatted and parseable"""
+
+
 # Function Calling Schema for OpenAI
 MOVIE_AGENT_FUNCTION_SCHEMA = {
     "type": "function",
