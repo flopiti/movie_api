@@ -25,5 +25,17 @@ a openAI prompt that contains:
 and with this we will attach the new information that asks for an agentic decision.
 
 
+### Functions doing the work
+
+1. process_agentic_response (agentic_service.py)
+
+This function receives a conversation and will start a loop that will call functions, and from these calls it will receives data from which it 
+might call other functions. 
+
+2. generate_agentic_response (openai_client.py)
+
+This function receives a prompt and will call the OpenAI API to generate a response that will be used by the process_agentic_response function.
+
+
 
 
