@@ -83,87 +83,38 @@ sys.modules['redis'] = MockRedisModule()
 # Patch the config BEFORE any imports to prevent the API key error
 from unittest.mock import patch, MagicMock
 
-# Create a mock config that will be used by all modules
-mock_config_data = {
-    'radarr_url': 'http://192.168.0.10:7878',
-    'radarr_api_key': '5a71ac347fb845da90e2284762335a1a',
-    'tmdb_api_key': os.getenv('TMDB_API_KEY', ''),
-    'movie_file_paths': [],
-    'movie_assignments': {}
-}
+# Configuration for testing
+RADARR_URL = 'http://192.168.0.10:7878'
+RADARR_API_KEY = '5a71ac347fb845da90e2284762335a1a'
 
-# Patch the config module before any imports
-with patch('config.config.config') as mock_config:
-    mock_config.data = mock_config_data
-    
-    # Now import everything with the patched config
-    from src.plex_agent import PlexAgent
-    from config.config import Config
-    from src.services.download_monitor import download_monitor
+# Import everything first, then patch
+from src.plex_agent import PlexAgent
+from config.config import Config
+from src.services.download_monitor import download_monitor
 
 # Create config instance with default values (not using Redis)
 test_config = Config(use_redis=False)
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-# Use the hardcoded Radarr API key from config.py since the config loading is not working properly in test
-RADARR_API_KEY = "5a71ac347fb845da90e2284762335a1a"
 
 # Debug: Print what we got from config
 print(f"DEBUG: Radarr API Key: {'✅ Configured' if RADARR_API_KEY else '❌ Missing'}")
 print(f"DEBUG: Config data keys: {list(test_config.data.keys())}")
 
 def test_unreleased_movie():
-    """Test PlexAgent with 'The Devil Wears Prada 2' - REAL OpenAI calls"""
-    
-    print("🎬 Testing PlexAgent with 'The Devil Wears Prada 2' (unreleased movie)")
-    print("=" * 60)
-    
-    # Check if OpenAI API key is available
-    if not OPENAI_API_KEY:
-        print("❌ ERROR: OpenAI API key not found!")
-        print("Please set OPENAI_API_KEY environment variable")
-        return {'success': False, 'error': 'No OpenAI API key'}
+    """Test with an unreleased movie request that was BEFORE the model's training data"""
     
     # Test parameters
     test_phone_number = "+1234567890"
     unreleased_movie_request = "Can you add The Devil Wears Prada 2?"
     conversation_history = [f"USER: {unreleased_movie_request}"]
     
-    print(f"📱 Request: {unreleased_movie_request}")
-    print(f"📞 Phone: {test_phone_number}")
-    print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-    print(f"🔑 Radarr API Key: {'✅ Configured' if RADARR_API_KEY else '❌ Missing'}")
-    print()
-    
     # Create agent instance (REAL OpenAI, REAL TMDB, REAL Radarr - only Redis mocked)
-    with patch('src.services.download_monitor.config') as mock_config, \
-         patch('src.services.download_monitor.download_monitor.radarr_client') as mock_radarr_client, \
-         patch('src.services.download_monitor.download_monitor.redis_client') as mock_redis_client, \
-         patch('src.services.download_monitor.logger') as mock_logger:
-        
-        # Mock the config that download_monitor uses to have the correct Radarr settings
-        mock_config.data = {
-            'radarr_url': 'http://192.168.0.10:7878',
-            'radarr_api_key': RADARR_API_KEY,
-            'tmdb_api_key': os.getenv('TMDB_API_KEY', ''),
-            'movie_file_paths': [],
-            'movie_assignments': {}
-        }
-        
-        # Mock the radarr_client to simulate a real client
-        from src.clients.radarr_client import RadarrClient
-        real_radarr_client = RadarrClient('http://192.168.0.10:7878', RADARR_API_KEY)
-        mock_radarr_client.return_value = real_radarr_client
-        
-        # Mock the redis_client to prevent serialization errors
-        mock_redis_client.store_download_request.return_value = True
-        mock_redis_client.store_download_request.side_effect = None
-        
-        agent = PlexAgent()
-        
-        # Step 1: Test the agent with REAL OpenAI calls and REAL Radarr
-        print("🤖 Step 1: Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
-        result = agent.Answer(conversation_history, test_phone_number)
+    agent = PlexAgent()
+    
+    # Step 1: Test the agent with REAL OpenAI calls and REAL Radarr
+    print("🤖 Step 1: Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
+    result = agent.AnswerAgentic(conversation_history)
     
     # Get the response message and log Radarr details
     response_message = result['response_message']
@@ -194,7 +145,7 @@ def test_unreleased_movie():
         # Try to get Radarr response by checking if the movie was actually added
         try:
             from src.clients.radarr_client import RadarrClient
-            radarr_client = RadarrClient('http://192.168.0.10:7878', RADARR_API_KEY)
+            radarr_client = RadarrClient(RADARR_URL, RADARR_API_KEY)
             
             # Test connection
             connection_test = radarr_client.test_connection()
@@ -292,36 +243,10 @@ def test_movie_status_checks():
     print("\n📅 Test 1: Released Movie (The Dark Knight)")
     conversation_history = ["USER: Can you get me The Dark Knight?"]
     
-    with patch('src.services.download_monitor.config') as mock_config, \
-         patch('src.services.download_monitor.download_monitor.radarr_client') as mock_radarr_client, \
-         patch('src.services.download_monitor.download_monitor.redis_client') as mock_redis_client, \
-         patch('src.services.download_monitor.logger') as mock_logger:
-        
-        # Mock the config that download_monitor uses to have the correct Radarr settings
-        mock_config.data = {
-            'radarr_url': 'http://192.168.0.10:7878',
-            'radarr_api_key': RADARR_API_KEY,
-            'tmdb_api_key': os.getenv('TMDB_API_KEY', ''),
-            'movie_file_paths': [],
-            'movie_assignments': {}
-        }
-        
-        # Mock the radarr_client to simulate a real client
-        from src.clients.radarr_client import RadarrClient
-        real_radarr_client = RadarrClient('http://192.168.0.10:7878', RADARR_API_KEY)
-        mock_radarr_client.return_value = real_radarr_client
-        
-        # Mock the redis_client to prevent serialization errors
-        mock_redis_client.store_download_request.return_value = True
-        mock_redis_client.store_download_request.side_effect = None
-        
-        agent = PlexAgent()
-        
-        # IMPORTANT: Set the radarr_client directly on the agent's download_monitor
-        agent.download_monitor.radarr_client = real_radarr_client
-        
-        print("🤖 Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
-        result = agent.Answer(conversation_history, test_phone_number)
+    agent = PlexAgent()
+    
+    print("🤖 Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
+    result = agent.AnswerAgentic(conversation_history, test_phone_number)
     
     response_message = result['response_message']
     print(f"📱 Agent Response: {response_message}")
@@ -330,33 +255,10 @@ def test_movie_status_checks():
     print("\n📅 Test 2: Unreleased Movie (Future Release)")
     conversation_history = ["USER: Can you get me The Devil Wears Prada 2?"]
     
-    with patch('src.services.download_monitor.config') as mock_config, \
-         patch('src.services.download_monitor.download_monitor.radarr_client') as mock_radarr_client, \
-         patch('src.services.download_monitor.download_monitor.redis_client') as mock_redis_client, \
-         patch('src.services.download_monitor.logger') as mock_logger:
-        
-        # Mock the config that download_monitor uses to have the correct Radarr settings
-        mock_config.data = {
-            'radarr_url': 'http://192.168.0.10:7878',
-            'radarr_api_key': RADARR_API_KEY,
-            'tmdb_api_key': os.getenv('TMDB_API_KEY', ''),
-            'movie_file_paths': [],
-            'movie_assignments': {}
-        }
-        
-        # Mock the radarr_client to simulate a real client
-        from src.clients.radarr_client import RadarrClient
-        real_radarr_client = RadarrClient('http://192.168.0.10:7878', RADARR_API_KEY)
-        mock_radarr_client.return_value = real_radarr_client
-        
-        # Mock the redis_client to prevent serialization errors
-        mock_redis_client.store_download_request.return_value = True
-        mock_redis_client.store_download_request.side_effect = None
-        
-        agent = PlexAgent()
-        
-        print("🤖 Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
-        result2 = agent.Answer(conversation_history, test_phone_number)
+    agent2 = PlexAgent()
+    
+    print("🤖 Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
+    result2 = agent2.AnswerAgentic(conversation_history, test_phone_number)
     
     response_message2 = result2['response_message']
     print(f"📱 Agent Response: {response_message2}")
@@ -391,7 +293,7 @@ def test_movie_status_checks():
     print("\n📱 Test 4: Direct Radarr Status Check")
     try:
         from src.clients.radarr_client import RadarrClient
-        radarr_client = RadarrClient('http://192.168.0.10:7878', RADARR_API_KEY)
+        radarr_client = RadarrClient(RADARR_URL, RADARR_API_KEY)
         
         if radarr_client.test_connection():
             print("✅ Radarr connection successful")

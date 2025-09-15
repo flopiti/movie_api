@@ -10,7 +10,10 @@ from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
 from ..clients.PROMPTS import MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA, MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE
 
+# Configure logging to ensure we see debug messages
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class AgenticService:
     """Service for agentic decision making and function calling"""
@@ -310,7 +313,7 @@ class AgenticService:
                 'error': str(e)
             }
     
-    def process_agentic_response(self, conversation_history, phone_number, services: dict):
+    def process_agentic_response(self, conversation_history, services: dict):
         """Process agentic response with function calling support"""
         try:
             # Extract current message (the most recent USER message)
@@ -333,9 +336,6 @@ class AgenticService:
                 {chr(10).join(conversation_history)}
 
                 CURRENT USER MESSAGE: {current_message}
-                USER PHONE NUMBER: {phone_number}
-
-                CRITICAL: When calling request_download, you MUST pass the phone_number parameter with the value: {phone_number}
                 
                 IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
                 """
@@ -343,12 +343,16 @@ class AgenticService:
             # Build agentic prompt
             try:
                 agentic_prompt = self._build_agentic_prompt(conversation_context)
+                
             except Exception as e:
                 logger.error(f"❌ AgenticService: Error building agentic prompt: {str(e)}")
                 logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
                 raise
             
             # Log the data being sent to AI for debugging
+            print(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
+            print(f"🔍 Prompt length: {len(agentic_prompt)} characters")
+            print(f"🔍 Prompt content:\n{agentic_prompt}")
             logger.info(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
             logger.info(f"🔍 Prompt length: {len(agentic_prompt)} characters")
             logger.info(f"🔍 Prompt content:\n{agentic_prompt}")
@@ -373,6 +377,9 @@ class AgenticService:
                 
                 # Log the message being sent to AI
                 current_message_content = messages[-1]["content"]
+                print(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
+                print(f"🔍 Message length: {len(current_message_content)} characters")
+                print(f"🔍 Message content:\n{current_message_content}")
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
                 logger.info(f"🔍 Message length: {len(current_message_content)} characters")
                 logger.info(f"🔍 Message content:\n{current_message_content}")
@@ -466,6 +473,7 @@ class AgenticService:
                             
                     
                     # Log the function summary being sent to AI
+                    print(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
                     logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
                     
                     messages.append({"role": "user", "content": function_summary})

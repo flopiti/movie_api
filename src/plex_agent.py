@@ -45,7 +45,7 @@ class PlexAgent:
             self.download_monitor = get_download_monitor()
         return self.download_monitor
     
-    def _process_agentic_response(self, conversation_history, phone_number):
+    def _process_agentic_response(self, conversation_history):
         """Process agentic response with function calling support"""
         # Prepare services dictionary for the agentic service
         services = {
@@ -56,7 +56,7 @@ class PlexAgent:
             'sms_response_prompt': self.sms_response_prompt
         }
         
-        return self.agentic_service.process_agentic_response(conversation_history, phone_number, services)
+        return self.agentic_service.process_agentic_response(conversation_history, services)
     
     # =============================================================================
     # SERVICE WRAPPER METHODS - Delegate to appropriate services
@@ -108,7 +108,7 @@ class PlexAgent:
         return self.radarr_service.request_movie_download(movie_data, phone_number)
     
     
-    def AnswerAgentic(self, conversation_history, phone_number):
+    def AnswerAgentic(self, conversation_history):
         """
         Agentic Answer method using OpenAI function calling for dynamic decision making
         """
@@ -120,10 +120,8 @@ class PlexAgent:
                 'success': False
             }
         
-        logger.info(f"🎬 Agent: Processing agentic request from {phone_number}")
-        
         # Use the new agentic processing method
-        result = self._process_agentic_response(conversation_history, phone_number)
+        result = self._process_agentic_response(conversation_history)
         
         return result
     
@@ -274,7 +272,7 @@ class PlexAgent:
             ]
             
             # Use agentic system to generate and send notification
-            result = self._process_agentic_response(conversation_history, request.phone_number)
+            result = self._process_agentic_response(conversation_history)
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent {status_type} notification via agentic system")
