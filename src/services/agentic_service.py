@@ -253,8 +253,7 @@ class AgenticService:
                 
             elif function_name == "request_download":
                 movie_data = parameters.get('movie_data')
-                phone_number = parameters.get('phone_number')
-                if not movie_data or not phone_number:
+                if not movie_data:
                     logger.error(f"❌ AgenticService: request_download called with missing parameters!")
                     return {
                         'success': False,
