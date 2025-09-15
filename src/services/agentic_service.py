@@ -336,6 +336,8 @@ class AgenticService:
                 USER PHONE NUMBER: {phone_number}
 
                 CRITICAL: When calling request_download, you MUST pass the phone_number parameter with the value: {phone_number}
+                
+                IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
                 """
             
             # Build agentic prompt
