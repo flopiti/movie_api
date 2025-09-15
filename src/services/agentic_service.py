@@ -311,8 +311,21 @@ class AgenticService:
                 """
             
             agentic_prompt = f"""
-                Yo so this is the prompt, you're a movie agent, and you're here to help the user with their movie requests.
-                Youn eed to choose one function at the time and pass the right parameters to it.
+                Yo so you're a movie agent, and you're here to help the user with their movie requests.
+                You need to choose one function at the time and pass the right parameters to it.
+
+                These are the functions you can call:
+                        1. identify_movie_request
+                        2. check_movie_library_status 
+                        3. check_radarr_status
+                        4. request_download
+                        5. send_notification
+
+                1. You need to figure out if the user is requesting a movie, and if so what movie
+                2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
+                3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
+                4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
+
 
                 IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
 
@@ -346,8 +359,6 @@ class AgenticService:
                 # Log the message being sent to AI
 
 
-                print("messages line 347")
-                print(messages)
                 current_message_content = messages[-1]["content"] + f"\n\nFUNCTION RESULTS: {function_results}"
                 message_tokens = self._count_tokens(current_message_content)
 
@@ -364,9 +375,6 @@ class AgenticService:
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
-                
-                print("response line 392")
-                print(response)
                 
 
                 # Process function calls if any
