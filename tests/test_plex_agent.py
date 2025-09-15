@@ -102,24 +102,19 @@ print(f"DEBUG: Radarr API Key: {'✅ Configured' if RADARR_API_KEY else '❌ Mis
 print(f"DEBUG: Config data keys: {list(test_config.data.keys())}")
 
 def test_unreleased_movie():
-    """Test with an unreleased movie request that was BEFORE the model's training data"""
+    """Test with an unreleased movie request who's movie was unknown BEFORE the model's training data"""
     
-    # Test parameters
-    test_phone_number = "+1234567890"
-    unreleased_movie_request = "Can you add The Devil Wears Prada 2?"
-    conversation_history = [f"USER: {unreleased_movie_request}"]
-    
-    # Create agent instance (REAL OpenAI, REAL TMDB, REAL Radarr - only Redis mocked)
     agent = PlexAgent()
-    
-    # Step 1: Test the agent with REAL OpenAI calls and REAL Radarr
-    print("🤖 Step 1: Running PlexAgent with REAL OpenAI calls and REAL Radarr...")
-    result = agent.AnswerAgentic(conversation_history)
-    
-    # Get the response message and log Radarr details
+    result = agent.AnswerAgentic([f"USER: Can you add The Devil Wears Prada 2?"])
     response_message = result['response_message']
     print(f"📱 Agent Response: {response_message}")
     
+
+    ## The agent's should attempt once to identify the movie TITLE and YEAR, then call the movie catalog
+    ## to find potential matches. Assuming it does, the agent should ASK FOR CONFIRMATION to the user. 
+
+
+
     # Log Radarr response details
     if 'movie_result' in result and result['movie_result']:
         print(f"🎬 Movie Detection: {result['movie_result']}")

@@ -6,6 +6,7 @@ Handles agentic decision making and function calling.
 
 import logging
 import json
+import tiktoken
 from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
 from ..clients.PROMPTS import MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA, MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE
@@ -25,6 +26,13 @@ class AgenticService:
         self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
         self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
         
+        # Initialize tokenizer for counting tokens
+        try:
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-4 tokenizer
+        except Exception as e:
+            logger.warning(f"⚠️ AgenticService: Could not initialize tokenizer: {str(e)}")
+            self.tokenizer = None
+        
         # Load function summary configuration
         self.function_summary_config = self._load_function_summary_config()
     
@@ -38,6 +46,17 @@ class AgenticService:
         except Exception as e:
             logger.warning(f"Failed to load function summary config: {e}")
             return {}
+    
+    def _count_tokens(self, text: str) -> int:
+        """Count tokens in text using tiktoken"""
+        if self.tokenizer is None:
+            # Fallback: rough estimation (4 characters per token)
+            return len(text) // 4
+        try:
+            return len(self.tokenizer.encode(text))
+        except Exception as e:
+            logger.warning(f"⚠️ AgenticService: Error counting tokens: {str(e)}")
+            return len(text) // 4  # Fallback estimation
     
     def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
         """Extract field value from nested dictionary using dot notation"""
@@ -350,11 +369,14 @@ class AgenticService:
                 raise
             
             # Log the data being sent to AI for debugging
+            prompt_tokens = self._count_tokens(agentic_prompt)
             print(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
             print(f"🔍 Prompt length: {len(agentic_prompt)} characters")
+            print(f"🔍 Prompt tokens: {prompt_tokens} tokens")
             print(f"🔍 Prompt content:\n{agentic_prompt}")
             logger.info(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
             logger.info(f"🔍 Prompt length: {len(agentic_prompt)} characters")
+            logger.info(f"🔍 Prompt tokens: {prompt_tokens} tokens")
             logger.info(f"🔍 Prompt content:\n{agentic_prompt}")
             
             # Start conversation with AI
@@ -377,11 +399,14 @@ class AgenticService:
                 
                 # Log the message being sent to AI
                 current_message_content = messages[-1]["content"]
+                message_tokens = self._count_tokens(current_message_content)
                 print(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
                 print(f"🔍 Message length: {len(current_message_content)} characters")
+                print(f"🔍 Message tokens: {message_tokens} tokens")
                 print(f"🔍 Message content:\n{current_message_content}")
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
                 logger.info(f"🔍 Message length: {len(current_message_content)} characters")
+                logger.info(f"🔍 Message tokens: {message_tokens} tokens")
                 logger.info(f"🔍 Message content:\n{current_message_content}")
                 
                 # Generate agentic response with function calling
@@ -473,8 +498,13 @@ class AgenticService:
                             
                     
                     # Log the function summary being sent to AI
-                    print(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
-                    logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
+                    summary_tokens = self._count_tokens(function_summary)
+                    print(f"🔍 FUNCTION SUMMARY SENT TO AI:")
+                    print(f"🔍 Summary tokens: {summary_tokens} tokens")
+                    print(f"🔍 Summary content:\n{function_summary}")
+                    logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:")
+                    logger.info(f"🔍 Summary tokens: {summary_tokens} tokens")
+                    logger.info(f"🔍 Summary content:\n{function_summary}")
                     
                     messages.append({"role": "user", "content": function_summary})
                     function_results.extend(iteration_results)
