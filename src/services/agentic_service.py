@@ -9,8 +9,7 @@ import json
 import tiktoken
 from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
-from ..clients.PROMPTS import MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA, MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE
-
+from ..clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
 # Configure logging to ensure we see debug messages
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -21,10 +20,8 @@ class AgenticService:
     
     def __init__(self, openai_client: OpenAIClient):
         self.openai_client = openai_client
-        self.primary_purpose = MOVIE_AGENT_PRIMARY_PURPOSE
-        self.procedures = MOVIE_AGENT_PROCEDURES
-        self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
         self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
+
         
         # Initialize tokenizer for counting tokens
         try:
@@ -237,24 +234,8 @@ class AgenticService:
         except Exception as e:
             return None
     
-    
-    def _build_agentic_prompt(self, conversation_context=""):
-        """Build the complete agentic prompt using the template from PROMPTS.py"""
-        try:
-            return MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE.format(
-                primary_purpose=self.primary_purpose,
-                procedures=self.procedures,
-                available_functions=self.available_functions,
-                conversation_context=conversation_context
-            )
-        except Exception as e:
-            logger.error(f"❌ AgenticService: Error formatting prompt template: {str(e)}")
-            logger.error(f"❌ AgenticService: Template: {MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE}")
-            logger.error(f"❌ AgenticService: Primary purpose: {self.primary_purpose}")
-            logger.error(f"❌ AgenticService: Procedures: {self.procedures}")
-            logger.error(f"❌ AgenticService: Available functions: {self.available_functions}")
-            logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
-            raise
+
+
     
     def _extract_clean_response(self, ai_response: str) -> str:
         """Extract clean SMS response from AI output - simplified for structured responses"""
@@ -361,7 +342,7 @@ class AgenticService:
             
             # Build agentic prompt
             try:
-                agentic_prompt = self._build_agentic_prompt(conversation_context)
+                agentic_prompt = ""
                 
             except Exception as e:
                 logger.error(f"❌ AgenticService: Error building agentic prompt: {str(e)}")
