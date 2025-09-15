@@ -1,7 +1,9 @@
 import os
 import sys
 import argparse
+import json
 from dotenv import load_dotenv
+from unittest.mock import MagicMock
 
 # Load environment variables from the main project's env file
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'env'))
@@ -11,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 # Import required modules
-from unittest.mock import patch, MagicMock
 from src.services.agentic_service import AgenticService
 from src.services.movie_identification_service import MovieIdentificationService
 from src.services.movie_library_service import MovieLibraryService
@@ -40,9 +41,6 @@ class AgenticServiceTestRunner:
         self.notification_service = None
         self.agentic_service = None
         self.agent = None
-        
-        # Test phone number
-        self.test_phone_number = "+1234567890"
         
         # SMS response prompt
         self.sms_response_prompt = """
@@ -107,7 +105,7 @@ class AgenticServiceTestRunner:
     def test_casual_conversation(self):
         """Test AgenticService with casual conversation"""
         
-        conversation_history = [f"USER: hey there"]
+        conversation_history = ["USER: hey there"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
         response_message = result['response_message']
         
@@ -142,13 +140,13 @@ class AgenticServiceTestRunner:
     def test_movie_request(self):
         """Test AgenticService with movie request"""
 
-        conversation_history = [f"USER: Can you add The Matrix to my library?"]
+        conversation_history = ["USER: Can you add The Matrix to my library?"]
     
-        ### Here we are testing the string, but adding the movie requires the movie to be : 
-        # - recognized by TMDB
-        # - recognized by Radarr
-        # - NOT Currently in the library
-        # - Released
+        # Note: This test validates the response string, but actual movie addition requires:
+        # - Movie recognition by TMDB
+        # - Movie recognition by Radarr  
+        # - Movie not currently in library
+        # - Movie to be released
     
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
         
@@ -182,47 +180,11 @@ class AgenticServiceTestRunner:
             'validation_result': validation_text,
             'success': "YES" in validation_text.upper()
         }
-    
-    def test_debug_output(self):
-        """Test AgenticService debug output"""
-        print("🎬 Testing AgenticService debug output")
-        print("=" * 60)
-        
-        if not OPENAI_API_KEY:
-            print("❌ ERROR: OpenAI API key not found!")
-            print("Please set OPENAI_API_KEY environment variable")
-            return {'success': False, 'error': 'No OpenAI API key'}
-        
-        debug_request = "test debug output"
-        conversation_history = [f"USER: {debug_request}"]
-        
-        print(f"📱 Request: {debug_request}")
-        print(f"📞 Phone: {self.test_phone_number}")
-        print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-        print()
-        
-        print("🤖 Running AgenticService with REAL OpenAI calls...")
-        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
-        
-        response_message = result['response_message']
-        print(f"📱 Agent Response: {response_message}")
-        
-        # Check if debug output was generated
-        if "🔍" in response_message or "DEBUG" in response_message:
-            print("\n✅ SUCCESS: Debug output detected in response!")
-        else:
-            print("\n❌ FAILURE: No debug output detected in response.")
-        
-        return {
-            'agent_response': response_message,
-            'success': "🔍" in response_message or "DEBUG" in response_message
-        }
-    
+
     def test_generate_agentic_response(self):
         """Test generate_agentic_response method"""
         result = self.openai_client.generate_agentic_response("Hello", functions=[MOVIE_AGENT_FUNCTION_SCHEMA])
-        print("result line 224")
-        print(result)
+        
         assert result.get('success') == True
         assert 'response' in result
         assert 'has_function_calls' in result
@@ -233,8 +195,7 @@ class AgenticServiceTestRunner:
         """Test monitoring movie requests - verify generate_agentic_response calls identify_movie_request"""
         prompt = "USER: Get me the last Harry Potter"
         result = self.openai_client.generate_agentic_response(prompt, functions=[MOVIE_AGENT_FUNCTION_SCHEMA])
-        print("result line 236")
-        print(result)
+        
         assert result.get('success') == True
         assert result.get('has_function_calls') == True
         assert result.get('tool_calls') is not None
@@ -243,7 +204,6 @@ class AgenticServiceTestRunner:
         tool_call = result['tool_calls'][0]
         assert tool_call.function.name == "movie_agent_function_call"
         
-        import json
         function_args = json.loads(tool_call.function.arguments)
         assert function_args['function_name'] == "identify_movie_request"
         
@@ -267,16 +227,15 @@ class AgenticServiceTestRunner:
         print("=" * 60)
         result2 = self.test_movie_request()
         
+        print("\n" + "=" * 60)
+        print("TEST 3: generate_agentic_response")
+        print("=" * 60)
+        result3 = self.test_generate_agentic_response()
         
         print("\n" + "=" * 60)
-        print("TEST 4: generate_agentic_response")
+        print("TEST 4: Test monitoring movie requests")
         print("=" * 60)
-        result4 = self.test_generate_agentic_response()
-        
-        print("\n" + "=" * 60)
-        print("TEST 5: Test monitoring movie requests")
-        print("=" * 60)
-        result5 = self.test_monitoring_movie_requests()
+        result4 = self.test_monitoring_movie_requests()
         
         print("\n" + "=" * 60)
         print("✅ ALL TESTS COMPLETED!")
@@ -292,15 +251,21 @@ class AgenticServiceTestRunner:
         else:
             print("❌ Test 2: The agent needs improvement for movie requests.")
         
-        if result4.get('success'):
-            print("✅ Test 4: generate_agentic_response works correctly!")
+        if result3.get('success'):
+            print("✅ Test 3: generate_agentic_response works correctly!")
         else:
-            print("❌ Test 4: generate_agentic_response needs improvement.")
+            print("❌ Test 3: generate_agentic_response needs improvement.")
+        
+        if result4.get('success'):
+            print("✅ Test 4: monitoring movie requests works correctly!")
+        else:
+            print("❌ Test 4: monitoring movie requests needs improvement.")
         
         return {
             'casual_conversation': result1,
             'movie_request': result2,
-            'generate_agentic_response': result4
+            'generate_agentic_response': result3,
+            'monitoring_movie_requests': result4
         }
 
 def main():
@@ -308,7 +273,6 @@ def main():
     parser = argparse.ArgumentParser(description='Test AgenticService functionality')
     parser.add_argument('--casual-only', action='store_true', help='Run only casual conversation test')
     parser.add_argument('--movie-only', action='store_true', help='Run only movie request test')
-    parser.add_argument('--debug-only', action='store_true', help='Run only debug output test')
     parser.add_argument('--agentic-only', action='store_true', help='Run only generate_agentic_response test')
     parser.add_argument('--monitoring-only', action='store_true', help='Run only test monitoring movie requests')
     
@@ -327,12 +291,6 @@ def main():
         print("🎬 Running ONLY Movie Request Test")
         print("=" * 60)
         result = test_runner.test_movie_request()
-        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
-        
-    elif args.debug_only:
-        print("🎬 Running ONLY Debug Output Test")
-        print("=" * 60)
-        result = test_runner.test_debug_output()
         print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
         
     elif args.agentic_only:
