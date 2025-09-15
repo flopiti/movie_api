@@ -16,6 +16,9 @@ class MovieIdentificationService:
         self.openai_client = openai_client
     
     def identify_movie_request(self, conversation_history):
+
+        print("conversation_history line 20")
+        print(conversation_history)
         """
         Agentic function: Extract movie title and year from SMS conversation
         Returns movie name with year or "No movie identified"

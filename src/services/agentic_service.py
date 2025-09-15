@@ -30,19 +30,8 @@ class AgenticService:
             logger.warning(f"⚠️ AgenticService: Could not initialize tokenizer: {str(e)}")
             self.tokenizer = None
         
-        # Load function summary configuration
-        self.function_summary_config = self._load_function_summary_config()
+
     
-    def _load_function_summary_config(self):
-        """Load function summary configuration from JSON file"""
-        try:
-            import os
-            config_path = os.path.join(os.path.dirname(__file__), 'function_summary_config.json')
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load function summary config: {e}")
-            return {}
     
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text using tiktoken"""
@@ -86,6 +75,7 @@ class AgenticService:
         except (KeyError, TypeError) as e:
             logger.warning(f"Error extracting field '{field_path}' from result: {str(e)}")
             return 'Unknown'
+    
     
     def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
         """Generate concise function summary using configuration"""
@@ -218,7 +208,7 @@ class AgenticService:
         # Simple cleanup - remove common prefixes
         prefixes_to_remove = [
             r'^SMS RESPONSE:\s*',
-            r'^Response:\s*',
+            r'^Response:\s*p',
             r'^Message:\s*'
         ]
         
@@ -228,7 +218,15 @@ class AgenticService:
         
         return cleaned_response
     
+
     def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
+
+
+
+
+        print("parameters line 305")
+        print(parameters)
+
         """Execute a function call based on the function name and parameters"""
         try:
             
@@ -243,9 +241,10 @@ class AgenticService:
                 
             elif function_name == "check_radarr_status":
                 tmdb_id = parameters.get('tmdb_id')
-                movie_data = parameters.get('movie_data')
+                movie_data =  {'title': parameters.get('movie_name')}
+                
                 if not movie_data:
-                    logger.error(f"❌ AgenticService: check_radarr_status called without movie_data! Parameters: {parameters}")
+                    logger.error(f"❌ AgenticService: check_radarr_status called without movie_data!")
                     return {
                         'success': False,
                         'error': 'CRITICAL ERROR: check_radarr_status requires movie_data parameter. You must extract movie_data from the previous check_movie_library_status result.'
@@ -256,7 +255,7 @@ class AgenticService:
                 movie_data = parameters.get('movie_data')
                 phone_number = parameters.get('phone_number')
                 if not movie_data or not phone_number:
-                    logger.error(f"❌ AgenticService: request_download called with missing parameters! Parameters: {parameters}")
+                    logger.error(f"❌ AgenticService: request_download called with missing parameters!")
                     return {
                         'success': False,
                         'error': 'CRITICAL ERROR: request_download requires BOTH movie_data AND phone_number parameters. You must extract movie_data from previous results and use phone_number from context.'
@@ -348,8 +347,17 @@ class AgenticService:
                 logger.error(f"❌ AgenticService: Agentic prompt: {agentic_prompt}")
                 raise
             
+            current_state = {}
+            
+            
+            print("conversation_history line 350")
+            print(conversation_history)
 
-            function_results = []
+            # Add conversation history to current_state
+            current_state['conversation_history'] = conversation_history
+            current_state['function_results'] = []
+
+            
             while iteration < max_iterations:
                 iteration += 1
                 
@@ -359,7 +367,7 @@ class AgenticService:
                 # Log the message being sent to AI
 
 
-                current_message_content = messages[-1]["content"] + f"\n\nFUNCTION RESULTS: {function_results}"
+                current_message_content = messages[-1]["content"] + f"\n\nFUNCTION RESULTS: {current_state['function_results']}"
                 message_tokens = self._count_tokens(current_message_content)
 
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
@@ -377,6 +385,8 @@ class AgenticService:
                     break
                 
 
+
+
                 # Process function calls if any
                 if response.get('has_function_calls') and response.get('tool_calls'):
                     print("We have identified a function call")
@@ -389,12 +399,12 @@ class AgenticService:
                             parsed_args = json.loads(function_args)
                             
                             function_name = parsed_args.get('function_name')
-                            parameters = parsed_args.get('parameters', {})
                             
-                            
+                            # Pass function_results directly as parameters
+                            parameters = current_state
                             
                             print("ABOUT TO EXECUTE FUNCTION", function_name)
-                            print("WITH PARAMETERS", parameters)
+                            print("WITH FUNCTION RESULTS", parameters)
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
                             
@@ -403,11 +413,17 @@ class AgenticService:
                                 'function_name': function_name,
                                 'result': result
                             })
-                            function_results.append({
-                                'function_name': function_name,
-                                'result': result
-                            })
+                            # Add everything to current_state
+                            if isinstance(result, dict):
+                                current_state.update(result)
+                            current_state['function_results'].append({**{'function_name': function_name, 'result': result}})
+                            # Spread key values from result into current_state (exclude success/error fields)
+                            current_state.update({k: v for k, v in result.items() if k not in ['success', 'error']})
                             print("FUNCTION RESULT", result)
+                            
+
+
+
                             
                             
                         except Exception as e:
@@ -432,21 +448,22 @@ class AgenticService:
             if iteration >= max_iterations:
                 logger.warning(f"⚠️ AgenticService: Reached maximum iterations ({max_iterations}), ending agentic processing")
             
+            
             # Generate final response based on all function results
-            if function_results:
+            if current_state['function_results']:
                 # Check if any critical functions failed
-                has_failures = any(not fr['result'].get('success', False) for fr in function_results)
+                has_failures = any(not fr['result'].get('success', False) for fr in current_state['function_results'])
                 
                 # Extract movie name if identified
                 movie_name = None
-                for fr in function_results:
+                for fr in current_state['function_results']:
                     if fr['function_name'] == 'identify_movie_request' and fr['result'].get('movie_name') != 'No movie identified':
                         movie_name = fr['result'].get('movie_name')
                         break
                 
                 # Check if a notification was already sent
                 notification_sent = False
-                for fr in function_results:
+                for fr in current_state['function_results']:
                     if fr['function_name'] == 'send_notification' and fr['result'].get('success'):
                         notification_sent = True
                         break
@@ -455,13 +472,13 @@ class AgenticService:
                     # Notification was already sent, no need for additional SMS response
                     return {
                         'response_message': '',  # Empty response since notification was sent
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
                         'success': True
                     }
                 
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
-                {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
+                {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in current_state['function_results']])}
 
                 ORIGINAL USER MESSAGE: {current_message}
                 MOVIE IDENTIFIED: {movie_name if movie_name else 'None'}
@@ -486,13 +503,13 @@ class AgenticService:
                     sms_message = final_response.get('sms_message', '')
                     return {
                         'response_message': sms_message,
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
                         'success': not has_failures  # Only success if no failures occurred
                     }
                 else:
                     return {
                         'response_message': "I processed your request but couldn't generate a proper response.",
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
                         'success': False
                     }
             else:

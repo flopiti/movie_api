@@ -64,6 +64,9 @@ class PlexAgent:
     
     def identify_movie_request(self, conversation_history):
         """Delegate to movie identification service"""
+
+
+        print('conversation_history line 69')
         return self.movie_identification_service.identify_movie_request(conversation_history)
     
     def check_movie_library_status(self, movie_name):
