@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Test script for AgenticService - Testing agentic response processing
-ONLY MOCKS REDIS - EVERYTHING ELSE IS REAL
-"""
-
 import os
 import sys
 import argparse
@@ -15,440 +9,303 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'env'))
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Mock Redis module BEFORE any imports that use it
-import json
-
-class MockRedis:
-    def __init__(self, *args, **kwargs):
-        self.data = {}
-    
-    def ping(self):
-        return True
-    
-    def get(self, key):
-        return self.data.get(key)
-    
-    def set(self, key, value):
-        self.data[key] = value
-    
-    def keys(self, pattern):
-        if pattern == "download_request:*":
-            return [k for k in self.data.keys() if k.startswith("download_request:")]
-        return []
-    
-    def delete(self, *keys):
-        for key in keys:
-            self.data.pop(key, None)
-    
-    def zadd(self, key, mapping):
-        pass
-    
-    def zrevrange(self, key, start, end):
-        return []
-    
-    def zrem(self, key, member):
-        pass
-    
-    def hset(self, name, key=None, value=None, mapping=None):
-        """Mock hset for Redis hash operations"""
-        if not hasattr(self, 'hashes'):
-            self.hashes = {}
-        if name not in self.hashes:
-            self.hashes[name] = {}
-        
-        if mapping:
-            self.hashes[name].update(mapping)
-        elif key is not None and value is not None:
-            self.hashes[name][key] = value
-    
-    def hget(self, name, key):
-        """Mock hget for Redis hash operations"""
-        if not hasattr(self, 'hashes'):
-            return None
-        return self.hashes.get(name, {}).get(key)
-    
-    def hgetall(self, name):
-        """Mock hgetall for Redis hash operations"""
-        if not hasattr(self, 'hashes'):
-            return {}
-        return self.hashes.get(name, {})
-
-class MockRedisModule:
-    def Redis(self, *args, **kwargs):
-        return MockRedis()
-
-# Replace redis module in sys.modules
-sys.modules['redis'] = MockRedisModule()
-
-# Configuration for testing
-RADARR_URL = 'http://192.168.0.10:7878'
-RADARR_API_KEY = '5a71ac347fb845da90e2284762335a1a'
-
-# Import everything first, then patch
+# Import required modules
+from unittest.mock import patch, MagicMock
 from src.services.agentic_service import AgenticService
-from src.clients.openai_client import OpenAIClient
 from src.services.movie_identification_service import MovieIdentificationService
 from src.services.movie_library_service import MovieLibraryService
 from src.services.radarr_service import RadarrService
 from src.services.notification_service import NotificationService
-from src.clients.PROMPTS import SMS_RESPONSE_PROMPT
+from src.clients.openai_client import OpenAIClient
 from src.clients.tmdb_client import TMDBClient
+from src.clients.radarr_client import RadarrClient
 
-# Create config instance with default values (not using Redis)
-test_config = None
-
+# Get API keys
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+RADARR_API_KEY = os.getenv('RADARR_API_KEY')
+RADARR_URL = os.getenv('RADARR_URL', 'http://localhost:7878')
 
-# Debug: Print what we got from config
-print(f"DEBUG: Radarr API Key: {'✅ Configured' if RADARR_API_KEY else '❌ Missing'}")
-print(f"DEBUG: OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-
-def test_casual_conversation():
-    """Test AgenticService with casual conversation - REAL OpenAI calls"""
-
-    # Test parameters
-    conversation_history = ["USER: yo"]
+class AgenticServiceTestRunner:
+    """Centralized test runner for AgenticService with pre-built components"""
     
-    # Create services
-    openai_client = OpenAIClient(OPENAI_API_KEY)
-    movie_identification_service = MovieIdentificationService(openai_client)
-    # Create TMDB client for movie library service
-    tmdb_client = TMDBClient(os.getenv('TMDB_API_KEY', ''))
-    movie_library_service = MovieLibraryService(tmdb_client)
-    radarr_service = RadarrService()
-    notification_service = NotificationService()
+    def __init__(self):
+        self.openai_client = None
+        self.tmdb_client = None
+        self.radarr_client = None
+        self.movie_identification_service = None
+        self.movie_library_service = None
+        self.radarr_service = None
+        self.notification_service = None
+        self.agentic_service = None
+        self.agent = None
+        
+        # Test phone number
+        self.test_phone_number = "+1234567890"
+        
+        # SMS response prompt
+        self.sms_response_prompt = """
+        You are a friendly movie assistant. Respond to user messages in a warm, conversational way.
+        Keep responses concise and helpful. Show personality and be engaging.
+        """
+        
+        self._setup_components()
     
-    # Create agentic service
-    agentic_service = AgenticService(openai_client)
+    def _setup_components(self):
+        """Setup all required components for testing"""
+        print("🔧 Setting up test components...")
+        
+        # Create OpenAI client
+        self.openai_client = OpenAIClient(OPENAI_API_KEY)
+        
+        # Create TMDB client
+        self.tmdb_client = TMDBClient(TMDB_API_KEY)
+        
+        # Create Radarr client (handle missing API key)
+        if RADARR_API_KEY:
+            self.radarr_client = RadarrClient(RADARR_URL, RADARR_API_KEY)
+        else:
+            print("⚠️  Radarr API key not found, using mock client")
+            self.radarr_client = MagicMock()
+        
+        # Create services
+        self.movie_identification_service = MovieIdentificationService(self.openai_client)
+        self.movie_library_service = MovieLibraryService(self.tmdb_client)
+        self.radarr_service = RadarrService()
+        self.notification_service = NotificationService()
+        
+        # Create agentic service
+        self.agentic_service = AgenticService(self.openai_client)
+        
+        # Create PlexAgent
+        from src.plex_agent import PlexAgent
+        self.agent = PlexAgent()
+        
+        print("✅ All components setup complete!")
     
-    # Prepare services dictionary
-    services = {
-        'movie_identification': movie_identification_service,
-        'movie_library': movie_library_service,
-        'radarr': radarr_service,
-        'notification': notification_service,
-        'sms_response_prompt': SMS_RESPONSE_PROMPT
-    }
+    def _create_services_dict(self):
+        """Create services dictionary for agentic service"""
+        return {
+            'movie_identification': self.movie_identification_service,
+            'movie_library': self.movie_library_service,
+            'radarr': self.radarr_service,
+            'notification': self.notification_service,
+            'sms_response_prompt': self.sms_response_prompt
+        }
     
-    # Test the agentic service
-    result = agentic_service.process_agentic_response(conversation_history, services)
+    def _validate_response(self, response_message, validation_prompt):
+        """Validate response using OpenAI"""
+        validation_result = self.openai_client.client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": validation_prompt}],
+            max_tokens=200,
+            temperature=0.3
+        )
+        return validation_result.choices[0].message.content.strip()
     
-    # Get the response message
-    response_message = result.get('response_message', '')
-    success = result.get('success', False)
-    function_results = result.get('function_results', [])
+    def test_casual_conversation(self):
+        """Test AgenticService with casual conversation"""
+        
+        conversation_history = [f"USER: hey there"]
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        response_message = result['response_message']
+        
+        # Validate the response with REAL OpenAI
+        validation_prompt = f"""
+        Analyze this SMS response to a casual greeting ("hey there").
+        
+        Response to analyze: "{response_message}"
+        
+        Does this response correctly:
+        1. Respond naturally and warmly?
+        2. Avoid immediately asking for movie requests?
+        3. Show personality and friendliness?
+        
+        Answer with YES or NO and explain why.
+        """
+        
+        validation_text = self._validate_response(response_message, validation_prompt)
+        print(f"🔍 OpenAI Validation: {validation_text}")
+        
+        if "YES" in validation_text.upper():
+            print("\n✅ SUCCESS: OpenAI confirms the response correctly handles casual conversation!")
+        else:
+            print("\n❌ FAILURE: OpenAI indicates the response needs improvement for casual conversation.")
+        
+        return {
+            'agent_response': response_message,
+            'validation_result': validation_text,
+            'success': "YES" in validation_text.upper()
+        }
     
-    print(f"📱 Agent Response: {response_message}")
-    print(f"✅ Success: {success}")
-    print(f"🔧 Function Results: {len(function_results)} functions called")
+    def test_movie_request(self):
+        """Test AgenticService with movie request"""
+        print("🎬 Testing AgenticService with movie request")
+        print("=" * 60)
+        
+        if not OPENAI_API_KEY:
+            print("❌ ERROR: OpenAI API key not found!")
+            print("Please set OPENAI_API_KEY environment variable")
+            return {'success': False, 'error': 'No OpenAI API key'}
+        
+        movie_request = "Can you add The Matrix to my library?"
+        conversation_history = [f"USER: {movie_request}"]
+        
+        print(f"📱 Request: {movie_request}")
+        print(f"📞 Phone: {self.test_phone_number}")
+        print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
+        print()
+        
+        print("🤖 Running AgenticService with REAL OpenAI calls...")
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        
+        response_message = result['response_message']
+        print(f"📱 Agent Response: {response_message}")
+        
+        # Validate the response with REAL OpenAI
+        validation_prompt = f"""
+        Analyze this SMS response to a movie request ("Can you add The Matrix to my library?").
+        
+        Response to analyze: "{response_message}"
+        
+        Does this response correctly:
+        1. Acknowledge the movie request?
+        2. Provide helpful information about the movie?
+        3. Handle the request appropriately?
+        
+        Answer with YES or NO and explain why.
+        """
+        
+        validation_text = self._validate_response(response_message, validation_prompt)
+        print(f"🔍 OpenAI Validation: {validation_text}")
+        
+        if "YES" in validation_text.upper():
+            print("\n✅ SUCCESS: OpenAI confirms the response correctly handles movie requests!")
+        else:
+            print("\n❌ FAILURE: OpenAI indicates the response needs improvement for movie requests.")
+        
+        return {
+            'agent_response': response_message,
+            'validation_result': validation_text,
+            'success': "YES" in validation_text.upper()
+        }
     
-    # Log function results
-    for fr in function_results:
-        function_name = fr['function_name']
-        result_data = fr['result']
-        print(f"  - {function_name}: {result_data.get('success', False)}")
+    def test_debug_output(self):
+        """Test AgenticService debug output"""
+        print("🎬 Testing AgenticService debug output")
+        print("=" * 60)
+        
+        if not OPENAI_API_KEY:
+            print("❌ ERROR: OpenAI API key not found!")
+            print("Please set OPENAI_API_KEY environment variable")
+            return {'success': False, 'error': 'No OpenAI API key'}
+        
+        debug_request = "test debug output"
+        conversation_history = [f"USER: {debug_request}"]
+        
+        print(f"📱 Request: {debug_request}")
+        print(f"📞 Phone: {self.test_phone_number}")
+        print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
+        print()
+        
+        print("🤖 Running AgenticService with REAL OpenAI calls...")
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        
+        response_message = result['response_message']
+        print(f"📱 Agent Response: {response_message}")
+        
+        # Check if debug output was generated
+        if "🔍" in response_message or "DEBUG" in response_message:
+            print("\n✅ SUCCESS: Debug output detected in response!")
+        else:
+            print("\n❌ FAILURE: No debug output detected in response.")
+        
+        return {
+            'agent_response': response_message,
+            'success': "🔍" in response_message or "DEBUG" in response_message
+        }
     
-    print()
-    
-    # Step 2: Validate the response with REAL OpenAI
-    print("🔍 Step 2: Validating response with REAL OpenAI...")
-    
-    validation_prompt = f"""
-    Analyze this SMS response to a casual greeting "yo". 
-    
-    Response to analyze: "{response_message}"
-    
-    Does this response correctly:
-    1. Respond naturally and warmly to the casual greeting?
-    2. Use appropriate tone for SMS communication?
-    3. Show personality and be friendly?
-    4. Not immediately ask for movie requests?
-    
-    Answer with YES or NO and explain why.
-    """
-    
-    # Use REAL OpenAI for validation
-    validation_result = openai_client.client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": validation_prompt}],
-        max_tokens=200,
-        temperature=0.3
-    )
-    
-    validation_text = validation_result.choices[0].message.content.strip()
-    print(f"🔍 OpenAI Validation: {validation_text}")
-    print()
-    
-    # Results
-    print("=" * 60)
-    print("✅ TEST RESULTS:")
-    print("=" * 60)
-    print(f"📱 Agent Response: {response_message}")
-    print(f"🔍 Validation: {validation_text}")
-    
-    # Check if validation is positive
-    if "YES" in validation_text.upper():
-        print("\n✅ SUCCESS: OpenAI confirms the response correctly handles casual conversation!")
-    else:
-        print("\n❌ FAILURE: OpenAI indicates the response needs improvement")
-    
-    return {
-        'agent_response': response_message,
-        'validation_result': validation_text,
-        'success': "YES" in validation_text.upper(),
-        'function_results': function_results
-    }
-
-def test_movie_request():
-    """Test AgenticService with movie request - REAL OpenAI calls"""
-    
-    print("🎬 Testing AgenticService with movie request")
-    print("=" * 60)
-    
-    # Check if OpenAI API key is available
-    if not OPENAI_API_KEY:
-        print("❌ ERROR: OpenAI API key not found!")
-        print("Please set OPENAI_API_KEY environment variable")
-        return {'success': False, 'error': 'No OpenAI API key'}
-    
-    # Test parameters
-    conversation_history = ["USER: Can you get me The Dark Knight?"]
-    
-    print(f"📱 Request: Can you get me The Dark Knight?")
-    print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-    print()
-    
-    # Create services
-    openai_client = OpenAIClient(OPENAI_API_KEY)
-    movie_identification_service = MovieIdentificationService(openai_client)
-    # Create TMDB client for movie library service
-    from src.clients.tmdb_client import TMDBClient
-    tmdb_client = TMDBClient(os.getenv('TMDB_API_KEY', ''))
-    movie_library_service = MovieLibraryService(tmdb_client)
-    radarr_service = RadarrService()
-    notification_service = NotificationService()
-    
-    # Create agentic service
-    agentic_service = AgenticService(openai_client)
-    
-    # Prepare services dictionary
-    services = {
-        'movie_identification': movie_identification_service,
-        'movie_library': movie_library_service,
-        'radarr': radarr_service,
-        'notification': notification_service,
-        'sms_response_prompt': SMS_RESPONSE_PROMPT
-    }
-    
-    # Test the agentic service
-    print("🤖 Step 1: Running AgenticService with REAL OpenAI calls...")
-    result = agentic_service.process_agentic_response(conversation_history, services)
-    
-    # Get the response message
-    response_message = result.get('response_message', '')
-    success = result.get('success', False)
-    function_results = result.get('function_results', [])
-    
-    print(f"📱 Agent Response: {response_message}")
-    print(f"✅ Success: {success}")
-    print(f"🔧 Function Results: {len(function_results)} functions called")
-    
-    # Log function results in detail
-    for fr in function_results:
-        function_name = fr['function_name']
-        result_data = fr['result']
-        print(f"  - {function_name}: {result_data.get('success', False)}")
-        if not result_data.get('success', False):
-            print(f"    Error: {result_data.get('error', 'Unknown error')}")
-    
-    print()
-    
-    # Step 2: Validate the response with REAL OpenAI
-    print("🔍 Step 2: Validating response with REAL OpenAI...")
-    
-    validation_prompt = f"""
-    Analyze this SMS response about a movie request for "The Dark Knight". 
-    
-    Response to analyze: "{response_message}"
-    
-    Does this response correctly:
-    1. Acknowledge the movie request?
-    2. Provide appropriate information about the movie status?
-    3. Use appropriate tone for SMS communication?
-    4. Handle the request professionally?
-    
-    Answer with YES or NO and explain why.
-    """
-    
-    # Use REAL OpenAI for validation
-    validation_result = openai_client.client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": validation_prompt}],
-        max_tokens=200,
-        temperature=0.3
-    )
-    
-    validation_text = validation_result.choices[0].message.content.strip()
-    print(f"🔍 OpenAI Validation: {validation_text}")
-    print()
-    
-    # Results
-    print("=" * 60)
-    print("✅ TEST RESULTS:")
-    print("=" * 60)
-    print(f"📱 Agent Response: {response_message}")
-    print(f"🔍 Validation: {validation_text}")
-    
-    # Check if validation is positive
-    if "YES" in validation_text.upper():
-        print("\n✅ SUCCESS: OpenAI confirms the response correctly handles movie request!")
-    else:
-        print("\n❌ FAILURE: OpenAI indicates the response needs improvement")
-    
-    return {
-        'agent_response': response_message,
-        'validation_result': validation_text,
-        'success': "YES" in validation_text.upper(),
-        'function_results': function_results
-    }
-
-def test_agentic_service_debug():
-    """Test AgenticService with debug output to see the full workflow"""
-    
-    print("🔍 Testing AgenticService with Debug Output")
-    print("=" * 60)
-    
-    # Check if OpenAI API key is available
-    if not OPENAI_API_KEY:
-        print("❌ ERROR: OpenAI API key not found!")
-        print("Please set OPENAI_API_KEY environment variable")
-        return {'success': False, 'error': 'No OpenAI API key'}
-    
-    # Test parameters
-    conversation_history = ["USER: hey there"]
-    
-    print(f"📱 Request: hey there")
-    print(f"🔑 OpenAI API Key: {'✅ Configured' if OPENAI_API_KEY else '❌ Missing'}")
-    print()
-    
-    # Create services
-    openai_client = OpenAIClient(OPENAI_API_KEY)
-    movie_identification_service = MovieIdentificationService(openai_client)
-    # Create TMDB client for movie library service
-    from src.clients.tmdb_client import TMDBClient
-    tmdb_client = TMDBClient(os.getenv('TMDB_API_KEY', ''))
-    movie_library_service = MovieLibraryService(tmdb_client)
-    radarr_service = RadarrService()
-    notification_service = NotificationService()
-    
-    # Create agentic service
-    agentic_service = AgenticService(openai_client)
-    
-    # Prepare services dictionary
-    services = {
-        'movie_identification': movie_identification_service,
-        'movie_library': movie_library_service,
-        'radarr': radarr_service,
-        'notification': notification_service,
-        'sms_response_prompt': SMS_RESPONSE_PROMPT
-    }
-    
-    print("🤖 Running AgenticService with DEBUG OUTPUT...")
-    print("=" * 40)
-    print("🔍 You should see detailed debug logs below:")
-    print("=" * 40)
-    
-    # Test the agentic service
-    result = agentic_service.process_agentic_response(conversation_history, services)
-    
-    print("=" * 40)
-    print("🔍 Debug output complete")
-    print("=" * 40)
-    
-    # Get the response message
-    response_message = result.get('response_message', '')
-    success = result.get('success', False)
-    function_results = result.get('function_results', [])
-    
-    print(f"📱 Final Response: {response_message}")
-    print(f"✅ Success: {success}")
-    print(f"🔧 Functions Called: {len(function_results)}")
-    
-    return {
-        'agent_response': response_message,
-        'success': success,
-        'function_results': function_results
-    }
-
-def main():
-    """Run AgenticService tests with command line options."""
-    parser = argparse.ArgumentParser(description='Test AgenticService functionality')
-    parser.add_argument('--casual-only', action='store_true', 
-                       help='Run only casual conversation test')
-    parser.add_argument('--movie-only', action='store_true', 
-                       help='Run only movie request test')
-    parser.add_argument('--debug-only', action='store_true', 
-                       help='Run only debug output test')
-    
-    args = parser.parse_args()
-    
-    print("🎬 AgenticService Test Suite")
-    print("=" * 50)
-    print("⚠️  ONLY Redis is mocked - everything else is REAL")
-    print()
-    
-    # Determine which tests to run
-    run_casual = args.casual_only or (not args.movie_only and not args.debug_only)
-    run_movie = args.movie_only or (not args.casual_only and not args.debug_only)
-    run_debug = args.debug_only or (not args.casual_only and not args.movie_only)
-    
-    results = []
-    
-    # Run selected tests
-    if run_casual:
+    def run_all_tests(self):
+        """Run all tests"""
+        print("🎬 Starting AgenticService Tests...")
+        print("⚠️  ONLY Redis is mocked - everything else is REAL")
+        print()
+        
+        # Run the tests
         print("=" * 60)
         print("TEST 1: Casual Conversation Handling")
         print("=" * 60)
-        result1 = test_casual_conversation()
-        results.append(('casual', result1))
-    
-    if run_movie:
+        result1 = self.test_casual_conversation()
+        
         print("\n" + "=" * 60)
         print("TEST 2: Movie Request Handling")
         print("=" * 60)
-        result2 = test_movie_request()
-        results.append(('movie', result2))
-    
-    if run_debug:
+        result2 = self.test_movie_request()
+        
         print("\n" + "=" * 60)
         print("TEST 3: Debug Output Test")
         print("=" * 60)
-        result3 = test_agentic_service_debug()
-        results.append(('debug', result3))
+        result3 = self.test_debug_output()
+        
+        print("\n" + "=" * 60)
+        print("✅ ALL TESTS COMPLETED!")
+        print("=" * 60)
+        
+        if result1.get('success'):
+            print("✅ Test 1: The agent correctly handles casual conversation!")
+        else:
+            print("❌ Test 1: The agent needs improvement for casual conversation.")
+        
+        if result2.get('success'):
+            print("✅ Test 2: The agent correctly handles movie requests!")
+        else:
+            print("❌ Test 2: The agent needs improvement for movie requests.")
+        
+        if result3.get('success'):
+            print("✅ Test 3: Debug output is working correctly!")
+        else:
+            print("❌ Test 3: Debug output needs improvement.")
+        
+        return {
+            'casual_conversation': result1,
+            'movie_request': result2,
+            'debug_output': result3
+        }
+
+def main():
+    """Main function with argument parsing"""
+    parser = argparse.ArgumentParser(description='Test AgenticService functionality')
+    parser.add_argument('--casual-only', action='store_true', help='Run only casual conversation test')
+    parser.add_argument('--movie-only', action='store_true', help='Run only movie request test')
+    parser.add_argument('--debug-only', action='store_true', help='Run only debug output test')
     
-    # Final summary
-    print("\n" + "=" * 60)
-    print("✅ ALL TESTS COMPLETED!")
-    print("=" * 60)
+    args = parser.parse_args()
     
-    for test_name, result in results:
-        if test_name == 'casual':
-            if result.get('success'):
-                print("✅ Test 1: The agent correctly handles casual conversation!")
-            else:
-                print("❌ Test 1: The agent needs improvement for casual conversation handling.")
-        elif test_name == 'movie':
-            if result.get('success'):
-                print("✅ Test 2: The agent correctly handles movie requests!")
-            else:
-                print("❌ Test 2: The agent needs improvement for movie request handling.")
-        elif test_name == 'debug':
-            if result.get('success'):
-                print("✅ Test 3: Debug output is working correctly!")
-            else:
-                print("❌ Test 3: Debug output needs improvement.")
+    # Create test runner
+    test_runner = AgenticServiceTestRunner()
+    
+    if args.casual_only:
+        print("🎬 Running ONLY Casual Conversation Test")
+        print("=" * 60)
+        result = test_runner.test_casual_conversation()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    elif args.movie_only:
+        print("🎬 Running ONLY Movie Request Test")
+        print("=" * 60)
+        result = test_runner.test_movie_request()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    elif args.debug_only:
+        print("🎬 Running ONLY Debug Output Test")
+        print("=" * 60)
+        result = test_runner.test_debug_output()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    else:
+        # Run all tests
+        test_runner.run_all_tests()
 
 if __name__ == '__main__':
     main()
