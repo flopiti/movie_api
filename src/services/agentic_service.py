@@ -349,6 +349,9 @@ class AgenticService:
                 raise
             
             # Log the data being sent to AI for debugging
+            logger.info(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
+            logger.info(f"🔍 Prompt length: {len(agentic_prompt)} characters")
+            logger.info(f"🔍 Prompt content:\n{agentic_prompt}")
             
             # Start conversation with AI
             try:
@@ -368,11 +371,16 @@ class AgenticService:
                 logger.info(f"🔄 ===== STARTING ITERATION {iteration}/{max_iterations} =====")
                 logger.info(f"🔄 AgenticService: Beginning iteration {iteration} of agentic processing")
                 
+                # Log the message being sent to AI
+                current_message_content = messages[-1]["content"]
+                logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
+                logger.info(f"🔍 Message length: {len(current_message_content)} characters")
+                logger.info(f"🔍 Message content:\n{current_message_content}")
+                
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
-                    prompt=messages[-1]["content"],
-                    functions=[self.function_schema],
-                    response_format="json"
+                    prompt=current_message_content,
+                    functions=[self.function_schema]
                 )
 
     

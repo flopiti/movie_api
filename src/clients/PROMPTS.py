@@ -414,7 +414,8 @@ CRITICAL JSON FORMAT REQUIREMENT:
 - You MUST respond in valid JSON format
 - All responses must be structured as: {{"sms_message": "your response here"}}
 - Never return plain text - always wrap responses in JSON structure
-- Ensure JSON is properly formatted and parseable"""
+- Ensure JSON is properly formatted and parseable
+- IMPORTANT: Your response must be in JSON format"""
 
 # Function Calling Schema for OpenAI
 MOVIE_AGENT_FUNCTION_SCHEMA = {
