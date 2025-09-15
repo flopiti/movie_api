@@ -354,12 +354,6 @@ JSON FORMAT REQUIREMENTS:
 - Error responses: {{"sms_message": "error description here"}}
 - Never return plain text - always wrap in JSON structure
 - Ensure JSON is properly formatted and parseable"""
-
-# Complete Agentic Prompt Template
-MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE = """
-Please reponse in JSON format.
-"""
-
 # Function Calling Schema for OpenAI
 MOVIE_AGENT_FUNCTION_SCHEMA = {
     "type": "function",

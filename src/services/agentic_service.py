@@ -340,26 +340,9 @@ class AgenticService:
                 IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
                 """
             
-            # Build agentic prompt
-            try:
-                agentic_prompt = ""
-                
-            except Exception as e:
-                logger.error(f"❌ AgenticService: Error building agentic prompt: {str(e)}")
-                logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
-                raise
-            
-            # Log the data being sent to AI for debugging
+            agentic_prompt = ""          
             prompt_tokens = self._count_tokens(agentic_prompt)
-            print(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
-            print(f"🔍 Prompt length: {len(agentic_prompt)} characters")
-            print(f"🔍 Prompt tokens: {prompt_tokens} tokens")
-            print(f"🔍 Prompt content:\n{agentic_prompt}")
-            logger.info(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
-            logger.info(f"🔍 Prompt length: {len(agentic_prompt)} characters")
-            logger.info(f"🔍 Prompt tokens: {prompt_tokens} tokens")
-            logger.info(f"🔍 Prompt content:\n{agentic_prompt}")
-            
+
             # Start conversation with AI
             try:
                 messages = [{"role": "user", "content": agentic_prompt}]
@@ -381,12 +364,8 @@ class AgenticService:
                 # Log the message being sent to AI
                 current_message_content = messages[-1]["content"]
                 message_tokens = self._count_tokens(current_message_content)
-                print(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                print(f"🔍 Message length: {len(current_message_content)} characters")
-                print(f"🔍 Message tokens: {message_tokens} tokens")
-                print(f"🔍 Message content:\n{current_message_content}")
+
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                logger.info(f"🔍 Message length: {len(current_message_content)} characters")
                 logger.info(f"🔍 Message tokens: {message_tokens} tokens")
                 logger.info(f"🔍 Message content:\n{current_message_content}")
                 
@@ -395,8 +374,6 @@ class AgenticService:
                     prompt=current_message_content,
                     functions=[self.function_schema]
                 )
-
-    
                 
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
