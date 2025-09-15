@@ -110,34 +110,6 @@ class AgenticService:
             logger.warning(f"Missing field {e} for function {function_name}. Available fields: {list(field_values.keys())}")
             return f"{function_name}: Success" if result.get('success', False) else f"{function_name}: Failed"
     
-    def _get_concise_parameters(self, function_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate concise parameter logging using configuration"""
-        config = self.function_summary_config.get(function_name, self.function_summary_config.get('default', {}))
-        parameter_fields = config.get('parameter_fields', [])
-        
-        concise = {}
-        for field_config in parameter_fields:
-            if isinstance(field_config, dict):
-                # Handle complex field configuration
-                field_name = field_config.get('field')
-                field_type = field_config.get('type', 'value')
-                field_label = field_config.get('label', field_name)
-                
-                if field_type == 'count':
-                    # Count items in list/array
-                    value = parameters.get(field_name, [])
-                    concise[field_label] = f"{len(value)} {field_label}"
-                else:
-                    # Regular value extraction
-                    value = self._extract_field_value(parameters, field_name)
-                    concise[field_label] = value
-            else:
-                # Handle simple string field names
-                value = self._extract_field_value(parameters, field_config)
-                concise[field_config] = value
-        
-        return concise
-    
     def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str, current_function_name: str, iteration_results: List[Dict] = None) -> str:
         """Format available data template by resolving function references"""
         try:
@@ -336,11 +308,20 @@ class AgenticService:
                 {chr(10).join(conversation_history)}
 
                 CURRENT USER MESSAGE: {current_message}
-                
-                IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
                 """
             
-            agentic_prompt = ""          
+            agentic_prompt = f"""
+                Yo so this is the prompt, you're a movie agent, and you're here to help the user with their movie requests.
+                Youn eed to choose one function at the time and pass the right parameters to it.
+
+                IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
+
+                Here is the conversation history:
+                {conversation_context}
+
+                Here is the current user message:
+                {current_message}
+            """          
             prompt_tokens = self._count_tokens(agentic_prompt)
 
             # Start conversation with AI
@@ -354,19 +335,23 @@ class AgenticService:
                 logger.error(f"❌ AgenticService: Agentic prompt: {agentic_prompt}")
                 raise
             
+
+            function_results = []
             while iteration < max_iterations:
                 iteration += 1
                 
                 # Clear iteration logging
                 logger.info(f"🔄 ===== STARTING ITERATION {iteration}/{max_iterations} =====")
-                logger.info(f"🔄 AgenticService: Beginning iteration {iteration} of agentic processing")
                 
                 # Log the message being sent to AI
-                current_message_content = messages[-1]["content"]
+
+
+                print("messages line 347")
+                print(messages)
+                current_message_content = messages[-1]["content"] + f"\n\nFUNCTION RESULTS: {function_results}"
                 message_tokens = self._count_tokens(current_message_content)
 
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                logger.info(f"🔍 Message tokens: {message_tokens} tokens")
                 logger.info(f"🔍 Message content:\n{current_message_content}")
                 
                 # Generate agentic response with function calling
@@ -380,15 +365,13 @@ class AgenticService:
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
                 
-                print("response line 354")
-                print(response.get('response'))
+                print("response line 392")
+                print(response)
                 
-                # Add AI response to conversation
-                messages.append({"role": "assistant", "content": response.get('response', '')})
-                
+
                 # Process function calls if any
                 if response.get('has_function_calls') and response.get('tool_calls'):
-                    
+                    print("We have identified a function call")
                     # Execute all function calls in this iteration
                     iteration_results = []
                     for i, tool_call in enumerate(response['tool_calls'], 1):
@@ -401,10 +384,9 @@ class AgenticService:
                             parameters = parsed_args.get('parameters', {})
                             
                             
-                            # Log concise parameters instead of full data
-                            concise_params = self._get_concise_parameters(function_name, parameters)
                             
-                            
+                            print("ABOUT TO EXECUTE FUNCTION", function_name)
+                            print("WITH PARAMETERS", parameters)
                             # Execute the function
                             result = self._execute_function_call(function_name, parameters, services, current_message)
                             
@@ -413,6 +395,11 @@ class AgenticService:
                                 'function_name': function_name,
                                 'result': result
                             })
+                            function_results.append({
+                                'function_name': function_name,
+                                'result': result
+                            })
+                            print("FUNCTION RESULT", result)
                             
                             
                         except Exception as e:
@@ -422,51 +409,6 @@ class AgenticService:
                                 'result': {'success': False, 'error': str(e)}
                             })
                     
-                    # Add function results to conversation for next iteration
-                    function_summary = f"Function execution results:\n"
-                    for fr in iteration_results:
-                        function_name = fr['function_name']
-                        result = fr['result']
-                        
-                        # Generate concise summary using configuration
-                        try:
-                            summary = self._generate_function_summary(function_name, result)
-                            function_summary += f"- {function_name}: {summary}\n"
-                        except Exception as e:
-                            logger.error(f"❌ AgenticService: Error generating summary for {function_name}: {str(e)}")
-                            logger.error(f"❌ AgenticService: Result type: {type(result)}, Result: {result}")
-                            function_summary += f"- {function_name}: Error generating summary\n"
-                    
-                    # Add available data for parameter passing using configuration
-                    for fr in iteration_results:
-                        function_name = fr['function_name']
-                        result = fr['result']
-                        config = self.function_summary_config.get(function_name, {})
-                        
-                        if config.get('available_data_template'):
-                            # Parse template to extract function references and format data
-                            try:
-                                template = config['available_data_template']
-                                available_data = self._format_available_data_template(template, function_results, conversation_context, function_name, iteration_results)
-                                if available_data:
-                                    function_summary += f"\nAVAILABLE DATA: {available_data}\n"
-                            except Exception as e:
-                                logger.error(f"❌ AgenticService: Error formatting available data for {function_name}: {str(e)}")
-                                logger.error(f"❌ AgenticService: Template: {config.get('available_data_template')}")
-                                logger.error(f"❌ AgenticService: Result: {result}")
-                            
-                    
-                    # Log the function summary being sent to AI
-                    summary_tokens = self._count_tokens(function_summary)
-                    print(f"🔍 FUNCTION SUMMARY SENT TO AI:")
-                    print(f"🔍 Summary tokens: {summary_tokens} tokens")
-                    print(f"🔍 Summary content:\n{function_summary}")
-                    logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:")
-                    logger.info(f"🔍 Summary tokens: {summary_tokens} tokens")
-                    logger.info(f"🔍 Summary content:\n{function_summary}")
-                    
-                    messages.append({"role": "user", "content": function_summary})
-                    function_results.extend(iteration_results)
                     
                     # Continue to next iteration to let AI decide what to do next
                     logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} =====")

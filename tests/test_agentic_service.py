@@ -131,17 +131,66 @@ class AgenticServiceTestRunner:
             'success': "YES" in validation_text.upper()
         }
     
+    def test_jumanji_download_request(self):
+        """Test AgenticService with Jumanji download request"""
+        
+        conversation_history = ["USER: can you add the old Jumanji, SYSTEM: yo, USER: yo"]
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        
+        response_message = result['response_message']
+        metadata = result.get('metadata', {})
+        
+        print(f"📱 Agent Response: {response_message}")
+        print(f"📊 Metadata: {metadata}")
+        
+        # Check that response confirms the download
+        download_confirmed = any(keyword in response_message.lower() for keyword in [
+            'getting', 'downloading', 'adding', 'setting up', 'ready', 'jumanji'
+        ])
+        
+        # Check metadata requirements
+        radarr_status = metadata.get('radarr_status')
+        tmdb_status = metadata.get('tmdb_status')
+        
+        success = (
+            download_confirmed and
+            radarr_status == 'sent' and
+            tmdb_status == 'confirmed'
+        )
+        
+        if success:
+            print("\n✅ SUCCESS: Jumanji download request handled correctly!")
+        else:
+            print("\n❌ FAILURE: Jumanji download request not handled correctly.")
+            if not download_confirmed:
+                print("  - Response doesn't confirm download")
+            if radarr_status != 'sent':
+                print(f"  - Radarr status is '{radarr_status}', expected 'sent'")
+            if tmdb_status != 'confirmed':
+                print(f"  - TMDB status is '{tmdb_status}', expected 'confirmed'")
+        
+        return {
+            'agent_response': response_message,
+            'metadata': metadata,
+            'success': success
+        }
+    
     def run_all_tests(self):
         """Run all tests"""
         print("🎬 Starting AgenticService Tests...")
         print("⚠️  ONLY Redis is mocked - everything else is REAL")
         print()
         
-        # Run the test
+        # Run the tests
         print("=" * 60)
         print("TEST 1: Casual Conversation Handling")
         print("=" * 60)
         result1 = self.test_casual_conversation()
+        
+        print("\n" + "=" * 60)
+        print("TEST 2: Jumanji Download Request")
+        print("=" * 60)
+        result2 = self.test_jumanji_download_request()
         
         print("\n" + "=" * 60)
         print("✅ ALL TESTS COMPLETED!")
@@ -152,14 +201,21 @@ class AgenticServiceTestRunner:
         else:
             print("❌ Test 1: The agent needs improvement for casual conversation.")
         
+        if result2.get('success'):
+            print("✅ Test 2: The agent correctly handles Jumanji download request!")
+        else:
+            print("❌ Test 2: The agent needs improvement for Jumanji download request.")
+        
         return {
-            'casual_conversation': result1
+            'casual_conversation': result1,
+            'jumanji_download': result2
         }
 
 def main():
     """Main function with argument parsing"""
     parser = argparse.ArgumentParser(description='Test AgenticService functionality')
     parser.add_argument('--casual-only', action='store_true', help='Run only casual conversation test')
+    parser.add_argument('--jumanji-only', action='store_true', help='Run only Jumanji download test')
     
     args = parser.parse_args()
     
@@ -170,6 +226,12 @@ def main():
         print("🎬 Running ONLY Casual Conversation Test")
         print("=" * 60)
         result = test_runner.test_casual_conversation()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+    elif args.jumanji_only:
+        print("🎬 Running ONLY Jumanji Download Test")
+        print("=" * 60)
+        result = test_runner.test_jumanji_download_request()
         print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
         
     else:

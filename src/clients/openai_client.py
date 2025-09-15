@@ -232,13 +232,6 @@ class OpenAIClient:
     
     def generate_agentic_response(self, prompt: str, functions: list = None, response_format: str = "text") -> Dict[str, Any]:
         """Generate an agentic response with optional function calling support."""
-
-
-        print("generate_agentic_response line 237")
-        print(prompt)
-        print(functions)
-        print(response_format)
-        
         if not self.client:
             return {"error": "OpenAI API key not configured", "success": False}
         
@@ -258,10 +251,6 @@ class OpenAIClient:
             if response_format == "json":
                 function_params["response_format"] = {"type": "json_object"}
             
-            print("function_params line 261")
-            print(function_params)
-            print("messages line 263")
-            print(messages)
             response = self.client.chat.completions.create(
                 model=OPENAI_MODELS['agentic'],  # Use GPT-4 for better function calling
                 messages=messages,
