@@ -51,18 +51,19 @@ class RadarrService:
             
             # Check Radarr status
             radarr_status = self._get_download_monitor().radarr_client.get_movie_status_by_tmdb_id(tmdb_id)
-            logger.info(f"📱 RadarrService: Radarr status: {radarr_status}")
+            logger.info(f"📱 RadarrService: Radarr status (exists_in_radarr): {radarr_status.get('exists_in_radarr')}")
+            logger.info(f"📱 RadarrService: Radarr status (is_downloaded): {radarr_status.get('is_downloaded')}")
             
             return {
                 'success': True,
                 'tmdb_id': tmdb_id,
                 'movie_title': movie_data.get('title'),
                 'movie_data': movie_data,  # Include the movie_data in the response
-                'radarr_status': radarr_status,
-                'exists_in_radarr': radarr_status.get('exists_in_radarr', False) if radarr_status else False,
+                # 'radarr_status': radarr_status,
+                # 'exists_in_radarr': radarr_status.get('exists_in_radarr', False) if radarr_status else False,
                 'is_downloaded': radarr_status.get('is_downloaded', False) if radarr_status else False,
                 'is_downloading': radarr_status.get('is_downloading', False) if radarr_status else False,
-                'radarr_movie_id': radarr_status.get('radarr_movie_id') if radarr_status else None
+                # 'radarr_movie_id': radarr_status.get('radarr_movie_id') if radarr_status else None
             }
             
         except Exception as e:

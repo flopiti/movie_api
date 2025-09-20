@@ -219,12 +219,9 @@ class AgenticService:
         return cleaned_response
     
 
-    def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
+    def _execute_function_call(self, function_name: str, parameters: dict, services: dict):
 
-
-
-
-        print("parameters line 305")
+        print("\n\nParameters for function call", function_name)
         print(parameters)
 
         """Execute a function call based on the function name and parameters"""
@@ -286,27 +283,6 @@ class AgenticService:
     def process_agentic_response(self, conversation_history, services: dict):
         """Process agentic response with function calling support"""
         try:
-            # Extract current message (the most recent USER message)
-            # Conversation history is ordered with newest message FIRST
-            current_message = None
-            for message in conversation_history:
-                if message.startswith("USER: "):
-                    current_message = message.replace("USER: ", "")
-                    break  # Take the FIRST USER message (which is the newest)
-            
-            if not current_message:
-                return {
-                    'response_message': "I received your message but couldn't process it properly.",
-                    'success': False
-                }
-            
-            # Build conversation context - use the full conversation history
-            conversation_context = f"""
-                CONVERSATION HISTORY:
-                {chr(10).join(conversation_history)}
-
-                CURRENT USER MESSAGE: {current_message}
-                """
             
             agentic_prompt = f"""
                 Yo so you're a movie agent, and you're here to help the user with their movie requests.
@@ -328,10 +304,7 @@ class AgenticService:
                 IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
 
                 Here is the conversation history:
-                {conversation_context}
-
-                Here is the current user message:
-                {current_message}
+                {conversation_history}
             """          
             prompt_tokens = self._count_tokens(agentic_prompt)
 
@@ -363,18 +336,17 @@ class AgenticService:
                 # Clear iteration logging
                 logger.info(f"🔄 ===== STARTING ITERATION {iteration}/{max_iterations} =====")
                 
-                # Log the message being sent to AI
-
-
-                current_message_content = messages[-1]["content"] + f"\n\nFUNCTION RESULTS: {current_state['function_results']}"
-                message_tokens = self._count_tokens(current_message_content)
+                prompt = messages[-1]["content"] + f"""
+                FUNCTION RESULTS: {current_state['function_results']}
+                """
+                message_tokens = self._count_tokens(prompt)
 
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                logger.info(f"🔍 Message content:\n{current_message_content}")
+                logger.info(f"🔍 Message content:\n{prompt}")
                 
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
-                    prompt=current_message_content,
+                    prompt=prompt,
                     functions=[self.function_schema],
                     response_format="json"
                 )
@@ -388,7 +360,6 @@ class AgenticService:
 
                 # Process function calls if any
                 if response.get('has_function_calls') and response.get('tool_calls'):
-                    print("We have identified a function call")
                     # Execute all function calls in this iteration
                     iteration_results = []
                     for i, tool_call in enumerate(response['tool_calls'], 1):
@@ -402,10 +373,10 @@ class AgenticService:
                             # Pass function_results directly as parameters
                             parameters = current_state
                             
-                            print("ABOUT TO EXECUTE FUNCTION", function_name)
-                            print("WITH FUNCTION RESULTS", parameters)
+                            print("\n\nAbout to execute function", function_name)
+                            print("with data:", parameters)
                             # Execute the function
-                            result = self._execute_function_call(function_name, parameters, services, current_message)
+                            result = self._execute_function_call(function_name, parameters, services)
                             
                             
                             iteration_results.append({
@@ -434,12 +405,12 @@ class AgenticService:
                     
                     
                     # Continue to next iteration to let AI decide what to do next
-                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} =====")
+                    logger.info(f"\n\n🔄 ===== COMPLETED ITERATION {iteration} =====")
                     logger.info(f"🔄 AgenticService: Iteration {iteration} completed, continuing to next iteration")
                     continue
                 else:
                     # No more function calls - AI is done
-                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} (FINAL) =====")
+                    logger.info(f"\n\n🔄 ===== COMPLETED ITERATION {iteration} (FINAL) =====")
                     logger.info(f"🔄 AgenticService: Iteration {iteration} completed - no more function calls, ending agentic processing")
                     break
             
@@ -479,7 +450,6 @@ class AgenticService:
                 FUNCTION EXECUTION RESULTS:
                 {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in current_state['function_results']])}
 
-                ORIGINAL USER MESSAGE: {current_message}
                 MOVIE IDENTIFIED: {movie_name if movie_name else 'None'}
                 
                 CRITICAL RESPONSE REQUIREMENTS:
@@ -516,7 +486,7 @@ class AgenticService:
                 
                 # Use structured response to ensure clean SMS output
                 structured_response = self.openai_client.generate_structured_sms_response(
-                    prompt=f"{services['sms_response_prompt']}\n\nUser message: {current_message}"
+                    prompt=f"{services['sms_response_prompt']}"
                 )
                 print("structured_response line 505 ")
                 print(structured_response)

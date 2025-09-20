@@ -134,7 +134,7 @@ class AgenticServiceTestRunner:
     def test_jumanji_download_request(self):
         """Test AgenticService with Jumanji download request"""
         
-        conversation_history = ["USER: can you add the old Jumanji, SYSTEM: yo, USER: yo"]
+        conversation_history = ["USER: yo","SYSTEM: yo", "USER: can you add the old Jumanji"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
         
         response_message = result['response_message']

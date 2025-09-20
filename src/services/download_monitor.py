@@ -533,8 +533,8 @@ class DownloadMonitor:
     def is_radarr_configured(self) -> bool:
         """Check if Radarr is properly configured"""
         try:
-            radarr_api_key = config.data.get('5a71ac347fb845da90e2284762335a1a', '')
-            radarr_url = config.data.get('http://192.168.0.10:7878', '')
+            radarr_api_key = '5a71ac347fb845da90e2284762335a1a'
+            radarr_url = 'http://192.168.0.10:7878'
             return bool(radarr_api_key and radarr_url)
         except Exception:
             return False
