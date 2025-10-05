@@ -22,6 +22,10 @@ class NotificationService:
         Agentic function: Send SMS notification to user
         Returns delivery status and message sent
         """
+
+        print('phone_number line 26')
+        print(phone_number)
+
         try:
             if not phone_number or not message_type:
                 logger.warning(f"⚠️ NotificationService: Missing parameters for notification")

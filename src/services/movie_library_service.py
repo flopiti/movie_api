@@ -54,7 +54,8 @@ class MovieLibraryService:
                 'movie_name': movie_name,
                 'tmdb_id': tmdb_id,
                 'year': year,
-                'release_status': release_status
+                'release_status': release_status,
+                'tmdb_status': 'confirmed'  # Movie found and confirmed in TMDB
             }
             
         except Exception as e:
@@ -62,6 +63,7 @@ class MovieLibraryService:
             return {
                 'success': False,
                 'movie_name': movie_name,
+                'tmdb_status': 'not_found',  # Movie not found in TMDB
                 'error': str(e)
             }
     

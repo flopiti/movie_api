@@ -154,7 +154,7 @@ class AgenticServiceTestRunner:
         
         success = (
             download_confirmed and
-            radarr_status == 'sent' and
+            radarr_status in ['sent', 'already_sent', 'downloaded'] and  # Accept 'downloaded' for already available movies
             tmdb_status == 'confirmed'
         )
         
@@ -164,8 +164,8 @@ class AgenticServiceTestRunner:
             print("\n❌ FAILURE: Jumanji download request not handled correctly.")
             if not download_confirmed:
                 print("  - Response doesn't confirm download")
-            if radarr_status != 'sent':
-                print(f"  - Radarr status is '{radarr_status}', expected 'sent'")
+            if radarr_status not in ['sent', 'already_sent', 'downloaded']:
+                print(f"  - Radarr status is '{radarr_status}', expected 'sent', 'already_sent', or 'downloaded'")
             if tmdb_status != 'confirmed':
                 print(f"  - TMDB status is '{tmdb_status}', expected 'confirmed'")
         
