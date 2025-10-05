@@ -240,7 +240,8 @@ MOVIE_AGENT_FUNCTION_SCHEMA = [{
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "message": {"type": "string", "description": "The message content to send to the user in an SMS"}
+                    "message": {"type": "string", "description": "The message content to send to the user in an SMS"},
+                    "message_type": {"type": "string", "description": "The type of message to send to the user"}
                 }
             },
             "required": ["message"]

@@ -136,43 +136,79 @@ class AgenticServiceTestRunner:
         
         conversation_history = ["USER: yo","SYSTEM: yo", "USER: can you add the old Jumanji"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+
+        # Extract function results
+        function_results = result.get('function_results', [])
         
-        response_message = result['response_message']
-        metadata = result.get('metadata', {})
+        # Expected function names
+        expected_functions = [
+            'identify_movie_request',
+            'check_movie_library_status', 
+            'check_radarr_status',
+            'send_notification'
+        ]
         
-        print(f"📱 Agent Response: {response_message}")
-        print(f"📊 Metadata: {metadata}")
+        # Validate function results
+        success = True
+        validation_errors = []
         
-        # Check that response confirms the download
-        download_confirmed = any(keyword in response_message.lower() for keyword in [
-            'getting', 'downloading', 'adding', 'setting up', 'ready', 'jumanji'
-        ])
+        # Check that all four functions are present
+        function_names = [fr['function_name'] for fr in function_results]
+        for expected_func in expected_functions:
+            if expected_func not in function_names:
+                validation_errors.append(f"Missing function: {expected_func}")
+                success = False
         
-        # Check metadata requirements
-        radarr_status = metadata.get('radarr_status')
-        tmdb_status = metadata.get('tmdb_status')
+        # Validate each function result
+        for fr in function_results:
+            func_name = fr['function_name']
+            func_result = fr['result']
+            
+            if not func_result.get('success', False):
+                validation_errors.append(f"Function {func_name} did not succeed")
+                success = False
+            
+            # Check specific requirements for each function
+            if func_name == 'identify_movie_request':
+                if func_result.get('movie_name') != 'Jumanji':
+                    validation_errors.append(f"identify_movie_request: wrong movie_name, got {func_result.get('movie_name')}")
+                    success = False
+                    
+            elif func_name == 'check_movie_library_status':
+                if func_result.get('movie_name') != 'Jumanji':
+                    validation_errors.append(f"check_movie_library_status: wrong movie_name, got {func_result.get('movie_name')}")
+                    success = False
+                    
+            elif func_name == 'check_radarr_status':
+                if func_result.get('movie_title') != 'Jumanji':
+                    validation_errors.append(f"check_radarr_status: wrong movie_title, got {func_result.get('movie_title')}")
+                    success = False
+                if not func_result.get('is_downloaded', False):
+                    validation_errors.append(f"check_radarr_status: is_downloaded should be True")
+                    success = False
+                    
+            elif func_name == 'send_notification':
+                if func_result.get('message_type') != 'movie_already_downloaded':
+                    validation_errors.append(f"send_notification: wrong message_type, got {func_result.get('message_type')}")
+                    success = False
         
-        success = (
-            download_confirmed and
-            radarr_status in ['sent', 'already_sent', 'downloaded'] and  # Accept 'downloaded' for already available movies
-            tmdb_status == 'confirmed'
-        )
-        
+        # Print validation results
         if success:
             print("\n✅ SUCCESS: Jumanji download request handled correctly!")
+            print("  - All four required functions executed successfully")
+            print("  - Movie title correctly identified as 'Jumanji'")
+            print("  - Movie is marked as downloaded")
+            print("  - Notification sent with correct message type")
         else:
             print("\n❌ FAILURE: Jumanji download request not handled correctly.")
-            if not download_confirmed:
-                print("  - Response doesn't confirm download")
-            if radarr_status not in ['sent', 'already_sent', 'downloaded']:
-                print(f"  - Radarr status is '{radarr_status}', expected 'sent', 'already_sent', or 'downloaded'")
-            if tmdb_status != 'confirmed':
-                print(f"  - TMDB status is '{tmdb_status}', expected 'confirmed'")
+            for error in validation_errors:
+                print(f"  - {error}")
         
         return {
-            'agent_response': response_message,
-            'metadata': metadata,
-            'success': success
+            'agent_response': result.get('response_message', ''),
+            'function_results': function_results,
+            'success': success,
+            'validation_errors': validation_errors
         }
     
     def run_all_tests(self):

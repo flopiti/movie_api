@@ -312,7 +312,7 @@ class AgenticService:
                 
             elif function_name == "send_notification":
                 phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
-                message_type = 'Movie Added'
+                message_type = parameters.get('message_type', 'Movie Added')
                 message = parameters.get('message', '')
                 return services['notification'].send_notification(phone_number, message_type, message)
 
@@ -351,7 +351,8 @@ class AgenticService:
                 2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
                 3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
                 4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
-                5. If the movie is already downloaded in radarr, you need to send a notification (using send_notification) to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR TMDB).
+                5. If the movie is already downloaded in radarr, you need to send a notification (using send_notification) 
+                to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR TMDB). Message type should be "movie_already_downloaded".
 
                 IMPORTANT: You must use the function calling mechanism to execute these functions. Do not return JSON responses - use the provided function tools.
                 IMPORTANT: Always refer to movies with the year, like "The movie (2025)".
