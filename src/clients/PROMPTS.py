@@ -187,12 +187,12 @@ These are the functions you can call:
         4. request_download
         5. send_notification
 
+FUNCTION CALL ORDER:
 1. You MUST ALWAYS start by calling identify_movie_request to figure out if the user is requesting a movie, and if so what movie.
     1.1 If it's not a movie request, you need to send a message to the user to respond conversationally using send_notification,
     and then end the agentic process.
     1.2 If the FUNCTION RESULTS already show that identify_movie_request was called and returned "No movie identified", 
-    then call send_notification to continue the casual conversation and help the user with movie requests. 
-    After calling send_notification, respond with text only (no function calls) to end the process.
+    then call send_notification ONCE ONLY, then respond with text only (no more function calls) to end the process.
 2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
 3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
 4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
@@ -201,9 +201,10 @@ to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR T
 
 IMPORTANT: You must use the function calling mechanism to execute these functions. Do not return JSON responses - use the provided function tools.
 IMPORTANT: Always refer to movies with the year, like "The movie (2025)".
-IMPORTANT: When sending notifications, use ONLY simple, natural greetings. NEVER mention technical processes. Use ONLY basic greetings to CONTINUE the conversation and help the user with movie requests."
-CRITICAL: If FUNCTION RESULTS show identify_movie_request already returned "No movie identified", then call send_notification ONCE ONLY, then respond with text only (no more function calls) to end the process.
-"""
+IMPORTANT: When sending notifications, use ONLY simple, natural greetings. NEVER mention technical processes. Use ONLY basic greetings to CONTINUE the conversation and help the user with movie requests.
+IMPORTANT: If FUNCTION RESULTS show identify_movie_request already returned "No movie identified", then call send_notification ONCE ONLY, then respond with text only (no more function calls) to end the process.
+IMPORTANT: ALWAYS call identify_movie_request FIRST before any other function calls.
+IMPORTANT: NEVER call send_notification more than once in a single conversation flow."""
 
 # Function Calling Schema for OpenAI
 MOVIE_AGENT_FUNCTION_SCHEMA = [{

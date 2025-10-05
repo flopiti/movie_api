@@ -255,7 +255,7 @@ class OpenAIClient:
                 model=OPENAI_MODELS['agentic'],  # Use GPT-4 for better function calling
                 messages=messages,
                 max_tokens=500,
-                temperature=0.3,
+                temperature=0.0,  # Deterministic behavior for testing
                 **function_params
             )
             response_message = response.choices[0].message

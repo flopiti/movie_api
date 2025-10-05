@@ -116,6 +116,28 @@ class AgenticServiceTestRunner:
             'success': success
         }
     
+
+    def test_casual_conversation_2( self):
+        """Test AgenticService with casual conversation"""
+        
+        conversation_history = ["USER: yoyo"]
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        print("result line 105")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        function_results = result.get('function_results', [])
+        
+        # Check: exactly 2 functions, identify_movie_request then send_notification
+        success = (len(function_results) == 2 and 
+                  function_results[0]['function_name'] == 'identify_movie_request' and
+                  not function_results[0]['result'].get('success', True) and
+                  function_results[1]['function_name'] == 'send_notification')
+        
+        return {
+            'agent_response': result.get('response_message', ''),
+            'success': success
+        }
+    
+
     def test_jumanji_download_request(self):
         """Test AgenticService with Jumanji download request"""
         
@@ -249,8 +271,12 @@ def main():
     if args.casual_only:
         print("🎬 Running ONLY Casual Conversation Test")
         print("=" * 60)
-        result = test_runner.test_casual_conversation()
-        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        result1 = test_runner.test_casual_conversation()
+        result2 = test_runner.test_casual_conversation_2()
+
+
+        print(f"Casual Conversation 1: {'SUCCESS' if result1.get('success') else 'FAILURE'}")        
+        print(f"Casual Conversation 2: {'SUCCESS' if result2.get('success') else 'FAILURE'}")        
         
     elif args.jumanji_only:
         print("🎬 Running ONLY Jumanji Download Test")

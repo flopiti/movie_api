@@ -293,8 +293,15 @@ AGENTIC_RESPONSE_TEST_CASES = [
             "expected_success": True,
             "expected_has_function_calls": True,
             "expected_function_name": "identify_movie_request"
-        }
-        ,
+        },
+        {
+            "name": "Casual greeting 'hey there' - should respond conversationally",
+            "prompt": AGENTIC_MOVIE_AGENT_PROMPT + 
+            "\n\nHere is the conversation history:\n['USER: yoyo']\n\nFUNCTION RESULTS: []\n",
+            "expected_success": True,
+            "expected_has_function_calls": True,
+            "expected_function_name": "identify_movie_request"
+        } ,
         {
             "name": "Casual greeting 'hey there' - already identified No movie, should call send_notification",
             "prompt": AGENTIC_MOVIE_AGENT_PROMPT + 
