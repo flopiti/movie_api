@@ -45,7 +45,6 @@ class NotificationService:
             result = self.twilio_client.send_sms(phone_number, message)
             
             if result.get('success'):
-                logger.info(f"📱 NotificationService: Sent {message_type} notification to {phone_number}: {message}")
                 # Store outgoing SMS in Redis conversation
                 self._store_outgoing_sms(phone_number, message, message_type)
                 return {
@@ -92,10 +91,6 @@ class NotificationService:
             }
             
             success = redis_client.store_sms_message(message_data)
-            if success:
-                logger.info(f"📱 NotificationService: Stored outgoing SMS in Redis conversation")
-            else:
-                logger.error(f"❌ NotificationService: Failed to store outgoing SMS in Redis")
             
             return success
             

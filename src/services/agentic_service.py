@@ -403,8 +403,6 @@ class AgenticService:
                     functions=self.function_schema
                 )
 
-                print("response line 409")
-                print(json.dumps(response, indent=2, sort_keys=True, default=str))
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
@@ -440,10 +438,8 @@ class AgenticService:
                                 parameters = current_state.copy()
                                 parameters.update(parsed_args)
                                 
-                                logger.info("response line 430\n" + json.dumps(response, indent=2, sort_keys=True, default=str))
-                                logger.info(f"\n\nAbout to execute function {function_name}")
-                                logger.info(f"📊 Function args: {json.dumps(parsed_args, indent=2)}")
-                                logger.info(f"📊 Combined params: {json.dumps(parameters, indent=2, default=str)}")
+                                logger.info(f"\n\nAbout to execute function:  {function_name}")
+
                                 # Execute the function
                                 result = self._execute_function_call(function_name, parameters, services)
                                 if isinstance(result, dict):
