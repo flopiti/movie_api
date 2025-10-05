@@ -251,6 +251,13 @@ class OpenAIClient:
             if response_format == "json":
                 function_params["response_format"] = {"type": "json_object"}
             
+            print("\n\n")
+            print("function_params line 254")
+            print(json.dumps(function_params, indent=2, sort_keys=True, default=str))
+            print("\n\n")
+            print("messages line 256")
+            print(json.dumps(messages, indent=2, sort_keys=True, default=str))
+            print("\n\n")
             response = self.client.chat.completions.create(
                 model=OPENAI_MODELS['agentic'],  # Use GPT-4 for better function calling
                 messages=messages,
@@ -258,7 +265,6 @@ class OpenAIClient:
                 temperature=0.3,
                 **function_params
             )
-            
             response_message = response.choices[0].message
             
             # Check if the AI wants to call a function

@@ -17,15 +17,11 @@ class NotificationService:
     def __init__(self):
         self.twilio_client = TwilioClient()
     
-    def send_notification(self, phone_number, message_type, movie_title="", movie_year="", additional_context=""):
+    def send_notification(self, phone_number, message_type, message):
         """
         Agentic function: Send SMS notification to user
         Returns delivery status and message sent
         """
-
-        print('phone_number line 26')
-        print(phone_number)
-
         try:
             if not phone_number or not message_type:
                 logger.warning(f"⚠️ NotificationService: Missing parameters for notification")
@@ -37,16 +33,14 @@ class NotificationService:
             
             # The agent should provide the message content via additional_context
             # This service just sends the message, it doesn't generate it
-            if not additional_context:
+            if not message:
                 logger.error(f"❌ NotificationService: No message content provided for {message_type}")
                 return {
                     'success': False,
                     'message_type': message_type,
                     'error': 'No message content provided - agent must provide message content'
                 }
-            
-            message = additional_context
-            
+                        
             # Send the SMS notification
             result = self.twilio_client.send_sms(phone_number, message)
             
@@ -59,8 +53,6 @@ class NotificationService:
                     'message_type': message_type,
                     'message_sent': message,
                     'phone_number': phone_number,
-                    'movie_title': movie_title,
-                    'year': year
                 }
             else:
                 logger.error(f"❌ NotificationService: Failed to send {message_type} notification: {result.get('error')}")

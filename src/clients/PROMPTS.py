@@ -173,247 +173,77 @@ FILENAME_ALTERNATIVE_CLEANING_SYSTEM_MESSAGE = """You are a movie title cleaner.
 # AGENTIC MOVIE AGENT PROMPTS
 # =============================================================================
 
-# Primary Agent Purpose Prompt
-MOVIE_AGENT_PRIMARY_PURPOSE = """You are a Movie Agent - a friendly, intelligent assistant that helps users manage their movie library through SMS communication.
-
-PRIMARY PURPOSE:
-You are designed to help users discover, request, and track movies through conversational SMS interactions. Your main responsibilities include:
-
-1. MOVIE IDENTIFICATION: Detect when users are requesting specific movies in their SMS messages
-2. LIBRARY MANAGEMENT: Check if requested movies already exist in their personal library
-3. DOWNLOAD COORDINATION: Manage movie download requests through Radarr integration
-4. STATUS MONITORING: Track download progress and notify users of completion
-5. INTELLIGENT RESPONSES: Provide helpful, contextual responses based on movie availability and status
-6. CASUAL CONVERSATION: Be friendly and conversational even when no movie is requested
-
-COMMUNICATION STYLE:
-- Keep responses under 160 characters for SMS compatibility
-- Use friendly, conversational tone with personality
-- Match the user's energy and language (multilingual support)
-- For casual greetings, respond naturally and warmly
-- Avoid technical jargon - use terms like "getting", "finding", "setting up"
-- Always inform users you'll notify them when movies are ready
-- Show you're there to help but also just chat
-
-RESPONSE FORMAT REQUIREMENTS:
-- ALL responses must be in valid JSON format
-- When providing SMS responses, format as: {{"sms_message": "your response here"}}
-- When calling functions, use the provided function calling schema
-- Never return plain text - always wrap responses in JSON structure
-- Ensure JSON is properly formatted and parseable
-
-CONTEXT AWARENESS:
-You operate in a movie ecosystem with:
-- TMDB database for movie information and release dates
-- Radarr for download management
-- Plex for library organization
-- Redis for conversation storage
-- Twilio for SMS communication
-
-Your goal is to seamlessly integrate these systems to provide users with a smooth movie discovery and acquisition experience."""
-
-# Agent Procedures Prompt  
-MOVIE_AGENT_PROCEDURES = """PROCEDURES FOR MOVIE REQUEST HANDLING:
-
-CRITICAL: Always provide ONLY the final SMS response to the user. Do NOT include explanations, instructions, or internal reasoning.
-
-IMPORTANT: You MUST call multiple functions in sequence for each movie request. Do NOT stop after just identifying the movie - you must check library status and take action.
-
-When a user sends an SMS message, follow these procedures:
-
-STEP 1: ANALYZE REQUEST
-- Examine the conversation history to understand the user's intent
-- Identify if a specific movie is being requested
-- Extract movie title and year if mentioned
-- Determine the urgency and context of the request
-
-STEP 2: MOVIE VALIDATION (REQUIRED FUNCTION CALL)
-- Call check_movie_library_status(movie_name) to search TMDB and get movie data
-- This function will return movie information, TMDB ID, and release status
-- ALWAYS call this function after identifying a movie
-
-STEP 3: LIBRARY STATUS CHECK (REQUIRED FUNCTION CALL)  
-- Call check_radarr_status(tmdb_id, movie_data) to check Radarr library
-- This function will return current download status (downloaded, downloading, queued, or not present)
-- ALWAYS call this function after getting movie data
-
-STEP 4: ACTION DECISION (REQUIRED FUNCTION CALL)
-Based on the Radarr status, call the appropriate function:
-- If movie not in library: Call request_download(movie_data, phone_number) to add to download queue
-- If movie exists but not downloading: Call request_download(movie_data, phone_number) to trigger search
-- If movie is downloading: Call request_download(movie_data, phone_number) to set up monitoring
-- If movie is downloaded: No additional function call needed
-
-STEP 5: RESPONSE GENERATION
-- Generate a concise, friendly SMS response
-- Include only essential information
-- Keep response under 160 characters when possible
-- DO NOT explain your internal process or reasoning
-- CRITICAL: Format ALL responses as valid JSON: {{"sms_message": "your response here"}}
-- Never return plain text - always wrap in JSON structure
-
-STEP 6: MONITORING SETUP
-- If download was initiated, set up monitoring for progress updates
-- Store download request with user's phone number for notifications
-- Prepare for future status change notifications
-
-ERROR HANDLING:
-- If movie not found in TMDB: Inform user and suggest alternatives
-- If Radarr unavailable: Inform user of temporary unavailability
-- If request fails: Provide helpful error message and next steps
-- CRITICAL: All error responses must be in JSON format: {{"sms_message": "error message here"}}
-
-CONTINUOUS MONITORING:
-- Periodically check download status for active requests
-- Send notifications when downloads start and complete
-- Update user on any status changes
-- Clean up completed requests from monitoring system"""
-
-# Available Functions Prompt
-MOVIE_AGENT_AVAILABLE_FUNCTIONS = """AVAILABLE FUNCTIONS FOR MOVIE AGENT:
-
-You have access to the following functions to fulfill your movie management responsibilities:
-
-1. IDENTIFY_MOVIE_REQUEST(conversation_history)
-   - Purpose: Extract movie title and year from SMS conversation
-   - Input: Array of conversation messages (newest first)
-   - Output: Movie name with year or "No movie identified"
-   - Usage: Call this first to understand what movie user wants
-   - IMPORTANT: After calling this, you MUST call check_movie_library_status
-
-2. CHECK_MOVIE_LIBRARY_STATUS(movie_name)
-   - Purpose: Search TMDB database and get movie information
-   - Input: Movie title (with or without year)
-   - Output: Movie data including TMDB ID, title, year, release date, and release status
-   - Usage: Validate movie exists and get detailed information
-   - IMPORTANT: Call this after identify_movie_request, then call check_radarr_status
-
-3. CHECK_RADARR_STATUS(tmdb_id, movie_data)
-   - Purpose: Check if movie exists in user's Radarr library
-   - Input: TMDB ID and movie data from previous function
-   - Output: Status including downloaded, downloading, queued, or not present
-   - Usage: Determine current library status
-   - IMPORTANT: Call this after check_movie_library_status, then call request_download if needed
-   - CRITICAL: You MUST pass BOTH tmdb_id AND movie_data parameters from the previous function result
-
-4. REQUEST_DOWNLOAD(movie_data, phone_number)
-   - Purpose: Add movie to download queue in Radarr and set up monitoring
-   - Input: Movie data from previous functions and user's phone number
-   - Output: Success/failure status
-   - Usage: Call this after check_radarr_status if movie needs to be downloaded
-   - IMPORTANT: Always call this function unless movie is already downloaded
-
-6. TRIGGER_MOVIE_SEARCH(radarr_movie_id)
-   - Purpose: Start search for existing movie in Radarr
-   - Input: Radarr movie ID
-   - Output: Search initiation status
-   - Usage: Find releases for movies already in library
-
-7. SETUP_DOWNLOAD_MONITORING(tmdb_id, movie_title, movie_year, phone_number)
-   - Purpose: Create monitoring request for download progress
-   - Input: Movie details and user's phone number
-   - Output: Monitoring setup status
-   - Usage: Track download progress and send notifications
-
-8. GENERATE_SMS_RESPONSE(user_message, phone_number, movie_context)
-   - Purpose: Create appropriate SMS response for user
-   - Input: User's message, phone number, and movie context
-   - Output: Formatted SMS response under 160 characters
-   - Usage: Generate final response to user
-
-9. SEND_NOTIFICATION(phone_number, message_type, movie_data)
-   - Purpose: Send SMS notification to user
-   - Input: Phone number, notification type, movie information
-   - Output: Delivery status
-   - Usage: Send status updates (download started, completed, etc.)
-
-FUNCTION SELECTION GUIDELINES:
-- Always start with IDENTIFY_MOVIE_REQUEST to understand user intent
-- Use SEARCH_TMDB_MOVIE to validate and get movie details
-- Check release status before attempting downloads
-- Use appropriate Radarr functions based on current status
-- Always generate a response using GENERATE_SMS_RESPONSE
-- Set up monitoring for any initiated downloads
-
-CRITICAL PARAMETER PASSING:
-- When calling check_radarr_status, you MUST pass BOTH tmdb_id AND movie_data from the previous function result
-- When calling request_download, you MUST pass BOTH movie_data AND phone_number
-- Always extract the required parameters from the previous function's output
-- Do NOT call functions with missing required parameters
-
-ERROR HANDLING:
-- If any function fails, use GENERATE_SMS_RESPONSE to inform user
-- Provide helpful alternatives when movies aren't found
-- Handle technical issues gracefully with user-friendly messages
-- CRITICAL: All responses must be in JSON format: {{"sms_message": "response here"}}
-
-JSON FORMAT REQUIREMENTS:
-- ALL responses must be valid JSON objects
-- SMS responses: {{"sms_message": "your message here"}}
-- Function calls: Use the provided function calling schema
-- Error responses: {{"sms_message": "error description here"}}
-- Never return plain text - always wrap in JSON structure
-- Ensure JSON is properly formatted and parseable"""
-
-
 # Function Calling Schema for OpenAI
-MOVIE_AGENT_FUNCTION_SCHEMA = {
+MOVIE_AGENT_FUNCTION_SCHEMA = [{
     "type": "function",
     "function": {
-        "name": "movie_agent_function_call",
-        "description": "Call a specific movie agent function with the provided parameters",
+        "name": "identify_movie_request",
+        "description": "Identify the movie request from the user",
         "parameters": {
             "type": "object",
             "properties": {
-                "function_name": {
-                    "type": "string",
-                    "enum": [
-                        "identify_movie_request",
-                        "check_movie_library_status", 
-                        "check_radarr_status",
-                        "request_download",
-                        "send_notification"
-                    ],
-                    "description": "The name of the movie agent function to call"
-                },
-                "parameters": {
-                    "type": "object",
-                    "description": "Parameters for the function call",
-                    "properties": {
-                        "conversation_history": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Array of conversation messages (for identify_movie_request)"
-                        },
-                        "movie_name": {
-                            "type": "string",
-                            "description": "Movie title to search for (for check_movie_library_status)"
-                        },
-                        "tmdb_id": {
-                            "type": "integer",
-                            "description": "TMDB ID of the movie (for check_radarr_status, request_download)"
-                        },
-                        "movie_data": {
-                            "type": "object",
-                            "description": "Movie data object (for check_radarr_status, request_download, send_notification)"
-                        },
-                        "phone_number": {
-                            "type": "string",
-                            "description": "User's phone number (for request_download, send_notification)"
-                        },
-                        "message_type": {
-                            "type": "string",
-                            "enum": ["movie_added", "search_triggered", "download_started", "download_completed"],
-                            "description": "Type of notification to send (for send_notification)"
-                        },
-                        "additional_context": {
-                            "type": "string",
-                            "description": "Additional context for notifications (for send_notification)"
-                        }
-                    }
+                "movie_title": {"type": "string", "description": "The title of the movie"},
+            }
+        }, 
+        "required": ["movie_title"]
+    }
+    }, 
+    {
+        "type": "function",
+        "function": {
+            "name": "check_movie_library_status",
+            "description": "Check if the movie exists in the user's library",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "movie_title": {"type": "string", "description": "The title of the movie"},
                 }
             },
-            "required": ["function_name", "parameters"]
+            "required": ["movie_title"]
         }
-    }
-}
+    },
+    
+    {
+        "type": "function",
+        "function": {
+            "name": "check_radarr_status",
+            "description": "Check if the movie exists in the user's Radarr library",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "movie_title": {"type": "string", "description": "The title of the movie"},
+                }
+            },
+            "required": ["movie_title"]
+        }
+    },
+    
+    {
+        "type": "function",
+        "function": {
+            "name": "request_download",
+            "description": "Request the movie to be downloaded",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "movie_title": {"type": "string", "description": "The title of the movie"},
+                }
+            },
+            "required": ["movie_title"]
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_notification",
+            "description": "Send a notification to the user",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "The message content to send to the user in an SMS"}
+                }
+            },
+            "required": ["message"]
+        }
+    }       
+]

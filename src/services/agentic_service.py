@@ -313,11 +313,9 @@ class AgenticService:
             elif function_name == "send_notification":
                 phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
                 message_type = 'Movie Added'
-                movie_title = parameters.get('movie_title', '')
-                movie_year = parameters.get('year', '')
-                additional_context = parameters.get('additional_context', '')
-                return services['notification'].send_notification(phone_number, message_type, movie_title, movie_year, additional_context)
-                
+                message = parameters.get('message', '')
+                return services['notification'].send_notification(phone_number, message_type, message)
+
             else:
                 logger.error(f"❌ AgenticService: Unknown function name: {function_name}")
                 return {
@@ -340,6 +338,8 @@ class AgenticService:
                 Yo so you're a movie agent, and you're here to help the user with their movie requests.
                 You need to choose one function at the time and pass the right parameters to it.
 
+                We will pass you the results of all previously executed functions, so you can use them to make your decisions, and follow where we are in the process.
+
                 These are the functions you can call:
                         1. identify_movie_request
                         2. check_movie_library_status 
@@ -351,9 +351,10 @@ class AgenticService:
                 2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
                 3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
                 4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
+                5. If the movie is already downloaded in radarr, you need to send a notification (using send_notification) to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR TMDB).
 
-
-                IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
+                IMPORTANT: You must use the function calling mechanism to execute these functions. Do not return JSON responses - use the provided function tools.
+                IMPORTANT: Always refer to movies with the year, like "The movie (2025)".
 
                 Here is the conversation history:
                 {conversation_history}
@@ -399,40 +400,78 @@ class AgenticService:
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
                     prompt=prompt,
-                    functions=[self.function_schema],
-                    response_format="json"
+                    functions=self.function_schema
                 )
-                
+
+                print("response line 409")
+                print(json.dumps(response, indent=2, sort_keys=True, default=str))
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
                 
 
 
+                try:
+                    # Process function calls if any
+                    if response.get('has_function_calls') and response.get('tool_calls'):
+                        # Execute all function calls in this iteration
+                        for i, tool_call in enumerate(response['tool_calls'], 1):
+                            try:
+                                # Parse function call arguments
+                                function_args = tool_call.function.arguments
+                                function_name = tool_call.function.name
+                                
+                                try:
+                                    parsed_args = json.loads(function_args)
+                                except Exception as parse_exc:
+                                    logger.error(f"❌ AgenticService: Failed to parse function_args JSON: {function_args}")
+                                    logger.error(f"❌ AgenticService: JSON parse error: {parse_exc}")
+                                    raise
 
-                # Process function calls if any
-                if response.get('has_function_calls') and response.get('tool_calls'):
-                    # Execute all function calls in this iteration
-                    for i, tool_call in enumerate(response['tool_calls'], 1):
-                        # Parse function call arguments
-                        function_args = tool_call.function.arguments
-                        parsed_args = json.loads(function_args)
-                        
-                        function_name = parsed_args.get('function_name')
-                        
-                        # Pass function_results directly as parameters
-                        parameters = current_state
-                        
-                        print("\n\nAbout to execute function", function_name)
-                        # INSERT_YOUR_CODE
-                        pretty_radarr_status = json.dumps(parameters, indent=2, sort_keys=True, default=str)
-                        logger.info(f"📊 with params:\n{pretty_radarr_status}")
-                        # Execute the function
-                        result = self._execute_function_call(function_name, parameters, services)
-                        if isinstance(result, dict):
-                            current_state.update(result)
-                        current_state['function_results'].append({**{'function_name': function_name, 'result': result}})
-                    
+                                # Validate that we have the required function name and arguments
+                                if not function_name:
+                                    logger.error("❌ AgenticService: No function name found in tool_call")
+                                    raise ValueError("No function name found in tool_call")
+                                
+                                if not isinstance(parsed_args, dict):
+                                    logger.error(f"❌ AgenticService: Function arguments should be a dict, got: {type(parsed_args)}")
+                                    raise ValueError(f"Function arguments should be a dict, got: {type(parsed_args)}")
+                                # Merge function call arguments with current state
+                                parameters = current_state.copy()
+                                parameters.update(parsed_args)
+                                
+                                logger.info("response line 430\n" + json.dumps(response, indent=2, sort_keys=True, default=str))
+                                logger.info(f"\n\nAbout to execute function {function_name}")
+                                logger.info(f"📊 Function args: {json.dumps(parsed_args, indent=2)}")
+                                logger.info(f"📊 Combined params: {json.dumps(parameters, indent=2, default=str)}")
+                                # Execute the function
+                                result = self._execute_function_call(function_name, parameters, services)
+                                if isinstance(result, dict):
+                                    current_state.update(result)
+                                current_state['function_results'].append({'function_name': function_name, 'result': result})
+                            except Exception as fn_exc:
+                                logger.error(f"❌ AgenticService: Error executing function call: {fn_exc}")
+                                current_state['function_results'].append({
+                                    'function_name': function_name if 'function_name' in locals() else 'Unknown',
+                                    'result': {
+                                        'success': False,
+                                        'error': str(fn_exc)
+                                    }
+                                })
+                    else:
+                        # No tool calls - this shouldn't happen if the AI is following instructions properly
+                        logger.warning("⚠️ AgenticService: No function calls made by AI, but functions were expected")
+                                
+                except Exception as e:
+                    logger.error(f"❌ AgenticService: Error in agentic response processing: {e}")
+                    # Provide a fallback response in the current_state
+                    current_state['function_results'].append({
+                        'function_name': 'agentic_response_processing',
+                        'result': {
+                            'success': False,
+                            'error': f"AgenticService: Error in agentic response processing: {e}"
+                        }
+                    })
             
             # Generate final response based on all function results
             if current_state['function_results']:

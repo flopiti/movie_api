@@ -82,9 +82,9 @@ class PlexAgent:
         """Delegate to radarr service"""
         return self.radarr_service.request_download(movie_data, phone_number)
     
-    def send_notification(self, phone_number, message_type, movie_data, additional_context=""):
+    def send_notification(self, phone_number, message_type,  message):
         """Delegate to notification service"""
-        return self.notification_service.send_notification(phone_number, message_type, movie_data, additional_context)
+        return self.notification_service.send_notification(phone_number, message_type, message)
     
     def get_movie(self, movie_result):
         """

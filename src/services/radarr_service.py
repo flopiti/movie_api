@@ -73,7 +73,6 @@ class RadarrService:
                 'success': False,
                 'tmdb_id': tmdb_id,
                 'movie_title': movie_data.get('title') if movie_data else 'Unknown',
-                'radarr_status': 'error',  # Error occurred during check
                 'error': str(e)
             }
     
