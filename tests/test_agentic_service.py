@@ -3,7 +3,7 @@ import sys
 import argparse
 from dotenv import load_dotenv
 from unittest.mock import MagicMock
-
+import json 
 # Load environment variables from the main project's env file
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'env'))
 
@@ -101,34 +101,18 @@ class AgenticServiceTestRunner:
         
         conversation_history = ["USER: hey there"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
-        response_message = result['response_message']
+        print("result line 105")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        function_results = result.get('function_results', [])
         
-        # Validate the response with REAL OpenAI
-        validation_prompt = f"""
-        Analyze this SMS response to a casual greeting ("hey there").
-        
-        Response to analyze: "{response_message}"
-        
-        Does this response correctly:
-        1. Respond naturally and warmly?
-        2. Avoid immediately asking for movie requests?
-        3. Show personality and friendliness?
-        
-        Answer with YES or NO and explain why.
-        """
-        
-        validation_text = self._validate_response(response_message, validation_prompt)
-        print(f"🔍 OpenAI Validation: {validation_text}")
-        
-        if "YES" in validation_text.upper():
-            print("\n✅ SUCCESS: OpenAI confirms the response correctly handles casual conversation!")
-        else:
-            print("\n❌ FAILURE: OpenAI indicates the response needs improvement for casual conversation.")
+        # Check: exactly 1 function, identify_movie_request, returns False
+        success = (len(function_results) == 1 and 
+                  function_results[0]['function_name'] == 'identify_movie_request' and
+                  not function_results[0]['result'].get('success', True))
         
         return {
-            'agent_response': response_message,
-            'validation_result': validation_text,
-            'success': "YES" in validation_text.upper()
+            'agent_response': result.get('response_message', ''),
+            'success': success
         }
     
     def test_jumanji_download_request(self):
@@ -137,6 +121,9 @@ class AgenticServiceTestRunner:
         conversation_history = ["USER: yo","SYSTEM: yo", "USER: can you add the old Jumanji"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
 
+
+        print("result line 124")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
         # Extract function results
         function_results = result.get('function_results', [])
         

@@ -266,14 +266,14 @@ class OpenAIClient:
                     "success": True,
                     "response": response_message.content,
                     "tool_calls": response_message.tool_calls,
-                    "has_function_calls": True
+                    "has_function_calls": response_message.tool_calls is not None
                 }
             else:
                 return {
                     "success": True,
                     "response": response_message.content,
                     "tool_calls": None,
-                    "has_function_calls": False
+                    "has_function_calls": response_message.tool_calls is not None
                 }
             
         except Exception as e:

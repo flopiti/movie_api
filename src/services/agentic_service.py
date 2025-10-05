@@ -327,7 +327,9 @@ class AgenticService:
                         4. request_download
                         5. send_notification
 
-                1. You need to figure out if the user is requesting a movie, and if so what movie
+                1. You need to figure out if the user is requesting a movie with identify_movie_request, and if so what movie. 
+                    1.1 If it's not a movie request, you need to  send a message to the user to respond conversationally using send_notification,
+                    and then end the agentic process.
                 2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
                 3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
                 4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
@@ -382,6 +384,8 @@ class AgenticService:
                     functions=self.function_schema
                 )
 
+          
+
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
@@ -435,7 +439,9 @@ class AgenticService:
                                 })
                     else:
                         # No tool calls - this shouldn't happen if the AI is following instructions properly
-                        logger.warning("⚠️ AgenticService: No function calls made by AI, but functions were expected")
+                        logger.warning("Reached the end of function calls.")
+                        # here you break, because you can't continue without function calls
+                        break
                                 
                 except Exception as e:
                     logger.error(f"❌ AgenticService: Error in agentic response processing: {e}")
