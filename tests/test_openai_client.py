@@ -258,53 +258,51 @@ def test_generate_agentic_response():
     from clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
     
 
-    print("test_cases line 261")
-    print(test_cases)
-
     for test_case in test_cases:
         try:
             result = client.generate_agentic_response(
                 prompt=test_case['prompt'],
-                functions=[MOVIE_AGENT_FUNCTION_SCHEMA]
+                functions=MOVIE_AGENT_FUNCTION_SCHEMA
             )
-            print("result line 270")
-            print(result)
-            if result.get('success'):
-                # Check basic success conditions
-                success_match = result.get('success') == test_case['expected_success']
-                has_function_calls_match = result.get('has_function_calls') == test_case['expected_has_function_calls']
-                
-                if success_match and has_function_calls_match:
-                    # If function calls are expected, validate them
-                    if test_case['expected_has_function_calls']:
-                        tool_calls = result.get('tool_calls')
-                        if tool_calls and len(tool_calls) > 0:
-                            tool_call = tool_calls[0]
-                            function_name = tool_call.function.name
-                            function_args = json.loads(tool_call.function.arguments)
-                            
-                            # Check function name and action
-                            if (function_name == test_case['expected_function_name'] and 
-                                function_args.get('function_name') == test_case['expected_action']):
-                                print(f"  ✅ {test_case['name']}")
-                                passed += 1
-                            else:
-                                print(f"  ❌ {test_case['name']}: Function name/action mismatch. Expected '{test_case['expected_function_name']}'/'{test_case['expected_action']}', got '{function_name}'/'{function_args.get('function_name')}'")
-                        else:
-                            print(f"  ❌ {test_case['name']}: Expected function calls but got none")
-                    else:
-                        # No function calls expected, just check response exists
-                        response = result.get('response', '')
-                        if response:
-                            print(f"  ✅ {test_case['name']}")
-                            passed += 1
-                        else:
-                            print(f"  ❌ {test_case['name']}: No response generated")
-                else:
-                    print(f"  ❌ {test_case['name']}: Success/function_calls mismatch. Expected success={test_case['expected_success']}, has_function_calls={test_case['expected_has_function_calls']}")
-            else:
-                print(f"  ❌ {test_case['name']}: {result.get('error', 'Unknown error')}")
-                
+
+            # Organize success logic: all must be True for success
+            success = (
+                result.get('success') == test_case['expected_success'] and
+                result.get('has_function_calls') == test_case['expected_has_function_calls']
+            )
+
+            # If function calls are expected, also check function name if provided
+            if test_case.get('expected_has_function_calls') and test_case.get('expected_function_name'):
+                # Try to get function name from tool_calls if not present at top level
+                function_name = result.get('function_name')
+                if not function_name and result.get('tool_calls'):
+                    # Try to extract from first tool_call if possible
+                    tool_calls = result.get('tool_calls')
+                    if isinstance(tool_calls, list) and tool_calls:
+                        # Try to get function name from OpenAI tool_call structure
+                        function_call = getattr(tool_calls[0], 'function', None)
+                        if function_call and hasattr(function_call, 'name'):
+                            function_name = function_call.name
+                        elif isinstance(tool_calls[0], dict):
+                            # fallback for dict structure
+                            function_name = tool_calls[0].get('function', {}).get('name')
+                if function_name != test_case['expected_function_name']:
+                    print(f"  ❌ {test_case['name']}: Expected function_name={test_case['expected_function_name']}, got {function_name}")
+                    success = False
+
+            if result.get('success') != test_case['expected_success']:
+                print(f"  ❌ {test_case['name']}: Expected success={test_case['expected_success']}, got {result.get('success')}")
+                success = False
+            if result.get('has_function_calls') != test_case['expected_has_function_calls']:
+                print(f"  ❌ {test_case['name']}: Expected has_function_calls={test_case['expected_has_function_calls']}, got {result.get('has_function_calls')}")
+                success = False
+
+
+
+            if success:
+                print(f"  ✅ {test_case['name']}")
+                passed += 1
+
         except Exception as e:
             print(f"  ❌ {test_case['name']}: {str(e)}")
     

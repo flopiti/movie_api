@@ -105,10 +105,11 @@ class AgenticServiceTestRunner:
         print(json.dumps(result, indent=2, ensure_ascii=False))
         function_results = result.get('function_results', [])
         
-        # Check: exactly 1 function, identify_movie_request, returns False
-        success = (len(function_results) == 1 and 
+        # Check: exactly 2 functions, identify_movie_request then send_notification
+        success = (len(function_results) == 2 and 
                   function_results[0]['function_name'] == 'identify_movie_request' and
-                  not function_results[0]['result'].get('success', True))
+                  not function_results[0]['result'].get('success', True) and
+                  function_results[1]['function_name'] == 'send_notification')
         
         return {
             'agent_response': result.get('response_message', ''),

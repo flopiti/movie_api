@@ -8,7 +8,7 @@ import logging
 import json
 from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
-from ..clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
+from ..clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA, AGENTIC_MOVIE_AGENT_PROMPT
 # Configure logging to ensure we see debug messages
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -314,34 +314,7 @@ class AgenticService:
         """Process agentic response with function calling support"""
         try:
             
-            agentic_prompt = f"""
-                Yo so you're a movie agent, and you're here to help the user with their movie requests.
-                You need to choose one function at the time and pass the right parameters to it.
-
-                We will pass you the results of all previously executed functions, so you can use them to make your decisions, and follow where we are in the process.
-
-                These are the functions you can call:
-                        1. identify_movie_request
-                        2. check_movie_library_status 
-                        3. check_radarr_status
-                        4. request_download
-                        5. send_notification
-
-                1. You need to figure out if the user is requesting a movie with identify_movie_request, and if so what movie. 
-                    1.1 If it's not a movie request, you need to  send a message to the user to respond conversationally using send_notification,
-                    and then end the agentic process.
-                2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
-                3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
-                4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
-                5. If the movie is already downloaded in radarr, you need to send a notification (using send_notification) 
-                to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR TMDB). Message type should be "movie_already_downloaded".
-
-                IMPORTANT: You must use the function calling mechanism to execute these functions. Do not return JSON responses - use the provided function tools.
-                IMPORTANT: Always refer to movies with the year, like "The movie (2025)".
-
-                Here is the conversation history:
-                {conversation_history}
-            """          
+            agentic_prompt = AGENTIC_MOVIE_AGENT_PROMPT + f"\n\nHere is the conversation history:\n{conversation_history}"          
 
             # Start conversation with AI
             try:
@@ -379,6 +352,10 @@ class AgenticService:
                 # logger.info(f"🔍 Message content:\n{prompt}")
                 
                 # Generate agentic response with function calling
+                # print("\n\n")
+                # print("prompt line 383")
+                # print(prompt)
+                # print("\n\n")
                 response = self.openai_client.generate_agentic_response(
                     prompt=prompt,
                     functions=self.function_schema

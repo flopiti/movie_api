@@ -5,6 +5,13 @@ Contains test cases and expected results for OpenAI client testing.
 """
 
 import re
+import sys
+import os
+
+# Add the src directory to the path so we can import from it
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from clients.PROMPTS import AGENTIC_MOVIE_AGENT_PROMPT
 
 def normalize_movie_title(title):
     """
@@ -278,22 +285,30 @@ TEST_CONFIG = {
 
 # Agentic Response Test Cases
 AGENTIC_RESPONSE_TEST_CASES = [
-    {
-        "name": "Greeting - casual 'yo'",
-        "prompt": "USER: yo",
-        "expected_success": True,
-        "expected_has_function_calls": False,
-        "expected_function_name": None,
-        "expected_action": None
-    },
-    {
-    "name": "Simple movie request",
-    "prompt": "USER: Can you get me The Matrix?",
-    "expected_success": True,
-    "expected_has_function_calls": True,
-    "expected_function_name": "movie_agent_function_call",
-    "expected_action": "identify_movie_request"
-}]
+
+        {
+            "name": "Casual greeting 'hey there' - should respond conversationally",
+            "prompt": AGENTIC_MOVIE_AGENT_PROMPT + 
+            "\n\nHere is the conversation history:\n['USER: hey there']\n\nFUNCTION RESULTS: []\n",
+            "expected_success": True,
+            "expected_has_function_calls": True,
+            "expected_function_name": "identify_movie_request"
+        }
+        ,
+        {
+            "name": "Casual greeting 'hey there' - already identified No movie, should call send_notification",
+            "prompt": AGENTIC_MOVIE_AGENT_PROMPT + 
+            (
+                "\n\nHere is the conversation history:\n['USER: hey there']\n\n"
+                "FUNCTION RESULTS: ["
+                "{'function_name': 'identify_movie_request', 'result': {'success': False, 'movie_name': 'No movie identified', 'confidence': 'none'}}, "
+                "]\n"
+            ),
+            "expected_success": True,
+            "expected_has_function_calls": True,
+            "expected_function_name": "send_notification",
+        }
+        ]
 
 # Validation Rules
 VALIDATION_RULES = {
