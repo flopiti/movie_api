@@ -340,7 +340,6 @@ class AgenticService:
                 Here is the conversation history:
                 {conversation_history}
             """          
-            prompt_tokens = self._count_tokens(agentic_prompt)
 
             # Start conversation with AI
             try:
@@ -373,7 +372,6 @@ class AgenticService:
                 prompt = messages[-1]["content"] + f"""
                 FUNCTION RESULTS: {current_state['function_results']}
                 """
-                message_tokens = self._count_tokens(prompt)
 
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
                 # logger.info(f"🔍 Message content:\n{prompt}")
