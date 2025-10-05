@@ -258,7 +258,6 @@ class OpenAIClient:
                 temperature=0.3,
                 **function_params
             )
-            
             response_message = response.choices[0].message
             
             # Check if the AI wants to call a function

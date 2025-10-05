@@ -51,18 +51,20 @@ class RadarrService:
             
             # Check Radarr status
             radarr_status = self._get_download_monitor().radarr_client.get_movie_status_by_tmdb_id(tmdb_id)
-            logger.info(f"📱 RadarrService: Radarr status: {radarr_status}")
+            logger.info(f"📱 RadarrService: Radarr status (exists_in_radarr): {radarr_status.get('exists_in_radarr')}")
+            logger.info(f"📱 RadarrService: Radarr status (is_downloaded): {radarr_status.get('is_downloaded')}")
+            
+            import json
+            pretty_radarr_status = json.dumps(radarr_status, indent=2, sort_keys=True, default=str)
+            # logger.info(f"📊 RadarrService: Full radarr_status:\n{pretty_radarr_status}")
             
             return {
                 'success': True,
                 'tmdb_id': tmdb_id,
                 'movie_title': movie_data.get('title'),
                 'movie_data': movie_data,  # Include the movie_data in the response
-                'radarr_status': radarr_status,
-                'exists_in_radarr': radarr_status.get('exists_in_radarr', False) if radarr_status else False,
                 'is_downloaded': radarr_status.get('is_downloaded', False) if radarr_status else False,
                 'is_downloading': radarr_status.get('is_downloading', False) if radarr_status else False,
-                'radarr_movie_id': radarr_status.get('radarr_movie_id') if radarr_status else None
             }
             
         except Exception as e:
@@ -121,7 +123,8 @@ class RadarrService:
                     'action': 'download_requested',
                     'movie_title': movie_title,
                     'movie_year': year,
-                    'tmdb_id': tmdb_id
+                    'tmdb_id': tmdb_id,
+                    'radarr_status': {'action': 'download_requested', 'success': True}
                 }
             else:
                 logger.info(f"ℹ️ RadarrService: Download request already exists for {movie_title}")
@@ -130,7 +133,8 @@ class RadarrService:
                     'action': 'already_requested',
                     'movie_title': movie_title,
                     'movie_year': year,
-                    'tmdb_id': tmdb_id
+                    'tmdb_id': tmdb_id,
+                    'radarr_status': {'action': 'already_requested', 'success': True}
                 }
                 
         except Exception as e:
@@ -139,6 +143,7 @@ class RadarrService:
                 'success': False,
                 'action': 'none',
                 'movie_title': movie_data.get('title') if movie_data else 'Unknown',
+                'radarr_status': {'action': 'failed', 'success': False, 'error': str(e)},
                 'error': str(e)
             }
     

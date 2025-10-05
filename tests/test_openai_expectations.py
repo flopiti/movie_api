@@ -276,6 +276,25 @@ TEST_CONFIG = {
     "results_file": "test_results.json"
 }
 
+# Agentic Response Test Cases
+AGENTIC_RESPONSE_TEST_CASES = [
+    {
+        "name": "Greeting - casual 'yo'",
+        "prompt": "USER: yo",
+        "expected_success": True,
+        "expected_has_function_calls": False,
+        "expected_function_name": None,
+        "expected_action": None
+    },
+    {
+    "name": "Simple movie request",
+    "prompt": "USER: Can you get me The Matrix?",
+    "expected_success": True,
+    "expected_has_function_calls": True,
+    "expected_function_name": "movie_agent_function_call",
+    "expected_action": "identify_movie_request"
+}]
+
 # Validation Rules
 VALIDATION_RULES = {
     "movie_detection": {
@@ -301,6 +320,19 @@ VALIDATION_RULES = {
         "cleaned_title_conditions": [
             "len(cleaned_title) > 0",
             "cleaned_title != original_filename"
+        ]
+    },
+    "agentic_response": {
+        "required_fields": ["success", "response", "has_function_calls"],
+        "success_conditions": ["success == true"],
+        "response_conditions": [
+            "len(response) > 0",
+            "response is not None"
+        ],
+        "function_call_conditions": [
+            "has_function_calls matches expected_has_function_calls",
+            "if has_function_calls: tool_calls is not None",
+            "if has_function_calls: function_name matches expected_function_name"
         ]
     }
 }

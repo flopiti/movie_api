@@ -6,10 +6,10 @@ Handles agentic decision making and function calling.
 
 import logging
 import json
+import tiktoken
 from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
-from ..clients.PROMPTS import MOVIE_AGENT_PRIMARY_PURPOSE, MOVIE_AGENT_PROCEDURES, MOVIE_AGENT_AVAILABLE_FUNCTIONS, MOVIE_AGENT_FUNCTION_SCHEMA, MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE
-
+from ..clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
 # Configure logging to ensure we see debug messages
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -20,24 +20,29 @@ class AgenticService:
     
     def __init__(self, openai_client: OpenAIClient):
         self.openai_client = openai_client
-        self.primary_purpose = MOVIE_AGENT_PRIMARY_PURPOSE
-        self.procedures = MOVIE_AGENT_PROCEDURES
-        self.available_functions = MOVIE_AGENT_AVAILABLE_FUNCTIONS
         self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
+
         
-        # Load function summary configuration
-        self.function_summary_config = self._load_function_summary_config()
-    
-    def _load_function_summary_config(self):
-        """Load function summary configuration from JSON file"""
+        # Initialize tokenizer for counting tokens
         try:
-            import os
-            config_path = os.path.join(os.path.dirname(__file__), 'function_summary_config.json')
-            with open(config_path, 'r') as f:
-                return json.load(f)
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-4 tokenizer
         except Exception as e:
-            logger.warning(f"Failed to load function summary config: {e}")
-            return {}
+            logger.warning(f"⚠️ AgenticService: Could not initialize tokenizer: {str(e)}")
+            self.tokenizer = None
+        
+
+    
+    
+    def _count_tokens(self, text: str) -> int:
+        """Count tokens in text using tiktoken"""
+        if self.tokenizer is None:
+            # Fallback: rough estimation (4 characters per token)
+            return len(text) // 4
+        try:
+            return len(self.tokenizer.encode(text))
+        except Exception as e:
+            logger.warning(f"⚠️ AgenticService: Error counting tokens: {str(e)}")
+            return len(text) // 4  # Fallback estimation
     
     def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
         """Extract field value from nested dictionary using dot notation"""
@@ -71,6 +76,7 @@ class AgenticService:
             logger.warning(f"Error extracting field '{field_path}' from result: {str(e)}")
             return 'Unknown'
     
+    
     def _generate_function_summary(self, function_name: str, result: Dict[str, Any]) -> str:
         """Generate concise function summary using configuration"""
         config = self.function_summary_config.get(function_name, self.function_summary_config.get('default', {}))
@@ -93,34 +99,6 @@ class AgenticService:
         except KeyError as e:
             logger.warning(f"Missing field {e} for function {function_name}. Available fields: {list(field_values.keys())}")
             return f"{function_name}: Success" if result.get('success', False) else f"{function_name}: Failed"
-    
-    def _get_concise_parameters(self, function_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate concise parameter logging using configuration"""
-        config = self.function_summary_config.get(function_name, self.function_summary_config.get('default', {}))
-        parameter_fields = config.get('parameter_fields', [])
-        
-        concise = {}
-        for field_config in parameter_fields:
-            if isinstance(field_config, dict):
-                # Handle complex field configuration
-                field_name = field_config.get('field')
-                field_type = field_config.get('type', 'value')
-                field_label = field_config.get('label', field_name)
-                
-                if field_type == 'count':
-                    # Count items in list/array
-                    value = parameters.get(field_name, [])
-                    concise[field_label] = f"{len(value)} {field_label}"
-                else:
-                    # Regular value extraction
-                    value = self._extract_field_value(parameters, field_name)
-                    concise[field_label] = value
-            else:
-                # Handle simple string field names
-                value = self._extract_field_value(parameters, field_config)
-                concise[field_config] = value
-        
-        return concise
     
     def _format_available_data_template(self, template: str, function_results: List[Dict], conversation_context: str, current_function_name: str, iteration_results: List[Dict] = None) -> str:
         """Format available data template by resolving function references"""
@@ -218,24 +196,8 @@ class AgenticService:
         except Exception as e:
             return None
     
-    
-    def _build_agentic_prompt(self, conversation_context=""):
-        """Build the complete agentic prompt using the template from PROMPTS.py"""
-        try:
-            return MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE.format(
-                primary_purpose=self.primary_purpose,
-                procedures=self.procedures,
-                available_functions=self.available_functions,
-                conversation_context=conversation_context
-            )
-        except Exception as e:
-            logger.error(f"❌ AgenticService: Error formatting prompt template: {str(e)}")
-            logger.error(f"❌ AgenticService: Template: {MOVIE_AGENT_COMPLETE_PROMPT_TEMPLATE}")
-            logger.error(f"❌ AgenticService: Primary purpose: {self.primary_purpose}")
-            logger.error(f"❌ AgenticService: Procedures: {self.procedures}")
-            logger.error(f"❌ AgenticService: Available functions: {self.available_functions}")
-            logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
-            raise
+
+
     
     def _extract_clean_response(self, ai_response: str) -> str:
         """Extract clean SMS response from AI output - simplified for structured responses"""
@@ -246,7 +208,7 @@ class AgenticService:
         # Simple cleanup - remove common prefixes
         prefixes_to_remove = [
             r'^SMS RESPONSE:\s*',
-            r'^Response:\s*',
+            r'^Response:\s*p',
             r'^Message:\s*'
         ]
         
@@ -256,7 +218,63 @@ class AgenticService:
         
         return cleaned_response
     
-    def _execute_function_call(self, function_name: str, parameters: dict, services: dict, current_message: str = ""):
+    def _extract_metadata_from_results(self, function_results: List[Dict]) -> Dict[str, Any]:
+        """Extract metadata from function results for tracking purposes"""
+        metadata = {}
+        
+        # Extract TMDB status from check_movie_library_status results
+        for fr in function_results:
+            if fr['function_name'] == 'check_movie_library_status':
+                result = fr['result']
+                if isinstance(result, dict):
+                    metadata['tmdb_status'] = result.get('tmdb_status', 'unknown')
+                break
+        
+        # Extract Radarr status - prioritize request_download over check_radarr_status
+        radarr_status_found = False
+        
+        # First, look for request_download results (higher priority)
+        for fr in function_results:
+            if fr['function_name'] == 'request_download':
+                result = fr['result']
+                if isinstance(result, dict):
+                    radarr_status_obj = result.get('radarr_status', {})
+                    if isinstance(radarr_status_obj, dict):
+                        # Extract meaningful status from the object
+                        action = radarr_status_obj.get('action', 'unknown')
+                        if action == 'download_requested':
+                            metadata['radarr_status'] = 'sent'
+                        elif action == 'already_requested':
+                            metadata['radarr_status'] = 'already_sent'
+                        elif action == 'failed':
+                            metadata['radarr_status'] = 'failed'
+                        else:
+                            metadata['radarr_status'] = action
+                    else:
+                        metadata['radarr_status'] = str(radarr_status_obj)
+                    radarr_status_found = True
+                    break
+        
+        # If no request_download found, look for check_radarr_status
+        if not radarr_status_found:
+            for fr in function_results:
+                if fr['function_name'] == 'check_radarr_status':
+                    result = fr['result']
+                    if isinstance(result, dict):
+                        radarr_status_obj = result.get('radarr_status', {})
+                        if isinstance(radarr_status_obj, dict):
+                            # For check_radarr_status, we want to know if it's downloaded
+                            is_downloaded = radarr_status_obj.get('is_downloaded', False)
+                            metadata['radarr_status'] = 'downloaded' if is_downloaded else 'not_downloaded'
+                        else:
+                            metadata['radarr_status'] = str(radarr_status_obj)
+                        break
+        
+        return metadata
+    
+
+    def _execute_function_call(self, function_name: str, parameters: dict, services: dict):
+
         """Execute a function call based on the function name and parameters"""
         try:
             
@@ -271,9 +289,10 @@ class AgenticService:
                 
             elif function_name == "check_radarr_status":
                 tmdb_id = parameters.get('tmdb_id')
-                movie_data = parameters.get('movie_data')
+                movie_data =  {'title': parameters.get('movie_name')}
+                
                 if not movie_data:
-                    logger.error(f"❌ AgenticService: check_radarr_status called without movie_data! Parameters: {parameters}")
+                    logger.error(f"❌ AgenticService: check_radarr_status called without movie_data!")
                     return {
                         'success': False,
                         'error': 'CRITICAL ERROR: check_radarr_status requires movie_data parameter. You must extract movie_data from the previous check_movie_library_status result.'
@@ -282,9 +301,9 @@ class AgenticService:
                 
             elif function_name == "request_download":
                 movie_data = parameters.get('movie_data')
-                phone_number = parameters.get('phone_number')
-                if not movie_data or not phone_number:
-                    logger.error(f"❌ AgenticService: request_download called with missing parameters! Parameters: {parameters}")
+                phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
+                if not movie_data:
+                    logger.error(f"❌ AgenticService: request_download called with missing parameters!")
                     return {
                         'success': False,
                         'error': 'CRITICAL ERROR: request_download requires BOTH movie_data AND phone_number parameters. You must extract movie_data from previous results and use phone_number from context.'
@@ -292,13 +311,11 @@ class AgenticService:
                 return services['radarr'].request_download(movie_data, phone_number)
                 
             elif function_name == "send_notification":
-                phone_number = parameters.get('phone_number')
-                message_type = parameters.get('message_type')
-                movie_title = parameters.get('movie_title', '')
-                movie_year = parameters.get('movie_year', '')
-                additional_context = parameters.get('additional_context', '')
-                return services['notification'].send_notification(phone_number, message_type, movie_title, movie_year, additional_context)
-                
+                phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
+                message_type = parameters.get('message_type', 'Movie Added')
+                message = parameters.get('message', '')
+                return services['notification'].send_notification(phone_number, message_type, message)
+
             else:
                 logger.error(f"❌ AgenticService: Unknown function name: {function_name}")
                 return {
@@ -316,47 +333,35 @@ class AgenticService:
     def process_agentic_response(self, conversation_history, services: dict):
         """Process agentic response with function calling support"""
         try:
-            # Extract current message (the most recent USER message)
-            # Conversation history is ordered with newest message FIRST
-            current_message = None
-            for message in conversation_history:
-                if message.startswith("USER: "):
-                    current_message = message.replace("USER: ", "")
-                    break  # Take the FIRST USER message (which is the newest)
             
-            if not current_message:
-                return {
-                    'response_message': "I received your message but couldn't process it properly.",
-                    'success': False
-                }
-            
-            # Build conversation context - use the full conversation history
-            conversation_context = f"""
-                CONVERSATION HISTORY:
-                {chr(10).join(conversation_history)}
+            agentic_prompt = f"""
+                Yo so you're a movie agent, and you're here to help the user with their movie requests.
+                You need to choose one function at the time and pass the right parameters to it.
 
-                CURRENT USER MESSAGE: {current_message}
-                
-                IMPORTANT: You must respond in valid JSON format with the word "json" in your response.
-                """
-            
-            # Build agentic prompt
-            try:
-                agentic_prompt = self._build_agentic_prompt(conversation_context)
-                
-            except Exception as e:
-                logger.error(f"❌ AgenticService: Error building agentic prompt: {str(e)}")
-                logger.error(f"❌ AgenticService: Conversation context: {conversation_context}")
-                raise
-            
-            # Log the data being sent to AI for debugging
-            print(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
-            print(f"🔍 Prompt length: {len(agentic_prompt)} characters")
-            print(f"🔍 Prompt content:\n{agentic_prompt}")
-            logger.info(f"🔍 AGENTIC PROMPT BEING SENT TO AI:")
-            logger.info(f"🔍 Prompt length: {len(agentic_prompt)} characters")
-            logger.info(f"🔍 Prompt content:\n{agentic_prompt}")
-            
+                We will pass you the results of all previously executed functions, so you can use them to make your decisions, and follow where we are in the process.
+
+                These are the functions you can call:
+                        1. identify_movie_request
+                        2. check_movie_library_status 
+                        3. check_radarr_status
+                        4. request_download
+                        5. send_notification
+
+                1. You need to figure out if the user is requesting a movie, and if so what movie
+                2. Once you know, you need to check if the movie exists in the TMDB catalog (using check_movie_library_status)
+                3. Once you know, you need to check if the movie exists in the user's Radarr library (using check_radarr_status)
+                4. If the movie is not yet downloaded in radarr, you need to add it to the download queue (using request_download)
+                5. If the movie is already downloaded in radarr, you need to send a notification (using send_notification) 
+                to tell the user that the movie is already downloaded (NEVER MENTION RADARR OR TMDB). Message type should be "movie_already_downloaded".
+
+                IMPORTANT: You must use the function calling mechanism to execute these functions. Do not return JSON responses - use the provided function tools.
+                IMPORTANT: Always refer to movies with the year, like "The movie (2025)".
+
+                Here is the conversation history:
+                {conversation_history}
+            """          
+            prompt_tokens = self._count_tokens(agentic_prompt)
+
             # Start conversation with AI
             try:
                 messages = [{"role": "user", "content": agentic_prompt}]
@@ -368,146 +373,118 @@ class AgenticService:
                 logger.error(f"❌ AgenticService: Agentic prompt: {agentic_prompt}")
                 raise
             
+            current_state = {}
+            
+            
+            print("conversation_history line 350")
+            print(conversation_history)
+
+            # Add conversation history to current_state
+            current_state['conversation_history'] = conversation_history
+            current_state['function_results'] = []
+
+            
             while iteration < max_iterations:
                 iteration += 1
                 
                 # Clear iteration logging
                 logger.info(f"🔄 ===== STARTING ITERATION {iteration}/{max_iterations} =====")
-                logger.info(f"🔄 AgenticService: Beginning iteration {iteration} of agentic processing")
                 
-                # Log the message being sent to AI
-                current_message_content = messages[-1]["content"]
-                print(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                print(f"🔍 Message length: {len(current_message_content)} characters")
-                print(f"🔍 Message content:\n{current_message_content}")
+                prompt = messages[-1]["content"] + f"""
+                FUNCTION RESULTS: {current_state['function_results']}
+                """
+                message_tokens = self._count_tokens(prompt)
+
                 logger.info(f"🔍 ITERATION {iteration} - MESSAGE TO AI:")
-                logger.info(f"🔍 Message length: {len(current_message_content)} characters")
-                logger.info(f"🔍 Message content:\n{current_message_content}")
+                # logger.info(f"🔍 Message content:\n{prompt}")
                 
                 # Generate agentic response with function calling
                 response = self.openai_client.generate_agentic_response(
-                    prompt=current_message_content,
-                    functions=[self.function_schema]
+                    prompt=prompt,
+                    functions=self.function_schema
                 )
 
-    
-                
                 if not response.get('success'):
                     logger.error(f"❌ AgenticService: OpenAI response failed: {response.get('error')}")
                     break
                 
-                print("response line 354")
-                print(response.get('response'))
-                
-                # Add AI response to conversation
-                messages.append({"role": "assistant", "content": response.get('response', '')})
-                
-                # Process function calls if any
-                if response.get('has_function_calls') and response.get('tool_calls'):
-                    
-                    # Execute all function calls in this iteration
-                    iteration_results = []
-                    for i, tool_call in enumerate(response['tool_calls'], 1):
-                        try:
-                            # Parse function call arguments
-                            function_args = tool_call.function.arguments
-                            parsed_args = json.loads(function_args)
-                            
-                            function_name = parsed_args.get('function_name')
-                            parameters = parsed_args.get('parameters', {})
-                            
-                            
-                            # Log concise parameters instead of full data
-                            concise_params = self._get_concise_parameters(function_name, parameters)
-                            
-                            
-                            # Execute the function
-                            result = self._execute_function_call(function_name, parameters, services, current_message)
-                            
-                            
-                            iteration_results.append({
-                                'function_name': function_name,
-                                'result': result
-                            })
-                            
-                            
-                        except Exception as e:
-                            logger.error(f"❌ AgenticService: Function Call #{i} Error: {str(e)}")
-                            iteration_results.append({
-                                'function_name': 'unknown',
-                                'result': {'success': False, 'error': str(e)}
-                            })
-                    
-                    # Add function results to conversation for next iteration
-                    function_summary = f"Function execution results:\n"
-                    for fr in iteration_results:
-                        function_name = fr['function_name']
-                        result = fr['result']
-                        
-                        # Generate concise summary using configuration
-                        try:
-                            summary = self._generate_function_summary(function_name, result)
-                            function_summary += f"- {function_name}: {summary}\n"
-                        except Exception as e:
-                            logger.error(f"❌ AgenticService: Error generating summary for {function_name}: {str(e)}")
-                            logger.error(f"❌ AgenticService: Result type: {type(result)}, Result: {result}")
-                            function_summary += f"- {function_name}: Error generating summary\n"
-                    
-                    # Add available data for parameter passing using configuration
-                    for fr in iteration_results:
-                        function_name = fr['function_name']
-                        result = fr['result']
-                        config = self.function_summary_config.get(function_name, {})
-                        
-                        if config.get('available_data_template'):
-                            # Parse template to extract function references and format data
+
+
+                try:
+                    # Process function calls if any
+                    if response.get('has_function_calls') and response.get('tool_calls'):
+                        # Execute all function calls in this iteration
+                        for i, tool_call in enumerate(response['tool_calls'], 1):
                             try:
-                                template = config['available_data_template']
-                                available_data = self._format_available_data_template(template, function_results, conversation_context, function_name, iteration_results)
-                                if available_data:
-                                    function_summary += f"\nAVAILABLE DATA: {available_data}\n"
-                            except Exception as e:
-                                logger.error(f"❌ AgenticService: Error formatting available data for {function_name}: {str(e)}")
-                                logger.error(f"❌ AgenticService: Template: {config.get('available_data_template')}")
-                                logger.error(f"❌ AgenticService: Result: {result}")
-                            
-                    
-                    # Log the function summary being sent to AI
-                    print(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
-                    logger.info(f"🔍 FUNCTION SUMMARY SENT TO AI:\n{function_summary}")
-                    
-                    messages.append({"role": "user", "content": function_summary})
-                    function_results.extend(iteration_results)
-                    
-                    # Continue to next iteration to let AI decide what to do next
-                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} =====")
-                    logger.info(f"🔄 AgenticService: Iteration {iteration} completed, continuing to next iteration")
-                    continue
-                else:
-                    # No more function calls - AI is done
-                    logger.info(f"🔄 ===== COMPLETED ITERATION {iteration} (FINAL) =====")
-                    logger.info(f"🔄 AgenticService: Iteration {iteration} completed - no more function calls, ending agentic processing")
-                    break
-            
-            # Log if we hit max iterations
-            if iteration >= max_iterations:
-                logger.warning(f"⚠️ AgenticService: Reached maximum iterations ({max_iterations}), ending agentic processing")
+                                # Parse function call arguments
+                                function_args = tool_call.function.arguments
+                                function_name = tool_call.function.name
+                                
+                                try:
+                                    parsed_args = json.loads(function_args)
+                                except Exception as parse_exc:
+                                    logger.error(f"❌ AgenticService: Failed to parse function_args JSON: {function_args}")
+                                    logger.error(f"❌ AgenticService: JSON parse error: {parse_exc}")
+                                    raise
+
+                                # Validate that we have the required function name and arguments
+                                if not function_name:
+                                    logger.error("❌ AgenticService: No function name found in tool_call")
+                                    raise ValueError("No function name found in tool_call")
+                                
+                                if not isinstance(parsed_args, dict):
+                                    logger.error(f"❌ AgenticService: Function arguments should be a dict, got: {type(parsed_args)}")
+                                    raise ValueError(f"Function arguments should be a dict, got: {type(parsed_args)}")
+                                # Merge function call arguments with current state
+                                parameters = current_state.copy()
+                                parameters.update(parsed_args)
+                                
+                                logger.info(f"\n\nAbout to execute function:  {function_name}")
+
+                                # Execute the function
+                                result = self._execute_function_call(function_name, parameters, services)
+                                if isinstance(result, dict):
+                                    current_state.update(result)
+                                current_state['function_results'].append({'function_name': function_name, 'result': result})
+                            except Exception as fn_exc:
+                                logger.error(f"❌ AgenticService: Error executing function call: {fn_exc}")
+                                current_state['function_results'].append({
+                                    'function_name': function_name if 'function_name' in locals() else 'Unknown',
+                                    'result': {
+                                        'success': False,
+                                        'error': str(fn_exc)
+                                    }
+                                })
+                    else:
+                        # No tool calls - this shouldn't happen if the AI is following instructions properly
+                        logger.warning("⚠️ AgenticService: No function calls made by AI, but functions were expected")
+                                
+                except Exception as e:
+                    logger.error(f"❌ AgenticService: Error in agentic response processing: {e}")
+                    # Provide a fallback response in the current_state
+                    current_state['function_results'].append({
+                        'function_name': 'agentic_response_processing',
+                        'result': {
+                            'success': False,
+                            'error': f"AgenticService: Error in agentic response processing: {e}"
+                        }
+                    })
             
             # Generate final response based on all function results
-            if function_results:
+            if current_state['function_results']:
                 # Check if any critical functions failed
-                has_failures = any(not fr['result'].get('success', False) for fr in function_results)
+                has_failures = any(not fr['result'].get('success', False) for fr in current_state['function_results'])
                 
                 # Extract movie name if identified
                 movie_name = None
-                for fr in function_results:
+                for fr in current_state['function_results']:
                     if fr['function_name'] == 'identify_movie_request' and fr['result'].get('movie_name') != 'No movie identified':
                         movie_name = fr['result'].get('movie_name')
                         break
                 
                 # Check if a notification was already sent
                 notification_sent = False
-                for fr in function_results:
+                for fr in current_state['function_results']:
                     if fr['function_name'] == 'send_notification' and fr['result'].get('success'):
                         notification_sent = True
                         break
@@ -516,15 +493,14 @@ class AgenticService:
                     # Notification was already sent, no need for additional SMS response
                     return {
                         'response_message': '',  # Empty response since notification was sent
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
                         'success': True
                     }
                 
                 final_context = f"""
                 FUNCTION EXECUTION RESULTS:
-                {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in function_results])}
+                {chr(10).join([f"- {fr['function_name']}: {fr['result']}" for fr in current_state['function_results']])}
 
-                ORIGINAL USER MESSAGE: {current_message}
                 MOVIE IDENTIFIED: {movie_name if movie_name else 'None'}
                 
                 CRITICAL RESPONSE REQUIREMENTS:
@@ -543,17 +519,25 @@ class AgenticService:
                 if final_response.get('success'):
                     # Use the structured SMS message directly
                     print("final_response line 484")
-                    print(final_response)
+                    print(json.dumps(final_response, indent=2, sort_keys=True, default=str))
                     sms_message = final_response.get('sms_message', '')
+                    
+                    # Extract metadata from function results
+                    metadata = self._extract_metadata_from_results(current_state['function_results'])
+                    
                     return {
                         'response_message': sms_message,
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
+                        'metadata': metadata,
                         'success': not has_failures  # Only success if no failures occurred
                     }
                 else:
+                    # Extract metadata even for failed responses
+                    metadata = self._extract_metadata_from_results(current_state['function_results'])
                     return {
                         'response_message': "I processed your request but couldn't generate a proper response.",
-                        'function_results': function_results,
+                        'function_results': current_state['function_results'],
+                        'metadata': metadata,
                         'success': False
                     }
             else:
@@ -561,7 +545,7 @@ class AgenticService:
                 
                 # Use structured response to ensure clean SMS output
                 structured_response = self.openai_client.generate_structured_sms_response(
-                    prompt=f"{services['sms_response_prompt']}\n\nUser message: {current_message}"
+                    prompt=f"{services['sms_response_prompt']}"
                 )
                 print("structured_response line 505 ")
                 print(structured_response)
@@ -573,6 +557,7 @@ class AgenticService:
                     return {
                         'response_message': sms_message,
                         'function_results': [],
+                        'metadata': {},  # No function results, so empty metadata
                         'success': True
                     }
                 else:
@@ -580,6 +565,7 @@ class AgenticService:
                     return {
                         'response_message': "Hey! What's up? How can I help you today?",
                         'function_results': [],
+                        'metadata': {},  # No function results, so empty metadata
                         'success': True
                     }
                 
@@ -587,6 +573,7 @@ class AgenticService:
             logger.error(f"❌ AgenticService: Error in agentic response processing: {str(e)}")
             return {
                 'response_message': "I received your message but encountered an error processing it.",
+                'metadata': {},  # Empty metadata for error case
                 'success': False,
                 'error': str(e)
             }

@@ -624,7 +624,7 @@ class Config:
         try:
             from clients.radarr_client import RadarrClient
             radarr_url = self.data.get('radarr_url', 'http://192.168.0.10:7878')
-            radarr_api_key = self.data.get('radarr_api_key', '')
+            radarr_api_key = self.data.get('radarr_api_key', '5a71ac347fb845da90e2284762335a1a')
             
             if not radarr_api_key:
                 return None

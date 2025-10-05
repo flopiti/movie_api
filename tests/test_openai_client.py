@@ -22,6 +22,7 @@ from test_openai_expectations import (
     MOVIE_DETECTION_TEST_CASES,
     SMS_RESPONSE_TEST_CASES,
     FILENAME_CLEANING_TEST_CASES,
+    AGENTIC_RESPONSE_TEST_CASES,
     EXPECTED_RESPONSE_PATTERNS,
     VALIDATION_RULES
 )
@@ -240,6 +241,76 @@ def test_filename_cleaning():
     print(f"  📊 Filename Cleaning: {passed}/{total} passed")
     return passed == total
 
+def test_generate_agentic_response():
+    """Test generate_agentic_response functionality."""
+    print("\n🤖 Testing Generate Agentic Response...")
+    
+    if not OPENAI_API_KEY:
+        print("❌ OpenAI API key not configured")
+        return False
+    
+    client = OpenAIClient(OPENAI_API_KEY)
+    test_cases = AGENTIC_RESPONSE_TEST_CASES
+    passed = 0
+    total = len(test_cases)
+    
+    # Import the function schema for testing
+    from clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
+    
+
+    print("test_cases line 261")
+    print(test_cases)
+
+    for test_case in test_cases:
+        try:
+            result = client.generate_agentic_response(
+                prompt=test_case['prompt'],
+                functions=[MOVIE_AGENT_FUNCTION_SCHEMA]
+            )
+            print("result line 270")
+            print(result)
+            if result.get('success'):
+                # Check basic success conditions
+                success_match = result.get('success') == test_case['expected_success']
+                has_function_calls_match = result.get('has_function_calls') == test_case['expected_has_function_calls']
+                
+                if success_match and has_function_calls_match:
+                    # If function calls are expected, validate them
+                    if test_case['expected_has_function_calls']:
+                        tool_calls = result.get('tool_calls')
+                        if tool_calls and len(tool_calls) > 0:
+                            tool_call = tool_calls[0]
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments)
+                            
+                            # Check function name and action
+                            if (function_name == test_case['expected_function_name'] and 
+                                function_args.get('function_name') == test_case['expected_action']):
+                                print(f"  ✅ {test_case['name']}")
+                                passed += 1
+                            else:
+                                print(f"  ❌ {test_case['name']}: Function name/action mismatch. Expected '{test_case['expected_function_name']}'/'{test_case['expected_action']}', got '{function_name}'/'{function_args.get('function_name')}'")
+                        else:
+                            print(f"  ❌ {test_case['name']}: Expected function calls but got none")
+                    else:
+                        # No function calls expected, just check response exists
+                        response = result.get('response', '')
+                        if response:
+                            print(f"  ✅ {test_case['name']}")
+                            passed += 1
+                        else:
+                            print(f"  ❌ {test_case['name']}: No response generated")
+                else:
+                    print(f"  ❌ {test_case['name']}: Success/function_calls mismatch. Expected success={test_case['expected_success']}, has_function_calls={test_case['expected_has_function_calls']}")
+            else:
+                print(f"  ❌ {test_case['name']}: {result.get('error', 'Unknown error')}")
+                
+        except Exception as e:
+            print(f"  ❌ {test_case['name']}: {str(e)}")
+    
+    print(f"  📊 Agentic Response: {passed}/{total} passed")
+    return passed == total
+
 def main():
     """Run OpenAI client tests with command line options."""
     parser = argparse.ArgumentParser(description='Test OpenAI Client functionality')
@@ -249,6 +320,8 @@ def main():
                        help='Run only SMS response tests')
     parser.add_argument('--filename-only', action='store_true', 
                        help='Run only filename cleaning tests')
+    parser.add_argument('--agentic-only', action='store_true', 
+                       help='Run only agentic response tests')
     
     args = parser.parse_args()
     
@@ -261,21 +334,23 @@ def main():
         return
     
     # Determine which tests to run
-    run_movie = args.movie_only or (not args.sms_only and not args.filename_only)
-    run_sms = args.sms_only or (not args.movie_only and not args.filename_only)
-    run_filename = args.filename_only or (not args.movie_only and not args.sms_only)
+    run_movie = args.movie_only or (not args.sms_only and not args.filename_only and not args.agentic_only)
+    run_sms = args.sms_only or (not args.movie_only and not args.filename_only and not args.agentic_only)
+    run_filename = args.filename_only or (not args.movie_only and not args.sms_only and not args.agentic_only)
+    run_agentic = args.agentic_only or (not args.movie_only and not args.sms_only and not args.filename_only)
     
     # Run selected tests
     movie_result = test_movie_detection() if run_movie else None
     sms_result = test_sms_response_generation() if run_sms else None
     filename_result = test_filename_cleaning() if run_filename else None
+    agentic_result = test_generate_agentic_response() if run_agentic else None
     
     # Final summary
     print("\n" + "=" * 50)
     print("📊 FINAL SUMMARY")
     print("=" * 50)
     
-    results = [r for r in [movie_result, sms_result, filename_result] if r is not None]
+    results = [r for r in [movie_result, sms_result, filename_result, agentic_result] if r is not None]
     total_tests = len(results)
     passed_tests = sum(results)
     
@@ -285,6 +360,8 @@ def main():
         print(f"SMS Response:   {'✅ PASS' if sms_result else '❌ FAIL'}")
     if run_filename:
         print(f"Filename Clean: {'✅ PASS' if filename_result else '❌ FAIL'}")
+    if run_agentic:
+        print(f"Agentic Response: {'✅ PASS' if agentic_result else '❌ FAIL'}")
     
     print(f"\nOverall: {passed_tests}/{total_tests} test suites passed")
     

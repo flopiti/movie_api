@@ -45,7 +45,7 @@ class PlexAgent:
             self.download_monitor = get_download_monitor()
         return self.download_monitor
     
-    def _process_agentic_response(self, conversation_history):
+    def _process_agentic_response(self, conversation_history, phone_number=None):
         """Process agentic response with function calling support"""
         # Prepare services dictionary for the agentic service
         services = {
@@ -53,7 +53,8 @@ class PlexAgent:
             'movie_library': self.movie_library_service,
             'radarr': self.radarr_service,
             'notification': self.notification_service,
-            'sms_response_prompt': self.sms_response_prompt
+            'sms_response_prompt': self.sms_response_prompt,
+            'phone_number': phone_number
         }
         
         return self.agentic_service.process_agentic_response(conversation_history, services)
@@ -64,6 +65,9 @@ class PlexAgent:
     
     def identify_movie_request(self, conversation_history):
         """Delegate to movie identification service"""
+
+
+        print('conversation_history line 69')
         return self.movie_identification_service.identify_movie_request(conversation_history)
     
     def check_movie_library_status(self, movie_name):
@@ -78,9 +82,9 @@ class PlexAgent:
         """Delegate to radarr service"""
         return self.radarr_service.request_download(movie_data, phone_number)
     
-    def send_notification(self, phone_number, message_type, movie_data, additional_context=""):
+    def send_notification(self, phone_number, message_type,  message):
         """Delegate to notification service"""
-        return self.notification_service.send_notification(phone_number, message_type, movie_data, additional_context)
+        return self.notification_service.send_notification(phone_number, message_type, message)
     
     def get_movie(self, movie_result):
         """
@@ -108,7 +112,7 @@ class PlexAgent:
         return self.radarr_service.request_movie_download(movie_data, phone_number)
     
     
-    def AnswerAgentic(self, conversation_history):
+    def AnswerAgentic(self, conversation_history, phone_number=None):
         """
         Agentic Answer method using OpenAI function calling for dynamic decision making
         """
@@ -121,7 +125,7 @@ class PlexAgent:
             }
         
         # Use the new agentic processing method
-        result = self._process_agentic_response(conversation_history)
+        result = self._process_agentic_response(conversation_history, phone_number)
         
         return result
     
@@ -272,7 +276,7 @@ class PlexAgent:
             ]
             
             # Use agentic system to generate and send notification
-            result = self._process_agentic_response(conversation_history)
+            result = self._process_agentic_response(conversation_history, request.phone_number)
             
             if result.get('success'):
                 logger.info(f"📱 PlexAgent: Sent {status_type} notification via agentic system")

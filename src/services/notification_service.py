@@ -17,7 +17,7 @@ class NotificationService:
     def __init__(self):
         self.twilio_client = TwilioClient()
     
-    def send_notification(self, phone_number, message_type, movie_title="", movie_year="", additional_context=""):
+    def send_notification(self, phone_number, message_type, message):
         """
         Agentic function: Send SMS notification to user
         Returns delivery status and message sent
@@ -33,21 +33,18 @@ class NotificationService:
             
             # The agent should provide the message content via additional_context
             # This service just sends the message, it doesn't generate it
-            if not additional_context:
+            if not message:
                 logger.error(f"❌ NotificationService: No message content provided for {message_type}")
                 return {
                     'success': False,
                     'message_type': message_type,
                     'error': 'No message content provided - agent must provide message content'
                 }
-            
-            message = additional_context
-            
+                        
             # Send the SMS notification
             result = self.twilio_client.send_sms(phone_number, message)
             
             if result.get('success'):
-                logger.info(f"📱 NotificationService: Sent {message_type} notification to {phone_number}: {message}")
                 # Store outgoing SMS in Redis conversation
                 self._store_outgoing_sms(phone_number, message, message_type)
                 return {
@@ -55,8 +52,6 @@ class NotificationService:
                     'message_type': message_type,
                     'message_sent': message,
                     'phone_number': phone_number,
-                    'movie_title': movie_title,
-                    'year': year
                 }
             else:
                 logger.error(f"❌ NotificationService: Failed to send {message_type} notification: {result.get('error')}")
@@ -96,10 +91,6 @@ class NotificationService:
             }
             
             success = redis_client.store_sms_message(message_data)
-            if success:
-                logger.info(f"📱 NotificationService: Stored outgoing SMS in Redis conversation")
-            else:
-                logger.error(f"❌ NotificationService: Failed to store outgoing SMS in Redis")
             
             return success
             

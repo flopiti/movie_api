@@ -6,10 +6,16 @@ Handles SMS messaging functionality for the movie management system.
 
 import os
 import json
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
+
+# Disable Twilio's verbose logging
+logging.getLogger('twilio').setLevel(logging.WARNING)
+logging.getLogger('twilio.http_client').setLevel(logging.WARNING)
+logging.getLogger('twilio.rest').setLevel(logging.WARNING)
 
 class TwilioClient:
     def __init__(self):
