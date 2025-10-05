@@ -6,7 +6,6 @@ Handles agentic decision making and function calling.
 
 import logging
 import json
-import tiktoken
 from typing import Dict, Any, List
 from ..clients.openai_client import OpenAIClient
 from ..clients.PROMPTS import MOVIE_AGENT_FUNCTION_SCHEMA
@@ -23,27 +22,8 @@ class AgenticService:
         self.function_schema = MOVIE_AGENT_FUNCTION_SCHEMA
 
         
-        # Initialize tokenizer for counting tokens
-        try:
-            self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-4 tokenizer
-        except Exception as e:
-            logger.warning(f"⚠️ AgenticService: Could not initialize tokenizer: {str(e)}")
-            self.tokenizer = None
-        
 
-    
-    
-    def _count_tokens(self, text: str) -> int:
-        """Count tokens in text using tiktoken"""
-        if self.tokenizer is None:
-            # Fallback: rough estimation (4 characters per token)
-            return len(text) // 4
-        try:
-            return len(self.tokenizer.encode(text))
-        except Exception as e:
-            logger.warning(f"⚠️ AgenticService: Error counting tokens: {str(e)}")
-            return len(text) // 4  # Fallback estimation
-    
+
     def _extract_field_value(self, result: Dict[str, Any], field_path: str) -> Any:
         """Extract field value from nested dictionary using dot notation"""
         try:
