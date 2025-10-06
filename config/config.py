@@ -748,24 +748,33 @@ class Config:
             plex_client = PlexClient()
             plex_movies = plex_client.get_all_movies()
 
-            # Create normalized title sets for comparison
-            radarr_titles = set()
-            plex_titles = set()
+            # Helper function to extract TMDB ID from Plex GUID
+            def extract_tmdb_id_from_plex_guid(guid):
+                """Extract TMDB ID from Plex GUID format: tmdb://tmdb/movie/12345"""
+                if guid and guid.startswith('tmdb://tmdb/movie/'):
+                    try:
+                        return int(guid.split('/')[-1])
+                    except (ValueError, IndexError):
+                        return None
+                return None
+            
+            # Create TMDB ID sets for comparison (more reliable than title matching)
+            radarr_tmdb_ids = set()
+            plex_tmdb_ids = set()
             
             # Process Radarr movies
             radarr_movie_data = []
             for movie in radarr_movies:
                 title = movie.get('title', '')
                 year = movie.get('year', '')
-                if title:
-                    # Create normalized title with year
-                    normalized_title = f"{title.lower().strip()} ({year})" if year else title.lower().strip()
-                    radarr_titles.add(normalized_title)
+                tmdb_id = movie.get('tmdbId')
+                if title and tmdb_id:
+                    radarr_tmdb_ids.add(tmdb_id)
                     radarr_movie_data.append({
                         'id': movie.get('id'),
                         'title': title,
                         'year': year,
-                        'normalized_title': normalized_title,
+                        'tmdbId': tmdb_id,
                         'hasFile': movie.get('hasFile', False),
                         'monitored': movie.get('monitored', False),
                         'status': movie.get('status', ''),
@@ -779,30 +788,31 @@ class Config:
             for movie in plex_movies:
                 title = movie.get('title', '')
                 year = movie.get('year', '')
-                if title:
-                    # Create normalized title with year
-                    normalized_title = f"{title.lower().strip()} ({year})" if year else title.lower().strip()
-                    plex_titles.add(normalized_title)
+                guid = movie.get('guid', '')
+                tmdb_id = extract_tmdb_id_from_plex_guid(guid)
+                if title and tmdb_id:
+                    plex_tmdb_ids.add(tmdb_id)
                     plex_movie_data.append({
                         'id': movie.get('id'),
                         'title': title,
                         'year': year,
-                        'normalized_title': normalized_title,
+                        'tmdbId': tmdb_id,
+                        'guid': guid,
                         'library': movie.get('library', ''),
                         'addedAt': movie.get('addedAt', ''),
                         'updatedAt': movie.get('updatedAt', '')
                     })
             
-            # Find movies in Radarr but not in Plex
+            # Find movies in Radarr but not in Plex (using TMDB ID matching)
             movies_in_radarr_not_in_plex = []
             for radarr_movie in radarr_movie_data:
-                if radarr_movie['normalized_title'] not in plex_titles:
+                if radarr_movie['tmdbId'] not in plex_tmdb_ids:
                     movies_in_radarr_not_in_plex.append(radarr_movie)
             
-            # Find movies in Plex but not in Radarr
+            # Find movies in Plex but not in Radarr (using TMDB ID matching)
             movies_in_plex_not_in_radarr = []
             for plex_movie in plex_movie_data:
-                if plex_movie['normalized_title'] not in radarr_titles:
+                if plex_movie['tmdbId'] not in radarr_tmdb_ids:
                     movies_in_plex_not_in_radarr.append(plex_movie)
             
             # Create comparison summary
@@ -811,7 +821,7 @@ class Config:
                 'total_plex_movies': len(plex_movie_data),
                 'movies_in_radarr_not_in_plex_count': len(movies_in_radarr_not_in_plex),
                 'movies_in_plex_not_in_radarr_count': len(movies_in_plex_not_in_radarr),
-                'common_movies_count': len(radarr_titles.intersection(plex_titles)),
+                'common_movies_count': len(radarr_tmdb_ids.intersection(plex_tmdb_ids)),
                 'radarr_monitored_count': len([m for m in radarr_movie_data if m.get('monitored', False)]),
                 'radarr_with_files_count': len([m for m in radarr_movie_data if m.get('hasFile', False)])
             }
