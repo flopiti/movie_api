@@ -260,6 +260,8 @@ MOVIE_AGENT_FUNCTION_SCHEMA = [{
                 "type": "object",
                 "properties": {
                     "movie_title": {"type": "string", "description": "The title of the movie"},
+                    "year": {"type": "string", "description": "The year of the movie"},
+                    "tmdb_id": {"type": "string", "description": "The TMDB ID of the movie"},
                 }
             },
             "required": ["movie_title"]

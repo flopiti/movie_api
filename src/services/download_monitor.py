@@ -29,7 +29,6 @@ class DownloadRequest:
     tmdb_id: int
     movie_title: str
     movie_year: str
-    phone_number: str
     requested_at: datetime
     radarr_movie_id: Optional[int] = None
     status: str = "requested"  # requested, added_to_radarr, queued, downloading, completed, failed
@@ -78,7 +77,7 @@ class DownloadMonitor:
             self.radarr_client = None
             logger.error(f"❌ Download Monitor: Radarr client initialization failed: {str(e)}")
     
-    def add_download_request(self, tmdb_id: int, movie_title: str, movie_year: str, phone_number: str) -> bool:
+    def add_download_request(self, tmdb_id: int, movie_title: str, movie_year: str) -> bool:
         """
         Add a new download request
         
@@ -86,7 +85,6 @@ class DownloadMonitor:
             tmdb_id: TMDB movie ID
             movie_title: Movie title
             movie_year: Movie year
-            phone_number: Phone number to notify
             
         Returns:
             True if request was added successfully AND movie was added to Radarr, False otherwise
@@ -103,7 +101,6 @@ class DownloadMonitor:
                 tmdb_id=tmdb_id,
                 movie_title=movie_title,
                 movie_year=movie_year,
-                phone_number=phone_number,
                 requested_at=datetime.now()
             )
             
@@ -113,7 +110,7 @@ class DownloadMonitor:
             # Store in Redis for persistence
             self._store_download_request(request)
             
-            logger.info(f"📱 Download Monitor: Added download request for {movie_title} ({movie_year}) from {phone_number}")
+            logger.info(f"📱 Download Monitor: Added download request for {movie_title} ({movie_year})")
             
             # Try to add movie to Radarr immediately and wait for result
             self._process_download_request(request)
