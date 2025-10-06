@@ -101,8 +101,6 @@ class AgenticServiceTestRunner:
         
         conversation_history = ["USER: hey there"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
-        print("result line 105")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
         function_results = result.get('function_results', [])
         
         # Check: exactly 2 functions, identify_movie_request then send_notification
@@ -122,8 +120,7 @@ class AgenticServiceTestRunner:
         
         conversation_history = ["USER: yoyo"]
         result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
-        print("result line 105")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+
         function_results = result.get('function_results', [])
         
         # Check: exactly 2 functions, identify_movie_request then send_notification
@@ -221,6 +218,31 @@ class AgenticServiceTestRunner:
             'validation_errors': validation_errors
         }
     
+
+    def test_adding_new_movie(self):
+        """Test AgenticService with adding a new movie"""
+        
+        conversation_history = ['USER: do you have the accountant', 'SYSTEM: ', 'SYSTEM: Hey there! What movie are you looking for?', 'USER: yo']
+        result = self.agentic_service.process_agentic_response(conversation_history, self._create_services_dict())
+        
+        print("result line 229")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        function_results = result.get('function_results', [])
+        
+        # Check: exactly 2 functions, identify_movie_request then send_notification
+        success = (len(function_results) == 5 and
+                  function_results[0]['result'].get('success', True) and
+                  function_results[0]['function_name'] == 'identify_movie_request' and
+                  function_results[1]['function_name'] == 'check_movie_library_status' and
+                  function_results[2]['function_name'] == 'check_radarr_status' and
+                  function_results[3]['function_name'] == 'request_download' and
+                  function_results[4]['function_name'] == 'send_notification')
+        
+        return {
+            'agent_response': result.get('response_message', ''),
+            'success': success
+        }
+
     def run_all_tests(self):
         """Run all tests"""
         print("🎬 Starting AgenticService Tests...")
@@ -239,6 +261,11 @@ class AgenticServiceTestRunner:
         result2 = self.test_jumanji_download_request()
         
         print("\n" + "=" * 60)
+        print("TEST 3: Adding a new movie")
+        print("=" * 60)
+        result3 = self.test_adding_new_movie()
+        
+        print("\n" + "=" * 60)
         print("✅ ALL TESTS COMPLETED!")
         print("=" * 60)
         
@@ -252,9 +279,15 @@ class AgenticServiceTestRunner:
         else:
             print("❌ Test 2: The agent needs improvement for Jumanji download request.")
         
+        if result3.get('success'):
+            print("✅ Test 3: The agent correctly adds a new movie!")
+        else:
+            print("❌ Test 3: The agent needs improvement for adding a new movie.")
+        
         return {
             'casual_conversation': result1,
-            'jumanji_download': result2
+            'jumanji_download': result2,    
+            'adding_new_movie': result3
         }
 
 def main():
@@ -262,7 +295,7 @@ def main():
     parser = argparse.ArgumentParser(description='Test AgenticService functionality')
     parser.add_argument('--casual-only', action='store_true', help='Run only casual conversation test')
     parser.add_argument('--jumanji-only', action='store_true', help='Run only Jumanji download test')
-    
+    parser.add_argument('--new-movie-only', action='store_true', help='Run only adding a new movie test')    
     args = parser.parse_args()
     
     # Create test runner
@@ -282,6 +315,13 @@ def main():
         print("🎬 Running ONLY Jumanji Download Test")
         print("=" * 60)
         result = test_runner.test_jumanji_download_request()
+        print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
+        
+
+    elif args.new_movie_only:
+        print("🎬 Running ONLY Adding a New Movie Test")
+        print("=" * 60)
+        result = test_runner.test_adding_new_movie()
         print(f"\n✅ Test completed: {'SUCCESS' if result.get('success') else 'FAILURE'}")
         
     else:

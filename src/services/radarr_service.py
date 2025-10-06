@@ -76,13 +76,13 @@ class RadarrService:
                 'error': str(e)
             }
     
-    def request_download(self, movie_data, phone_number):
+    def request_download(self, movie_title, year, tmdb_id):
         """
         Agentic function: Add movie to download queue in Radarr
         Returns success/failure status and action taken
         """
         try:
-            if not movie_data or not phone_number:
+            if not movie_title or not year or not tmdb_id:
                 logger.warning(f"⚠️ RadarrService: Missing movie data or phone number for download request")
                 return {
                     'success': False,
@@ -90,13 +90,7 @@ class RadarrService:
                     'error': 'Missing movie data or phone number'
                 }
             
-            # Extract movie details
-            release_date = movie_data.get('release_date', '')
-            year = release_date.split('-')[0] if release_date else 'Unknown year'
-            tmdb_id = movie_data.get('id')
-            movie_title = movie_data.get('title')
-            
-            logger.info(f"📱 RadarrService: Processing download request for {movie_title} ({year}) from {phone_number}")
+            logger.info(f"📱 RadarrService: Processing download request for {movie_title} ({year})")
             
             # Check if Radarr is configured first
             if not self._get_download_monitor().is_radarr_configured():
@@ -113,7 +107,6 @@ class RadarrService:
                 tmdb_id=tmdb_id,
                 movie_title=movie_title,
                 movie_year=year,
-                phone_number=phone_number
             )
             
             if success:
@@ -141,46 +134,41 @@ class RadarrService:
             logger.error(f"❌ RadarrService: Error requesting download: {str(e)}")
             return {
                 'success': False,
-                'action': 'none',
-                'movie_title': movie_data.get('title') if movie_data else 'Unknown',
+                'action': 'none',   
+                'movie_title': movie_title,
                 'radarr_status': {'action': 'failed', 'success': False, 'error': str(e)},
                 'error': str(e)
             }
     
-    def request_movie_download(self, movie_data, phone_number):
+    def request_movie_download(self, movie_title, year, tmdb_id):
         """
         Service method to handle Radarr download requests.
         Returns binary success/failure status.
         """
-        if not movie_data or not phone_number:
+        if not movie_title or not year or not tmdb_id:
             logger.warning(f"⚠️ RadarrService: Missing movie data or phone number for download request")
             return False
         
-        # Extract year from release_date (format: YYYY-MM-DD)
-        release_date = movie_data.get('release_date', '')
-        year = release_date.split('-')[0] if release_date else 'Unknown year'
-        tmdb_id = movie_data.get('id')
-        
-        logger.info(f"📱 RadarrService: Adding download request for {movie_data.get('title')} ({year}) from {phone_number}")
+
+        logger.info(f"📱 RadarrService: Adding download request for {movie_title} ({year})")
         
         # Check if Radarr is configured first
         if not self._get_download_monitor().is_radarr_configured():
-            logger.warning(f"⚠️ RadarrService: Radarr not configured - cannot process download request for {movie_data.get('title')}")
+            logger.warning(f"⚠️ RadarrService: Radarr not configured - cannot process download request for {movie_title}")
             return False
         
         # Add download request to the monitor
-        logger.info(f"📱 RadarrService: Calling download_monitor.add_download_request for {movie_data.get('title')}")
+        logger.info(f"📱 RadarrService: Calling download_monitor.add_download_request for {movie_title}")
         success = self._get_download_monitor().add_download_request(
             tmdb_id=tmdb_id,
-            movie_title=movie_data.get('title'),
+            movie_title=movie_title,
             movie_year=year,
-            phone_number=phone_number
         )
         logger.info(f"📱 RadarrService: download_monitor.add_download_request returned: {success}")
         
         if success:
-            logger.info(f"✅ RadarrService: Download request added successfully for {movie_data.get('title')}")
+            logger.info(f"✅ RadarrService: Download request added successfully for {movie_title}")
         else:
-            logger.info(f"ℹ️ RadarrService: Download request already exists for {movie_data.get('title')}")
+            logger.info(f"ℹ️ RadarrService: Download request already exists for {movie_title}")
         
         return success

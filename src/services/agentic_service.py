@@ -280,15 +280,16 @@ class AgenticService:
                 return services['radarr'].check_radarr_status(tmdb_id, movie_data)
                 
             elif function_name == "request_download":
-                movie_data = parameters.get('movie_data')
-                phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
-                if not movie_data:
+                movie_title = parameters.get('movie_title')
+                year = parameters.get('year')
+                tmdb_id = parameters.get('tmdb_id')
+                if not movie_title or not year or not tmdb_id:
                     logger.error(f"❌ AgenticService: request_download called with missing parameters!")
                     return {
                         'success': False,
                         'error': 'CRITICAL ERROR: request_download requires BOTH movie_data AND phone_number parameters. You must extract movie_data from previous results and use phone_number from context.'
                     }
-                return services['radarr'].request_download(movie_data, phone_number)
+                return services['radarr'].request_download(movie_title, year, tmdb_id)
                 
             elif function_name == "send_notification":
                 phone_number = services.get('phone_number', '4384109395')  # Get from services, default for testing
