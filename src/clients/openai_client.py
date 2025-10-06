@@ -251,6 +251,7 @@ class OpenAIClient:
             if response_format == "json":
                 function_params["response_format"] = {"type": "json_object"}
             
+
             response = self.client.chat.completions.create(
                 model=OPENAI_MODELS['agentic'],  # Use GPT-4 for better function calling
                 messages=messages,
