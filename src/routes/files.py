@@ -334,6 +334,121 @@ def move_to_folder():
         pass
         return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
 
+@files_bp.route('/move-file', methods=['POST'])
+def move_file():
+    """Move a download file to the appropriate movie path."""
+    data = request.get_json()
+    
+    if not data or 'file_path' not in data or 'movie' not in data:
+        return jsonify({'error': 'file_path and movie are required'}), 400
+    
+    file_path = data['file_path'].strip()
+    movie_data = data['movie']
+    
+    if not file_path:
+        return jsonify({'error': 'file_path cannot be empty'}), 400
+    
+    try:
+        source_file = Path(file_path)
+        
+        # Validate source file exists
+        if not source_file.exists():
+            return jsonify({'error': 'Source file does not exist'}), 404
+        
+        # Get movie paths to determine destination
+        movie_paths = config.get_movie_paths()
+        if not movie_paths:
+            return jsonify({'error': 'No movie paths configured'}), 400
+        
+        # Choose the best destination path
+        # Strategy: Use the path with the most available space, or first path if space info unavailable
+        destination_path = None
+        max_available_space = 0
+        
+        print(f"Checking {len(movie_paths)} movie paths for available space:")
+        
+        for i, path in enumerate(movie_paths):
+            try:
+                # Get available space for this path
+                statvfs = os.statvfs(path)
+                available_space = statvfs.f_frsize * statvfs.f_bavail
+                available_gb = available_space / (1024**3)
+                
+                print(f"  Path {i+1}: {path}")
+                print(f"    Available space: {available_gb:.2f} GB")
+                
+                if available_space > max_available_space:
+                    max_available_space = available_space
+                    destination_path = Path(path)
+                    print(f"    ✓ New best choice!")
+                else:
+                    print(f"    (not selected)")
+                    
+            except (OSError, PermissionError) as e:
+                print(f"  Path {i+1}: {path}")
+                print(f"    Error checking space: {e}")
+                # If we can't get space info, just use the first path
+                if destination_path is None:
+                    destination_path = Path(path)
+                    print(f"    ✓ Using as fallback choice")
+        
+        # Fallback to first path if no path was selected
+        if destination_path is None:
+            destination_path = Path(movie_paths[0])
+            print(f"Using fallback: {destination_path}")
+        
+        # Log final decision
+        final_space_gb = max_available_space / (1024**3)
+        print(f"Final choice: {destination_path}")
+        print(f"Final available space: {final_space_gb:.2f} GB")
+        
+        # Generate destination folder name from movie data
+        movie_title = movie_data.get('title', 'Unknown_Movie')
+        release_date = movie_data.get('release_date', '')
+        
+        # Clean title and add year if available
+        import re
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '', movie_title.replace(' ', '_'))
+        if release_date:
+            year = release_date.split('-')[0]
+            folder_name = f"{clean_title}_{year}"
+        else:
+            folder_name = clean_title
+        
+        # Create destination folder
+        destination_folder = destination_path / folder_name
+        destination_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Create destination file path
+        destination_file = destination_folder / source_file.name
+        
+        # Check if destination already exists
+        if destination_file.exists():
+            return jsonify({'error': 'Destination file already exists'}), 409
+        
+        # Move the file
+        shutil.move(str(source_file), str(destination_file))
+        
+        # Update movie assignment to new path
+        movie_assignments = config.get_movie_assignments()
+        if file_path in movie_assignments:
+            # Remove old assignment
+            config.remove_movie_assignment(file_path)
+        
+        # Add new assignment
+        config.assign_movie_to_file(str(destination_file), movie_data)
+        
+        return jsonify({
+            'message': 'File moved successfully',
+            'old_path': file_path,
+            'new_path': str(destination_file),
+            'destination_folder': str(destination_folder),
+            'movie_title': movie_title
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
+
 @files_bp.route('/duplicates', methods=['GET'])
 def find_duplicates():
     """Find files that are assigned to the same movie."""
