@@ -45,13 +45,13 @@ def add_movie_file_path():
         return jsonify({
             'message': 'Path added successfully',
             'path': path,
-            'movie_file_paths': config.get_movie_paths()
+            'movie_file_paths': config.get_movie_paths() or []
         }), 201
     else:
         return jsonify({
             'message': 'Path already exists',
             'path': path,
-            'movie_file_paths': config.get_movie_paths()
+            'movie_file_paths': config.get_movie_paths() or []
         }), 200
 
 @paths_bp.route('/movie-file-paths', methods=['DELETE'])
@@ -70,13 +70,13 @@ def remove_movie_file_path():
         return jsonify({
             'message': 'Path removed successfully',
             'path': path,
-            'movie_file_paths': config.get_movie_paths()
+            'movie_file_paths': config.get_movie_paths() or []
         }), 200
     else:
         return jsonify({
             'error': 'Path not found',
             'path': path,
-            'movie_file_paths': config.get_movie_paths()
+            'movie_file_paths': config.get_movie_paths() or []
         }), 404
 
 @paths_bp.route('/media-paths', methods=['GET'])

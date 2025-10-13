@@ -20,7 +20,7 @@ files_bp = Blueprint('files', __name__)
 def get_all_files():
     """Get all media files from all configured movie paths."""
     all_files = []
-    paths = config.get_movie_paths()
+    paths = config.get_movie_paths() or []
     
     if not paths:
         return jsonify({
@@ -235,7 +235,7 @@ def delete_file():
 def find_orphaned_files():
     """Find files that are directly in movie paths and need to be moved to folders."""
     try:
-        movie_paths = config.get_movie_paths()
+        movie_paths = config.get_movie_paths() or []
         orphaned_files = []
         
         for movie_path in movie_paths:
@@ -365,7 +365,7 @@ def move_file():
             return jsonify({'error': 'Source file does not exist'}), 404
 
         # Get movie paths to determine destination
-        movie_paths = config.get_movie_paths()
+        movie_paths = config.get_movie_paths() or []
         logger.info(f"Configured movie paths: {movie_paths}")
         if not movie_paths:
             logger.error("No movie paths configured")

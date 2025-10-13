@@ -18,7 +18,7 @@ def health_check():
     """Health check endpoint."""
     return jsonify({
         'status': 'healthy',
-        'movie_paths_count': len(config.get_movie_paths()),
+        'movie_paths_count': len(config.get_movie_paths() or []),
         'tmdb_configured': bool(TMDB_API_KEY),
         'openai_configured': bool(OPENAI_API_KEY),
         'redis_configured': bool(redis_client),
