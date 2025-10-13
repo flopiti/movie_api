@@ -16,9 +16,10 @@ paths_bp = Blueprint('paths', __name__)
 @paths_bp.route('/movie-file-paths', methods=['GET'])
 def get_movie_file_paths():
     """Get all configured movie file paths."""
+    movie_paths = config.get_movie_paths() or []
     return jsonify({
-        'movie_file_paths': config.get_movie_paths(),
-        'count': len(config.get_movie_paths())
+        'movie_file_paths': movie_paths,
+        'count': len(movie_paths)
     })
 
 @paths_bp.route('/movie-file-paths', methods=['PUT'])
@@ -81,9 +82,10 @@ def remove_movie_file_path():
 @paths_bp.route('/media-paths', methods=['GET'])
 def get_media_paths():
     """Get all configured media paths with space information."""
+    media_paths = config.get_media_paths() or []
     return jsonify({
-        'media_paths': config.get_media_paths(),
-        'count': len(config.get_media_paths())
+        'media_paths': media_paths,
+        'count': len(media_paths)
     })
 
 @paths_bp.route('/media-paths', methods=['PUT'])
@@ -177,9 +179,10 @@ def refresh_media_paths_space():
 @paths_bp.route('/download-paths', methods=['GET'])
 def get_download_paths():
     """Get all configured download paths."""
+    download_paths = config.get_download_paths() or []
     return jsonify({
-        'download_paths': config.get_download_paths(),
-        'count': len(config.get_download_paths())
+        'download_paths': download_paths,
+        'count': len(download_paths)
     })
 
 @paths_bp.route('/download-paths', methods=['PUT'])
