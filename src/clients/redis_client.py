@@ -32,48 +32,50 @@ class RedisClient:
         pass
     
     def _init_redis(self):
-        """Initialize Redis connection with connection pooling."""
-        try:
-            redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
-            redis_port = int(os.getenv('REDIS_PORT', 6379))
-            redis_db = int(os.getenv('REDIS_DB', 0))
-            
-            # Check Redis version and use appropriate connection method
-            redis_version = redis.__version__
-            logger.info(f"🔧 Redis Python client version: {redis_version}")
-            
-            # For Redis client 4.0+ use connection_pool_kwargs
-            if hasattr(redis, '__version__') and redis.__version__ >= '4.0.0':
+        """Initialize Redis connection with connection pooling and retry logic."""
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
+        redis_port = int(os.getenv('REDIS_PORT', 6379))
+        redis_db = int(os.getenv('REDIS_DB', 0))
+        
+        # Check Redis version
+        redis_version = redis.__version__
+        logger.info(f"🔧 Redis Python client version: {redis_version}")
+        logger.info(f"🔧 Attempting Redis connection to {redis_host}:{redis_port} (DB: {redis_db})")
+        
+        # Try multiple connection attempts with different hosts
+        hosts_to_try = [redis_host]
+        if redis_host != 'localhost':
+            hosts_to_try.append('localhost')
+        if redis_host != '127.0.0.1':
+            hosts_to_try.append('127.0.0.1')
+        
+        for attempt_host in hosts_to_try:
+            try:
+                logger.info(f"🔧 Trying Redis connection to {attempt_host}:{redis_port}")
+                
+                # Use basic connection method that works with all versions
                 self._client = redis.Redis(
-                    host=redis_host, 
+                    host=attempt_host, 
                     port=redis_port, 
                     db=redis_db, 
                     decode_responses=True,
-                    connection_pool_kwargs={
-                        'max_connections': 20,
-                        'retry_on_timeout': True,
-                        'socket_keepalive': True,
-                        'socket_keepalive_options': {}
-                    }
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    retry_on_timeout=True
                 )
-                logger.info("✅ Redis Client: Connection established with pooling (v4.0+)")
-            else:
-                # For older Redis client versions, use basic connection
-                self._client = redis.Redis(
-                    host=redis_host, 
-                    port=redis_port, 
-                    db=redis_db, 
-                    decode_responses=True,
-                    max_connections=20,
-                    retry_on_timeout=True,
-                    socket_keepalive=True
-                )
-                logger.info("✅ Redis Client: Connection established (legacy version)")
-            
-            self._client.ping()  # Test connection
-        except Exception as e:
-            self._client = None
-            logger.error(f"❌ Redis Client: Connection failed: {str(e)}")
+                self._client.ping()  # Test connection
+                logger.info(f"✅ Redis Client: Connection established to {attempt_host}:{redis_port}")
+                return  # Success, exit the method
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Redis Client: Connection failed to {attempt_host}:{redis_port} - {str(e)}")
+                self._client = None
+                continue
+        
+        # If we get here, all connection attempts failed
+        self._client = None
+        logger.error("❌ Redis Client: All connection attempts failed")
+        logger.error("❌ Redis Client: Falling back to local JSON storage")
     
     def is_available(self) -> bool:
         """Check if Redis is available."""

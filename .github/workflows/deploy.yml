@@ -32,7 +32,7 @@ jobs:
           docker pull ${{ secrets.DOCKER_USERNAME }}/movie-api:latest
           docker stop movie-api || true
           docker rm movie-api || true
-          docker run -d --name movie-api  --network host\
+          docker run -d --name movie-api --network host\
             -v /mnt:/mnt \
             -v /mnt/external/seagate/movies:/mnt/external/movies \
             -v /mnt/movie-config:/mnt/movie-config \
@@ -41,7 +41,7 @@ jobs:
             -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
             -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
             -e TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }} \
-            -e REDIS_HOST=172.17.0.1 \
+            -e REDIS_HOST=localhost \
             -e REDIS_PORT=6379 \
             -e REDIS_DB=0 \
             ${{ secrets.DOCKER_USERNAME }}/movie-api:latest

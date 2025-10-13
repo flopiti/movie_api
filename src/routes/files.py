@@ -252,6 +252,21 @@ def find_orphaned_files():
         
         movie_paths = config.get_movie_paths() or []
         logger.info(f"📁 Found {len(movie_paths)} movie paths configured")
+        logger.info(f"📁 Movie paths details: {movie_paths}")
+        
+        # Let's also check what's in Redis directly
+        if config.use_redis:
+            try:
+                redis_data = config._get_redis_data()
+                redis_movie_paths = redis_data.get("movie_file_paths", [])
+                logger.info(f"🔍 Redis movie_file_paths: {redis_movie_paths}")
+                logger.info(f"🔍 Redis data keys: {list(redis_data.keys())}")
+            except Exception as redis_debug_error:
+                logger.error(f"❌ Error checking Redis data: {str(redis_debug_error)}")
+        
+        # Check local fallback data
+        local_movie_paths = config.data.get("movie_file_paths", [])
+        logger.info(f"🔍 Local fallback movie_file_paths: {local_movie_paths}")
         
         orphaned_files = []
         

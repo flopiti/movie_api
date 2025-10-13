@@ -19,7 +19,7 @@ TMDB_API_KEY = os.getenv('TMDB_API_KEY', '')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
 # Redis Configuration
-REDIS_HOST = os.getenv('REDIS_HOST', '172.17.0.1')  # Default to Docker bridge IP
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')  # Default to localhost for better compatibility
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
@@ -122,8 +122,7 @@ class Config:
             try:
                 data = self._get_redis_data()
                 movie_paths = data.get("movie_file_paths", [])
-                if movie_paths:
-                    return movie_paths
+                return movie_paths  # Always return the list, even if empty
             except Exception as e:
                 fallback_paths = self.data.get("movie_file_paths", [])
                 return fallback_paths
@@ -441,8 +440,7 @@ class Config:
                 data = self._get_redis_data()
                 if data:
                     download_paths = data.get("download_paths", [])
-                    if download_paths:
-                        return download_paths
+                    return download_paths  # Always return the list, even if empty
                 else:
                     fallback_paths = self.data.get("download_paths", [])
                     return fallback_paths
