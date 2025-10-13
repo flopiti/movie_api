@@ -32,15 +32,27 @@ class RedisClient:
         pass
     
     def _init_redis(self):
-        """Initialize Redis connection."""
+        """Initialize Redis connection with connection pooling."""
         try:
             redis_host = os.getenv('REDIS_HOST', '172.17.0.1')
             redis_port = int(os.getenv('REDIS_PORT', 6379))
             redis_db = int(os.getenv('REDIS_DB', 0))
             
-            self._client = redis.Redis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
+            # Use connection pooling for better performance
+            self._client = redis.Redis(
+                host=redis_host, 
+                port=redis_port, 
+                db=redis_db, 
+                decode_responses=True,
+                connection_pool_kwargs={
+                    'max_connections': 20,
+                    'retry_on_timeout': True,
+                    'socket_keepalive': True,
+                    'socket_keepalive_options': {}
+                }
+            )
             self._client.ping()  # Test connection
-            logger.info("✅ Redis Client: Connection established")
+            logger.info("✅ Redis Client: Connection established with pooling")
         except Exception as e:
             self._client = None
             logger.error(f"❌ Redis Client: Connection failed: {str(e)}")

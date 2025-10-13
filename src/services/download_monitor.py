@@ -45,7 +45,7 @@ class DownloadMonitor:
         self.twilio_client = TwilioClient()
         self.running = False
         self.monitor_thread = None
-        self.check_interval = 30  # Check every 30 seconds
+        self.check_interval = 300  # Check every 5 minutes (reduced from 30 seconds)
         
         # Initialize Redis client
         self.redis_client = RedisClient()

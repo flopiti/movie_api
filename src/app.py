@@ -58,12 +58,16 @@ app.register_blueprint(plex_bp)
 app.register_blueprint(sms_bp)
 app.register_blueprint(system_bp)
 
-# Start the plex agent monitoring service automatically
-try:
-    plex_agent.start_monitoring()
-    logging.info("📱 PlexAgent: Download monitoring service started successfully")
-except Exception as e:
-    logging.error(f"❌ PlexAgent: Failed to start monitoring service: {str(e)}")
+# Start the plex agent monitoring service automatically (if enabled)
+enable_monitoring = os.getenv('ENABLE_MONITORING', 'true').lower() == 'true'
+if enable_monitoring:
+    try:
+        plex_agent.start_monitoring()
+        logging.info("📱 PlexAgent: Download monitoring service started successfully")
+    except Exception as e:
+        logging.error(f"❌ PlexAgent: Failed to start monitoring service: {str(e)}")
+else:
+    logging.info("📱 PlexAgent: Download monitoring service disabled (ENABLE_MONITORING=false)")
 
 # Error handlers
 @app.errorhandler(404)
@@ -77,4 +81,4 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)

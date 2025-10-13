@@ -37,7 +37,7 @@ class PlexAgent:
         # Download monitoring
         self.monitoring = False
         self.monitor_thread = None
-        self.check_interval = 30  # Check every 30 seconds
+        self.check_interval = 300  # Check every 5 minutes (reduced from 30 seconds)
     
     def _get_download_monitor(self):
         """Get download monitor instance, creating it if needed"""
