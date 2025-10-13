@@ -234,38 +234,78 @@ def delete_file():
 @files_bp.route('/orphaned-files', methods=['GET'])
 def find_orphaned_files():
     """Find files that are directly in movie paths and need to be moved to folders."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info("🔍 Starting orphaned files search...")
+        
+        # Test Redis connection first
+        logger.info(f"🔧 Redis connection status: {config.use_redis}")
+        if config.use_redis:
+            try:
+                # Try to get a simple value to test Redis
+                test_data = config._get_redis_data()
+                logger.info("✅ Redis connection successful")
+            except Exception as redis_error:
+                logger.error(f"❌ Redis connection failed: {str(redis_error)}")
+        
         movie_paths = config.get_movie_paths() or []
+        logger.info(f"📁 Found {len(movie_paths)} movie paths configured")
+        
         orphaned_files = []
         
         for movie_path in movie_paths:
+            logger.info(f"🔍 Checking movie path: {movie_path}")
             if os.path.exists(movie_path):
-                # Get all files directly in this path (not in subdirectories)
-                for item in os.listdir(movie_path):
-                    item_path = os.path.join(movie_path, item)
-                    if os.path.isfile(item_path) and FileDiscovery.is_media_file(Path(item_path)):
-                        # Check if this file has a movie assignment
-                        movie_assignments = config.get_movie_assignments()
-                        movie_data = movie_assignments.get(item_path)
-                        
-                        orphaned_files.append({
-                            'path': item_path,
-                            'name': item,
-                            'directory': movie_path,
-                            'size': os.path.getsize(item_path),
-                            'modified': int(os.path.getmtime(item_path)),
-                            'movie_assigned': bool(movie_data),
-                            'movie_title': movie_data.get('title', 'Unknown') if movie_data else None,
-                            'movie_id': movie_data.get('id') if movie_data else None
-                        })
+                logger.info(f"✅ Path exists, scanning for files...")
+                try:
+                    # Get all files directly in this path (not in subdirectories)
+                    items = os.listdir(movie_path)
+                    logger.info(f"📄 Found {len(items)} items in path")
+                    
+                    for item in items:
+                        item_path = os.path.join(movie_path, item)
+                        if os.path.isfile(item_path) and FileDiscovery.is_media_file(Path(item_path)):
+                            logger.info(f"🎬 Found media file: {item}")
+                            
+                            # Check if this file has a movie assignment
+                            try:
+                                movie_assignments = config.get_movie_assignments()
+                                logger.info(f"📋 Retrieved {len(movie_assignments)} movie assignments")
+                                movie_data = movie_assignments.get(item_path)
+                                
+                                orphaned_files.append({
+                                    'path': item_path,
+                                    'name': item,
+                                    'directory': movie_path,
+                                    'size': os.path.getsize(item_path),
+                                    'modified': int(os.path.getmtime(item_path)),
+                                    'movie_assigned': bool(movie_data),
+                                    'movie_title': movie_data.get('title', 'Unknown') if movie_data else None,
+                                    'movie_id': movie_data.get('id') if movie_data else None
+                                })
+                                logger.info(f"✅ Added orphaned file: {item}")
+                            except Exception as assignment_error:
+                                logger.error(f"❌ Error getting movie assignments: {str(assignment_error)}")
+                                raise
+                except Exception as path_error:
+                    logger.error(f"❌ Error scanning path {movie_path}: {str(path_error)}")
+                    raise
+            else:
+                logger.warning(f"⚠️ Path does not exist: {movie_path}")
 
+        logger.info(f"✅ Orphaned files search completed. Found {len(orphaned_files)} orphaned files")
         return jsonify({
             'orphaned_files': orphaned_files,
             'total_orphaned_files': len(orphaned_files)
         }), 200
         
     except Exception as e:
-        pass
+        logger.error(f"❌ Failed to find orphaned files: {str(e)}")
+        logger.error(f"❌ Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to find orphaned files: {str(e)}'}), 500
 
 @files_bp.route('/move-to-folder', methods=['POST'])

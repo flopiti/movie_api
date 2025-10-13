@@ -38,21 +38,39 @@ class RedisClient:
             redis_port = int(os.getenv('REDIS_PORT', 6379))
             redis_db = int(os.getenv('REDIS_DB', 0))
             
-            # Use connection pooling for better performance
-            self._client = redis.Redis(
-                host=redis_host, 
-                port=redis_port, 
-                db=redis_db, 
-                decode_responses=True,
-                connection_pool_kwargs={
-                    'max_connections': 20,
-                    'retry_on_timeout': True,
-                    'socket_keepalive': True,
-                    'socket_keepalive_options': {}
-                }
-            )
+            # Check Redis version and use appropriate connection method
+            redis_version = redis.__version__
+            logger.info(f"🔧 Redis Python client version: {redis_version}")
+            
+            # For Redis client 4.0+ use connection_pool_kwargs
+            if hasattr(redis, '__version__') and redis.__version__ >= '4.0.0':
+                self._client = redis.Redis(
+                    host=redis_host, 
+                    port=redis_port, 
+                    db=redis_db, 
+                    decode_responses=True,
+                    connection_pool_kwargs={
+                        'max_connections': 20,
+                        'retry_on_timeout': True,
+                        'socket_keepalive': True,
+                        'socket_keepalive_options': {}
+                    }
+                )
+                logger.info("✅ Redis Client: Connection established with pooling (v4.0+)")
+            else:
+                # For older Redis client versions, use basic connection
+                self._client = redis.Redis(
+                    host=redis_host, 
+                    port=redis_port, 
+                    db=redis_db, 
+                    decode_responses=True,
+                    max_connections=20,
+                    retry_on_timeout=True,
+                    socket_keepalive=True
+                )
+                logger.info("✅ Redis Client: Connection established (legacy version)")
+            
             self._client.ping()  # Test connection
-            logger.info("✅ Redis Client: Connection established with pooling")
         except Exception as e:
             self._client = None
             logger.error(f"❌ Redis Client: Connection failed: {str(e)}")
